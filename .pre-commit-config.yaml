@@ -54,6 +54,7 @@ repos:
           - pydantic[email]
           - pydantic-settings
           - polars
+          - duckdb
           - pytest
           - pytest-asyncio
           - sqlalchemy

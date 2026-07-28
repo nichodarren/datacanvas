@@ -7,7 +7,7 @@ only the local backend can give them one.
 **Nothing outside ``app.storage`` and ``app.authz`` may import this module.**
 It is the layer that turns a location into bytes, so importing it is equivalent
 to bypassing authorization. That rule is enforced by
-``tests/unit/test_storage_boundaries.py`` rather than by memory (§13.3.1 L3).
+``tests/unit/test_authz_boundaries.py`` rather than by memory (§13.3.1 L3).
 
 Methods are synchronous. Filesystem and S3 calls block, and pretending
 otherwise by wrapping every one of them in a coroutine buys nothing; callers on

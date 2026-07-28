@@ -77,6 +77,28 @@ class LogicalType(StrEnum):
 
 
 @unique
+class SourceFormat(StrEnum):
+    """Upload formats the MVP accepts (FR-B.1).
+
+    A closed vocabulary rather than a MIME string, because **D-027 decides the
+    format by parsing the file, not by reading its label**. A value here means
+    "this parsed as X", which is a fact; a MIME type means "something claimed
+    X", which is not.
+    """
+
+    CSV = "csv"
+    TSV = "tsv"
+    PARQUET = "parquet"
+    XLSX = "xlsx"
+    JSON = "json"
+
+    @property
+    def is_delimited_text(self) -> bool:
+        """True when the file needs a dialect before it can be read at all."""
+        return self in {SourceFormat.CSV, SourceFormat.TSV}
+
+
+@unique
 class ColumnRole(StrEnum):
     """Semantic role of a column (FR-C.5)."""
 
@@ -107,5 +129,6 @@ __all__ = [
     "PrivacyMode",
     "Role",
     "RouteClass",
+    "SourceFormat",
     "UserStatus",
 ]

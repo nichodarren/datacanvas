@@ -91,6 +91,13 @@ exclude = ["frontend/", "eval/datasets/"]
 module = ["tests.*", "eval.*"]
 disallow_untyped_defs = false
 
+# pyarrow ships no py.typed marker. Only tests import it directly — to read back
+# Parquet metadata and assert what D-026's pinned write options put there — so
+# the untyped surface is one assertion wide.
+[[tool.mypy.overrides]]
+module = ["pyarrow.*"]
+ignore_missing_imports = true
+
 # -------------------------------------------------------------- pytest ------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
