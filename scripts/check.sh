@@ -40,6 +40,21 @@ step "Lint & format"
 step "Type check (mypy strict)"
 "$PY" -m mypy backend eval tests
 
+step "Type check lintas platform"
+# mypy memeriksa kode dari sudut pandang platform tempat ia berjalan. Kode yang
+# lulus di Windows karena `asyncio.ProactorEventLoop` ada di sana akan gagal di
+# Linux, di mana simbol itu tidak ada — dan sebaliknya. Persis itu yang terjadi:
+# run CI pertama project ini menemukannya, sementara seluruh pemeriksaan lokal
+# hijau. Menjalankan sudut pandang yang berlawanan di sini memindahkan temuannya
+# ke laptop, tempat memperbaikinya makan detik, bukan menunggu antrean runner.
+if [ "$(uname -s 2>/dev/null || echo unknown)" = "Linux" ]; then
+    OTHER_PLATFORM="win32"
+else
+    OTHER_PLATFORM="linux"
+fi
+printf '   --platform %s\n' "$OTHER_PLATFORM"
+"$PY" -m mypy --platform "$OTHER_PLATFORM" backend eval tests
+
 step "Tests"
 # DATACANVAS_REQUIRE_DB mengubah "database tidak ada" dari skip menjadi gagal.
 # Tanpa itu seluruh test isolasi tenant penopang Gerbang 1 bisa melewatkan

@@ -35,6 +35,13 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv sync --group dev
       - run: uv run mypy backend eval tests
+      # Runner ini Linux, sementara pengembangan berlangsung di Windows. mypy
+      # memeriksa kode dari sudut pandang platformnya sendiri, jadi tanpa
+      # langkah ini setiap simbol khusus Windows lolos di sini dan setiap simbol
+      # khusus Linux lolos di laptop. Arahnya harus diperiksa dua-duanya, di
+      # kedua tempat — `scripts/check.sh` melakukan hal yang sama secara lokal.
+      - name: Sudut pandang Windows
+        run: uv run mypy --platform win32 backend eval tests
 
   test:
     name: Tests
