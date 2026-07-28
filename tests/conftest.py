@@ -18,9 +18,16 @@ import pytest
 import pytest_asyncio
 from alembic import command
 from alembic.config import Config
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
+from app.api.app import create_app
+from app.auth.passwords import PasswordHasher
+from app.config import Settings
+from app.repositories.connection import Database
+from app.repositories.tables import metadata
 from app.runtime import selector_event_loop
+from app.storage.object_store import FilesystemObjectStore
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -108,6 +115,76 @@ async def engine(migrated_database_url: str) -> AsyncIterator[AsyncEngine]:
     created = create_async_engine(_async_url(migrated_database_url))
     yield created
     await created.dispose()
+
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def database(migrated_database_url: str) -> AsyncIterator[Database]:
+    """The application's own Database, pointed at the test schema."""
+    created = Database(migrated_database_url)
+    yield created
+    await created.dispose()
+
+
+@pytest.fixture(scope="session")
+def test_hasher() -> PasswordHasher:
+    """Argon2 with the cost turned down.
+
+    Production parameters cost ~100 ms per hash by design (§13.2). Paying that
+    in every test that logs somebody in buys no extra confidence — the thing
+    under test is the flow, not the KDF's difficulty.
+    """
+    return PasswordHasher(memory_cost=8, time_cost=1, parallelism=1)
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def api(
+    database: Database, test_hasher: PasswordHasher, tmp_path: Path
+) -> AsyncIterator[AsyncClient]:
+    """An HTTP client speaking to the real application.
+
+    The real app, not a rehearsal of it: same routes, same dependencies, same
+    authorization. Only the clock, the password cost and the storage root are
+    swapped, and each of those is an injection point the app already has.
+    """
+    application = create_app(
+        settings=Settings(database_url=_test_database_url(), storage_root=tmp_path),
+        database=database,
+        store=FilesystemObjectStore(tmp_path / "storage"),
+        hasher=test_hasher,
+        # Secure cookies are dropped over the ASGI transport's http:// scheme,
+        # and the failure looks like "login silently does nothing".
+        secure_cookies=False,
+    )
+    # httpx's ASGI transport does not run lifespan, and lifespan is where the
+    # app wires its database and store. Entering it explicitly keeps the test
+    # exercising the same startup path production uses.
+    async with (
+        application.router.lifespan_context(application),
+        AsyncClient(
+            transport=ASGITransport(app=application), base_url="http://testserver"
+        ) as client,
+    ):
+        yield client
+
+
+@pytest_asyncio.fixture(loop_scope="session", autouse=True)
+async def clean_tables(request: pytest.FixtureRequest) -> AsyncIterator[None]:
+    """Empty every table between tests that touch the API.
+
+    TRUNCATE rather than DELETE, because the audit log refuses DELETE (§13.7).
+    That it works here is not a hole: TRUNCATE needs a privilege the
+    application role was never granted, which is what makes the grant a real
+    second line of defence rather than a decoration.
+    """
+    yield
+    if "database" not in request.fixturenames:
+        return
+    database: Database = request.getfixturevalue("database")
+    tables = ", ".join(
+        table.name for table in metadata.sorted_tables if table.name != "organization"
+    )
+    async with database.transaction() as connection:
+        await connection.exec_driver_sql(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE")
 
 
 @pytest_asyncio.fixture(loop_scope="session")

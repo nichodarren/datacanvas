@@ -12,7 +12,9 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.118",
     "uvicorn[standard]>=0.38",
-    "pydantic>=2.11",
+    # [email] brings email-validator: EmailStr is a runtime validator, not just a
+    # type hint, and without the extra it raises at import time.
+    "pydantic[email]>=2.11",
     "pydantic-settings>=2.8",
     "polars>=1.32",
     "duckdb>=1.5",

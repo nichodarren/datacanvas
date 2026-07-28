@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.3.0 |
+| **Versi** | 0.3.1 |
 | **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-020 Accepted; Gerbang 0 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-28 |
 | **Owner** | Nicholas Darren |
@@ -96,6 +96,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.2.2 | 2026-07-28 | **Golden queries diselaraskan dengan D-020 → kembali 🟢 Verified** (v0.3.0, 29 query, **72/72 nilai terverifikasi**). Tier C ditulis ulang menjadi komposisi primitif berantai; **Tier H — Cleaning** ditambahkan. Lampiran B diperbarui. **FR-B.3 diperkuat**: inferensi tipe wajib memindai seluruh file — ditemukan secara empiris saat verifikasi (`legacy_code` 97% numerik membuat inferensi berbasis sampel meledak di tengah file). **Gerbang 0 kini benar-benar terlampaui.** |
 | 0.2.3 | 2026-07-28 | **Penutupan sesi & higiene dokumen.** Dua cacat ditemukan saat menutup: field `Versi` di header masih `0.1.0 — Draft` padahal changelog sudah 15 entri, dan urutan changelog kacau akibat entri baru disisipkan di atas. Keduanya diperbaiki, lalu dicegah berulang lewat **§0.3 aturan 0** (header dan changelog wajib sinkron; changelog menaik). Status dokumen dinaikkan ke 🟢 **Baseline aktif** — pernyataan lama *"belum boleh dijadikan dasar implementasi"* sudah tidak benar sejak D-001…D-020 Accepted. Ditambahkan penunjuk pembagian peran: **DESIGN.md menyimpan keputusan, the project notes menyimpan posisi.** Di sisi repo: `pre-commit` dikeraskan (dua stage terpasang, environment mypy diperbaiki) dan the project notes diperbarui dengan batas scope D-020, bagian "Cara kerja di project ini", serta status Fase 0. |
 | 0.3.0 | 2026-07-28 | **Pembukaan Fase 1 — enam cacat ditemukan saat membaca dokumen dengan niat mengimplementasikannya.** Tiga di antaranya keliru, bukan sekadar kurang jelas. **(1) Entitas `Session` tidak ada di §9.2** padahal §13.2 menuntutnya dan FR-A.2 (pencabutan per-perangkat) mustahil tanpanya — sebuah entitas P0 hilang dari bagian yang dokumen ini sendiri sebut paling mahal diperbaiki belakangan. Ditambahkan, bersama `Membership.created_at/invited_by` dan `Workspace.created_by/is_personal` yang dibutuhkan §13.7. **(2) §13.2 tidak menyebut cara token sesi di-hash**, dan default yang tampak aman justru salah: argon2id ber-salt sehingga tidak bisa di-index, dan biayanya dibayar setiap request. Ditetapkan **SHA-256** beserta alasan kenapa itu bukan inkonsistensi dengan argon2id untuk password. **(3) Test INV-7 seperti dirumuskan §13.3 tidak bisa diimplementasikan** — enumerasi rute tidak memberitahu apa yang diakses rute. Diganti §13.3.1: tiga lapis (manifest rute · penyapuan lintas-tenant ter-generate · penjaga runtime pada `DataHandle`). Ini menyangkut Gerbang 1 secara langsung. **(4) §13.7 "append-only" dan INV-2/INV-3 hanya berupa klaim** — ditegakkan trigger Postgres + grant terbatas, ditetapkan sekarang karena keduanya adalah keputusan migrasi pertama atau tidak sama sekali. **(5)** Ditambahkan **D-021** (SQLAlchemy Core tanpa ORM + psycopg3 async) — lapisan persistensi tidak pernah diputuskan di mana pun. **(6)** §10.3 menulis Python 3.12 sementara seluruh repo memakai 3.13 — drift dokumen, diperbaiki. §20 Fase 1 diperjelas: batas migrasi `0001` dan pengakuan bahwa Gerbang 1 dibuktikan atas baris hasil seeder. Tidak ada perubahan scope (§0.3 aturan 3 tidak terpicu). |
+| 0.3.1 | 2026-07-28 | **§13.7.1 ditambahkan — aturan isi audit log.** Ditemukan saat migrasi 0001 dijalankan sungguhan: begitu `DELETE` pada `audit_event` benar-benar ditolak database, tabrakan antara **append-only (§13.7)** dan **NFR-PRIV.3 (hard delete ≤ 24 jam)** berubah dari teoretis menjadi mendesak — §13.7 memerintahkan mencatat prompt copilot, dan prompt adalah teks bebas yang bisa memuat PII. Aturan baru: `audit_event.metadata` tidak pernah memuat nilai data maupun teks bebas pengguna; untuk copilot yang disimpan adalah **hash prompt** + tool + `computation_id`, sementara kalimat aslinya tetap di `ConversationTurn` yang bisa dihapus. Nama kolom ikut dikecualikan (K1, §13.5.1). Alternatif yang ditolak dicatat. Tidak ada perubahan scope. |
 
 ---
 
@@ -1942,6 +1943,22 @@ Yang dicatat: login/logout/gagal login · pembuatan & penghapusan dataset · per
 Testnya mencoba `UPDATE` dan `DELETE` lewat koneksi aplikasi dan mengharap keduanya gagal.
 
 > **Kenapa ini murah sekarang dan mahal nanti.** Memisahkan role DB aplikasi dari role pemilik skema adalah keputusan yang diambil di migrasi pertama atau tidak sama sekali — melakukannya setelah ada deployment berjalan berarti mengubah kredensial produksi sambil berharap tidak ada yang lupa.
+
+#### 13.7.1 Aturan isi: audit tidak pernah memuat data
+
+Append-only dan **NFR-PRIV.3 (hard delete ≤ 24 jam) saling bertabrakan**, dan tabrakannya bukan teoretis. Daftar di atas memerintahkan mencatat *"pemakaian copilot (prompt + tool yang dipilih)"* — sementara prompt adalah teks bebas. `"kenapa transaksi Budi Santoso 1.250.000?"` adalah PII. Digabung, dua aturan itu berarti PII dapat masuk ke tabel yang **secara struktural tidak bisa dihapus**, sehingga janji penghapusan di §13.4 menjadi tidak benar.
+
+**Aturan yang mengikat:**
+
+> **`audit_event.metadata` tidak pernah memuat nilai data maupun teks bebas dari pengguna.** Yang boleh masuk hanya: identitas (id entitas), nama tool, `computation_id`, ukuran/jumlah, kode kegagalan, dan **hash** dari teks pengguna.
+
+Untuk pemakaian copilot artinya audit menyimpan `sha256(prompt)` + tool yang dipilih + `computation_id` — cukup untuk membuktikan *apa yang terjadi* dan mendeteksi *apakah prompt yang sama diulang*, tanpa menyimpan kalimatnya. **Kalimat aslinya tetap ada di `ConversationTurn`**, yang bukan append-only dan ikut terhapus bersama datasetnya (§13.5.4).
+
+Nama kolom adalah kasus batas yang perlu disebut: ia sudah dianggap sensitif (K1, §13.5.1), jadi nama kolom **tidak** boleh masuk `metadata` — pakai id `SchemaContract` + ordinal.
+
+**Alternatif yang ditolak:** *(a)* mengecualikan satu kolom dari append-only — melemahkan §13.7 demi kenyamanan, dan kolom yang bisa diubah membuat seluruh tabel tidak lagi bisa dipercaya; *(b)* enkripsi per-dataset lalu buang kuncinya saat penghapusan — rapi di atas kertas, tapi manajemen kunci adalah proyek tersendiri yang §13.9 sudah menundanya secara sadar.
+
+*Ditemukan saat mengimplementasi migrasi 0001: begitu `DELETE` pada `audit_event` benar-benar ditolak database, pertanyaan "lalu bagaimana menghapus data pengguna dari sana?" berubah dari teoretis menjadi mendesak.*
 
 ### 13.8 Secrets
 

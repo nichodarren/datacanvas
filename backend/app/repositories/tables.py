@@ -24,6 +24,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql as pg
 
 from app.domain.enums import ColumnRole, LogicalType, PrivacyMode, Role, UserStatus
+from app.domain.ids import OrganizationId
 
 # Explicit constraint names. Without this, Postgres invents them and a future
 # migration that needs to drop one has to look it up in a live database first.
@@ -45,7 +46,7 @@ APP_ROLE = "datacanvas_app"
 #: migration 0001 with this exact id, so registration can attach a workspace to
 #: it without a lookup. The migration hardcodes the literal rather than importing
 #: this constant — migration history must not change when application code does.
-DEFAULT_ORGANIZATION_ID = uuid.UUID("00000000-0000-4000-8000-000000000000")
+DEFAULT_ORGANIZATION_ID = OrganizationId(uuid.UUID("00000000-0000-4000-8000-000000000000"))
 
 UUID = pg.UUID(as_uuid=True)
 TS = sa.TIMESTAMP(timezone=True)

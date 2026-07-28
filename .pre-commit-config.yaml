@@ -51,13 +51,17 @@ repos:
         args: [--strict]
         files: ^(backend|eval|tests|scripts)/
         additional_dependencies:
-          - pydantic
+          - pydantic[email]
           - pydantic-settings
           - polars
           - pytest
           - pytest-asyncio
           - sqlalchemy
           - alembic
+          - fastapi
+          - httpx
+          - loguru
+          - argon2-cffi
 
   - repo: local
     hooks:
