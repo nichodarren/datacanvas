@@ -1,0 +1,18 @@
+# Line endings, pinned.
+#
+# Tanpa file ini, index repo ini sudah campur aduk: sebagian file tersimpan
+# CRLF, sebagian LF, tergantung alat apa yang kebetulan menulisnya. Itu
+# menghasilkan diff palsu dan — lebih buruk — membuat checkout tidak
+# byte-identical antar mesin.
+*               text=auto eol=lf
+
+# Dataset eval membawa SHA-256 yang bersifat kontraktual (golden_queries.md §3)
+# dan diperiksa CI. Konversi EOL apa pun mengubah hash-nya, sehingga build
+# gagal karena alasan yang sama sekali tidak berhubungan dengan datanya.
+# `-text` = jangan pernah sentuh, perlakukan sebagai byte.
+*.csv           -text
+*.parquet       -text
+
+# Skrip shell harus LF meski di-checkout di Windows: CRLF membuatnya gagal
+# dijalankan di Linux dengan pesan yang menyesatkan (`bad interpreter`).
+*.sh            text eol=lf

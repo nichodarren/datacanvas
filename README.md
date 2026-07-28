@@ -100,6 +100,7 @@ python -m app          # http://127.0.0.1:8000
 ## Perintah
 
 ```powershell
+sh scripts/check.sh                           # SEMUA pemeriksaan CI sekaligus
 ruff check . ; ruff format --check .          # lint & format
 mypy backend eval tests                       # type check (strict)
 pytest                                        # test
@@ -117,6 +118,11 @@ build tetap hijau.
 
 > Tanpa Postgres berjalan, `pytest` tetap lulus — test integrasi ter-skip dan
 > alasannya dicetak. Itu nyaman, dan justru itulah kenapa penjaga di atas ada.
+
+⚠️ **CI belum pernah dieksekusi sekali pun** (R-17) — repo belum punya remote, jadi
+seluruh bukti berasal dari satu mesin Windows. `scripts/check.sh` menjalankan
+rangkaian yang sama di runner mana pun. Konsekuensi lain dari tidak adanya remote:
+**tidak ada salinan project di luar laptop ini** (R-16).
 
 ## Gerbang 0 — checklist
 
