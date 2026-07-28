@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --group dev
+      - run: uv run ruff check --output-format=github .
+      - run: uv run ruff format --check .
+
+  typecheck:
+    name: Type check (mypy strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --group dev
+      - run: uv run mypy backend eval tests
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: datacanvas_test
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --group dev
+      - run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/datacanvas_test
+
+  eval-contract:
+    name: Kontrak evaluasi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --group dev
+
+      # Fixture harus reproducible bit-per-bit. Kalau generator diubah tanpa
+      # meng-commit ulang CSV-nya (atau sebaliknya), langkah ini gagal.
+      - name: Fixture messy_sales reproducible
+        run: |
+          sha_before=$(sha256sum eval/datasets/messy_sales.csv | cut -d' ' -f1)
+          uv run python eval/fixtures/build_messy_sales.py
+          sha_after=$(sha256sum eval/datasets/messy_sales.csv | cut -d' ' -f1)
+          if [ "$sha_before" != "$sha_after" ]; then
+            echo "::error::messy_sales.csv tidak reproducible — generator dan file ter-commit tidak sinkron."
+            exit 1
+          fi
+          echo "Fixture reproducible: $sha_after"
+
+      # Nilai harapan golden query harus tetap cocok dengan dataset yang dibundel.
+      # Skrip keluar dengan status non-nol bila ada yang meleset.
+      - name: Verifikasi nilai harapan golden query
+        run: uv run python eval/verify_expected_values.py

@@ -1,0 +1,26 @@
+# Postgres untuk pengembangan lokal (D-011).
+# Alasan memilih Postgres alih-alih SQLite ada di DESIGN.md §10.3 — biaya setup
+# lokal ini adalah trade-off yang diterima secara sadar, dan file ini adalah
+# mitigasinya.
+#
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:17
+    container_name: datacanvas-postgres
+    environment:
+      POSTGRES_USER: datacanvas
+      POSTGRES_PASSWORD: datacanvas
+      POSTGRES_DB: datacanvas
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U datacanvas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

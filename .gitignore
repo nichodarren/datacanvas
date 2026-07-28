@@ -1,0 +1,48 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Node / frontend ---
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# --- Rahasia — TIDAK PERNAH di-commit (NFR-SEC.7) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Data runtime (bukan data eval) ---
+storage/
+*.duckdb
+*.db
+
+# --- Dataset eval SENGAJA di-commit ---
+# Reproducibility menuntut semua orang menguji terhadap byte yang sama persis;
+# SHA-256 tercatat di docs/golden_queries.md §3.
+!eval/datasets/
+!eval/datasets/*.csv
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Layanan eksternal (project baru tidak terikat apa pun — §19.1) ---
+.vercel/
+.fly/

@@ -1,0 +1,99 @@
+[project]
+name = "datacanvas"
+version = "0.0.0"
+description = "Deterministic AI-Assisted Data Analysis Platform"
+requires-python = ">=3.13"
+
+# Dependensi ditambahkan PER FASE, bukan di muka (P9 — small surface).
+# Fase 1 (fondasi & identitas) sudah tercakup di bawah.
+# Fase 2 (ingest)      -> python-magic / python-magic-bin, openpyxl
+# Fase 3 (mesin tool)  -> parser expression language
+# Fase 5 (copilot)     -> SDK provider LLM, sse-starlette
+dependencies = [
+    "fastapi>=0.118",
+    "uvicorn[standard]>=0.38",
+    "pydantic>=2.11",
+    "pydantic-settings>=2.8",
+    "polars>=1.32",
+    "duckdb>=1.5",
+    "pyarrow>=21",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.16",
+    "argon2-cffi>=25.1",
+    "loguru>=0.7",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.13",
+    "mypy>=1.18",
+    "pytest>=8.4",
+    "pytest-cov>=7.0",
+    "pytest-asyncio>=1.2",
+    "httpx>=0.28",
+    "pre-commit>=4.3",
+]
+
+# ---------------------------------------------------------------- ruff -------
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["frontend", "eval/datasets"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "SIM",      # simplify
+    "RUF",
+    "S",        # bandit — keamanan
+    "DTZ",      # datetime tanpa timezone
+    "PTH",      # pakai pathlib
+    "T20",      # tidak ada print() di kode produk
+]
+ignore = ["S101"]  # assert diizinkan
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "T20"]
+"eval/**"  = ["T20"]        # skrip eval memang mencetak laporan
+"scripts/**" = ["T20"]
+# S311: PRNG ber-seed dipakai SENGAJA di generator fixture — reproducibility
+# (INV-6) justru menuntutnya. Ini bukan konteks kriptografi.
+"eval/fixtures/**" = ["T20", "S311"]
+
+# ---------------------------------------------------------------- mypy -------
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+mypy_path = "backend"
+exclude = ["frontend/", "eval/datasets/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "eval.*"]
+disallow_untyped_defs = false
+
+# -------------------------------------------------------------- pytest ------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["backend"]
+addopts = "-q --strict-markers --strict-config"
+markers = [
+    "invariant: menegakkan sebuah INV-n dari DESIGN.md §9.3",
+    "golden: bagian dari kontrak evaluasi golden_queries.md",
+    "slow: butuh > 5 detik",
+]
+
+# ------------------------------------------------------------- coverage -----
+[tool.coverage.run]
+source = ["backend/app"]
+branch = true
+
+[tool.coverage.report]
+# NFR-MAINT.2 — dinaikkan bertahap seiring fase; tool layer & registry >= 90%
+fail_under = 70
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]

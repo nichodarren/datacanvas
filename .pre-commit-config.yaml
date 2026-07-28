@@ -1,0 +1,46 @@
+# Git-level enforcement — berlaku untuk siapa pun yang menyentuh repo ini
+# (manusia maupun agent), tidak terikat satu editor atau satu tool.
+#
+# Pasang sekali:  pre-commit install
+default_language_version:
+  python: python3.13
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-case-conflict
+      # Dataset eval sengaja besar & di-commit (golden_queries.md §3).
+      - id: check-added-large-files
+        args: ["--maxkb=20000"]
+      # NFR-SEC.7 — rahasia tidak pernah masuk repo.
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.3
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        args: [--strict]
+        files: ^(backend|eval|tests)/
+        additional_dependencies: [pydantic, polars, types-requests]
+
+  - repo: local
+    hooks:
+      # Menegakkan konvensi commit (Conventional Commits) tanpa dependensi Node.
+      - id: conventional-commit
+        name: Pesan commit mengikuti Conventional Commits
+        entry: python scripts/check_commit_msg.py
+        language: system
+        stages: [commit-msg]
