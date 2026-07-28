@@ -30,11 +30,32 @@ def selector_event_loop() -> asyncio.AbstractEventLoop:
     return asyncio.SelectorEventLoop()
 
 
-#: Pass this wherever a loop factory is accepted. Where a framework builds the
-#: loop out of our reach (uvicorn, for instance), that entry point has to deal
-#: with it locally — which is a problem to solve when the entry point exists,
-#: with evidence, rather than now with a guess.
+#: Pass this wherever a loop factory is accepted — ``asyncio.run``, Alembic,
+#: pytest-asyncio, and ``app.__main__``. There is deliberately no "set the
+#: policy" helper: uvicorn ignores policies and supplies its own loop_factory,
+#: so a helper that only set a policy would look like a fix and not be one.
 LOOP_FACTORY: Callable[[], asyncio.AbstractEventLoop] = selector_event_loop
 
 
-__all__ = ["LOOP_FACTORY", "selector_event_loop"]
+def assert_compatible_event_loop() -> None:
+    """Fail at startup rather than at the first query.
+
+    Learned the hard way: the whole test suite passed while the application was
+    unusable under uvicorn, because pytest supplies its own loop. Every
+    database route answered 500 with a traceback that named psycopg and said
+    nothing about how the process was launched.
+
+    Honest failure over a plausible one (P6) — this turns that into a startup
+    error that says what to do.
+    """
+    loop = asyncio.get_running_loop()
+    if type(loop).__name__ == "ProactorEventLoop":
+        raise RuntimeError(
+            "running on ProactorEventLoop, which psycopg cannot use in async mode. "
+            "Start the API with `python -m app`, which owns the loop. Note that "
+            "setting an event loop policy does NOT help: uvicorn ignores the "
+            "policy and passes its own loop_factory."
+        )
+
+
+__all__ = ["LOOP_FACTORY", "assert_compatible_event_loop", "selector_event_loop"]

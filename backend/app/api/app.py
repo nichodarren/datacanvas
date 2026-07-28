@@ -22,6 +22,7 @@ from app.config import Settings, get_settings
 from app.domain.errors import AuthorizationError, InvariantViolation
 from app.observability import configure_logging, correlation_id, new_correlation_id
 from app.repositories.connection import Database
+from app.runtime import assert_compatible_event_loop
 from app.storage.object_store import FilesystemObjectStore, ObjectStore
 
 CORRELATION_HEADER = "X-Correlation-ID"
@@ -60,6 +61,9 @@ def create_app(
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         configure_logging(resolved.log_level)
+        # Refuse to start on a loop psycopg cannot use, rather than serving
+        # traffic that 500s at the first query (§P6, honest failure).
+        assert_compatible_event_loop()
         application.state.database = database or Database(resolved.database_url)
         application.state.store = store or FilesystemObjectStore(Path(resolved.storage_root))
         application.state.hasher = hasher or PasswordHasher()

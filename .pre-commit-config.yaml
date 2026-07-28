@@ -62,6 +62,7 @@ repos:
           - httpx
           - loguru
           - argon2-cffi
+          - uvicorn
 
   - repo: local
     hooks:

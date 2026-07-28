@@ -85,6 +85,18 @@ alembic upgrade head
 
 Menghapusnya nanti = hentikan server, hapus `D:\pgsql` dan `D:\pgdata`.
 
+## Menjalankan API
+
+```powershell
+python -m app          # http://127.0.0.1:8000
+```
+
+> **Hanya lewat `python -m app`.** `uvicorn app.api.app:create_app --factory` akan
+> start, menjawab `/health`, lalu mengembalikan **500 di setiap rute yang menyentuh
+> database**. uvicorn mengabaikan event loop policy dan memakai `ProactorEventLoop`
+> di Windows — satu-satunya loop yang tidak bisa dipakai psycopg. Aplikasi menolak
+> start di loop yang salah dengan pesan yang menjelaskannya, alih-alih melayani 500.
+
 ## Perintah
 
 ```powershell
@@ -138,7 +150,7 @@ melihat apa pun — dibuktikan **penyapuan lintas-tenant yang digenerate dari ma
 rute** (§13.3.1), bukan daftar test yang ditulis tangan. Rute tenant-scoped baru
 otomatis ikut tersapu.
 
-236 test lulus · coverage 88%.
+242 test lulus · coverage 87%.
 
 ## Berikutnya
 

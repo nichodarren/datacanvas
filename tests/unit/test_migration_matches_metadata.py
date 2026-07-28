@@ -66,7 +66,16 @@ def _tables(sql: str) -> set[str]:
 
 
 def _constraints(sql: str) -> set[str]:
-    return {name for name in re.findall(r"CONSTRAINT (\w+)", sql) if "alembic" not in name}
+    """Constraints the migrations leave behind.
+
+    Later migrations drop constraints that earlier ones created, so counting
+    only ``CREATE TABLE`` would compare the schema as it was first written
+    rather than the schema that ends up existing. Migration 0003 dropping the
+    audit log's foreign keys is the case that made this necessary.
+    """
+    created = {name for name in re.findall(r"CONSTRAINT (\w+)", sql) if "alembic" not in name}
+    dropped = set(re.findall(r"DROP CONSTRAINT (\w+)", sql))
+    return created - dropped
 
 
 def _indexes(sql: str) -> set[str]:
@@ -149,15 +158,42 @@ def test_default_organization_id_agrees_with_application_code() -> None:
     assert str(DEFAULT_ORGANIZATION_ID) in source
 
 
+@pytest.mark.invariant
+def test_the_audit_log_has_no_foreign_keys() -> None:
+    """It has to outlive the data it describes (migration 0003).
+
+    A reference would prevent exactly that: ``ON DELETE SET NULL`` is an
+    UPDATE, the append-only trigger refuses it, and so a workspace that had
+    ever produced an audit event could never be deleted — breaking FR-B.6 and
+    NFR-PRIV.3. This is asserted rather than merely commented because it looks
+    like an oversight to anyone tidying the schema later.
+    """
+    audit = metadata.tables["audit_event"]
+    assert not audit.foreign_keys, (
+        "audit_event must not reference other tables; it outlives them (see migration 0003)"
+    )
+
+
 def test_every_table_is_reachable_from_a_workspace() -> None:
     """Tenant isolation is a property of the schema before it is a property of code.
 
-    Every table must either be a tenancy root (organization, app_user,
-    user_session, login_attempt) or have a foreign-key path down to `workspace`.
-    A table with no such path is a table `data_access.open()` cannot scope, and
-    it would leak silently rather than loudly.
+    Every table must either be a tenancy root or have a foreign-key path down
+    to `workspace`. A table with no such path is a table `data_access.open()`
+    cannot scope, and it would leak silently rather than loudly.
+
+    ``audit_event`` is exempt, and deliberately so: it carries workspace and
+    actor ids without foreign keys precisely so it can outlive them. Scoping
+    an audit query is therefore a filter on a plain column, and the test above
+    pins the property that makes that safe.
     """
-    roots = {"organization", "app_user", "user_session", "login_attempt", "workspace"}
+    roots = {
+        "organization",
+        "app_user",
+        "user_session",
+        "login_attempt",
+        "workspace",
+        "audit_event",
+    }
     resolved = set(roots)
 
     def parents(table: sa.Table) -> set[str]:

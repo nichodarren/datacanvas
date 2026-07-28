@@ -266,3 +266,55 @@ async def test_default_organization_exists(db: AsyncConnection) -> None:
         sa.select(organization.c.name).where(organization.c.id == DEFAULT_ORGANIZATION_ID)
     )
     assert name == "Default"
+
+
+# ------------------------------------------------- deletion vs audit log ----
+
+
+@pytest.mark.invariant
+async def test_a_workspace_can_be_deleted_even_after_it_produced_audit_events(
+    db: AsyncConnection,
+) -> None:
+    """FR-B.6 and NFR-PRIV.3 versus §13.7, resolved by migration 0003.
+
+    Before that migration `audit_event.workspace_id` carried ON DELETE SET
+    NULL. SET NULL is an UPDATE, the append-only trigger refuses it, and so a
+    workspace that had ever been audited could not be deleted at all. The
+    defect was invisible until somebody actually tried.
+    """
+    user_id, workspace_id = uuid.uuid4(), uuid.uuid4()
+    await db.execute(
+        sa.insert(app_user).values(
+            id=user_id, email=f"{user_id}@example.com", password_hash="x", created_at=sa.func.now()
+        )
+    )
+    await db.execute(
+        sa.insert(workspace).values(
+            id=workspace_id,
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            name="doomed",
+            created_at=sa.func.now(),
+            created_by=user_id,
+        )
+    )
+    await db.execute(
+        sa.insert(audit_event).values(
+            id=uuid.uuid4(),
+            action="workspace.created",
+            at=sa.func.now(),
+            workspace_id=workspace_id,
+            actor_user_id=user_id,
+        )
+    )
+
+    await db.execute(sa.delete(workspace).where(workspace.c.id == workspace_id))
+    await db.execute(sa.delete(app_user).where(app_user.c.id == user_id))
+
+    # The record of what happened survives the thing it happened to. That is
+    # the point of an audit log, not a side effect.
+    remaining = await db.scalar(
+        sa.select(sa.func.count())
+        .select_from(audit_event)
+        .where(audit_event.c.workspace_id == workspace_id)
+    )
+    assert remaining == 1

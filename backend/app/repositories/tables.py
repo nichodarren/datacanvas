@@ -306,12 +306,13 @@ audit_event = sa.Table(
     _id(),
     sa.Column("action", sa.Text, nullable=False),
     sa.Column("at", TS, nullable=False),
-    sa.Column(
-        "workspace_id", UUID, sa.ForeignKey("workspace.id", ondelete="SET NULL"), nullable=True
-    ),
-    sa.Column(
-        "actor_user_id", UUID, sa.ForeignKey("app_user.id", ondelete="SET NULL"), nullable=True
-    ),
+    # No foreign keys, on purpose (migration 0003). The audit log has to
+    # outlive the data it describes, and a reference would prevent exactly
+    # that: SET NULL is an UPDATE, and the append-only trigger refuses it, so
+    # a referenced workspace could never be deleted at all. These columns
+    # record who and where, as of then; resolving them now is best-effort.
+    sa.Column("workspace_id", UUID, nullable=True),
+    sa.Column("actor_user_id", UUID, nullable=True),
     sa.Column("target_type", sa.Text, nullable=True),
     sa.Column("target_id", UUID, nullable=True),
     # TEXT rather than INET: test clients and proxies produce values that are not
