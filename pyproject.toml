@@ -66,6 +66,10 @@ known-first-party = ["app"]
 "tests/**" = ["S", "T20"]
 "eval/**"  = ["T20"]        # skrip eval memang mencetak laporan
 "scripts/**" = ["T20"]
+# S608: migrations interpolate module constants (role names, table names) into
+# DDL. Identifiers cannot be bound parameters in SQL, and no user input reaches
+# these strings. The alternative is a noqa on every statement.
+"backend/migrations/**" = ["S608"]
 # S311: PRNG ber-seed dipakai SENGAJA di generator fixture — reproducibility
 # (INV-6) justru menuntutnya. Ini bukan konteks kriptografi.
 "eval/fixtures/**" = ["T20", "S311"]

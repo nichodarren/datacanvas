@@ -50,7 +50,13 @@ repos:
       - id: mypy
         args: [--strict]
         files: ^(backend|eval|tests|scripts)/
-        additional_dependencies: [pydantic, polars, pytest]
+        additional_dependencies:
+          - pydantic
+          - pydantic-settings
+          - polars
+          - pytest
+          - sqlalchemy
+          - alembic
 
   - repo: local
     hooks:
