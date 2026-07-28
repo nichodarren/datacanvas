@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.3.4 |
+| **Versi** | 0.4.0 |
 | **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-020 Accepted; Gerbang 0 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-28 |
 | **Owner** | Nicholas Darren |
@@ -100,6 +100,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.3.2 | 2026-07-28 | **Fase 1 ditutup — FR-A.5 dan FR-A.6 diimplementasi.** Ditambahkan **OQ-14: bagaimana email keluar dari sistem**, terbuka sampai Gerbang 6. FR-A.6 dibangun penuh kecuali pengirimannya: token, kedaluwarsa 1 jam, sekali pakai, pembatalan token lama, cap permintaan, dan **pencabutan seluruh sesi saat reset berhasil** — semuanya di belakang antarmuka `EmailSender` yang implementasi dev-nya menulis ke log. Menambah SMTP nanti adalah satu adapter; menyalahkan semantik token nanti adalah insiden keamanan, jadi urutannya begini. FR-A.5 menambah aturan **owner terakhir tidak bisa diturunkan atau dikeluarkan** — workspace tanpa owner tidak bisa diadministrasi dan tidak ada endpoint untuk memperbaikinya. §13.9 menambah paparan yang diterima secara sadar: menambah anggota lewat email mengungkap status pendaftaran kepada owner (berbeda standarnya dari login/reset yang publik dan wajib bungkam). Tidak ada perubahan scope — keduanya FR-A yang memang milik Fase 1. |
 | 0.3.3 | 2026-07-28 | **Review gerbang Fase 1 — dua cacat ditemukan dengan menjalankan sistemnya, bukan membaca kodenya.** (1) **Aplikasi tidak jalan di bawah uvicorn.** `/health` menjawab 200, setiap rute yang menyentuh database menjawab 500: uvicorn mengabaikan event loop policy dan meneruskan `loop_factory`-nya sendiri, yang di Windows adalah `ProactorEventLoop` — satu-satunya loop yang tidak bisa dipakai psycopg. Seluruh 236 test hijau saat itu, karena pytest menyuntikkan loop-nya sendiri. Ditambahkan entry point `python -m app` yang memiliki loop-nya, plus penjaga startup yang menolak jalan di loop yang salah (P6). **Pelajarannya lebih luas dari psycopg: test yang menyuntikkan runtime-nya sendiri tidak membuktikan apa pun tentang runtime yang benar-benar didapat proses.** (2) **Workspace dan user tidak bisa dihapus** — FK `ON DELETE SET NULL` pada `audit_event` adalah UPDATE, yang ditolak trigger append-only; bertabrakan dengan FR-B.6 dan NFR-PRIV.3. Diperbaiki migrasi 0003: audit log tidak punya foreign key, dicatat di §13.7. Tidak ada perubahan scope. |
 | 0.3.4 | 2026-07-29 | **Ditambahkan R-16 (project hanya ada di satu mesin, tanpa salinan luar) dan R-17 (CI belum pernah dieksekusi).** Keduanya risiko yang **ditanggung secara sadar**, bukan dimitigasi — dan dicatat begitu, karena menuliskan rencana lalu menurunkan level risiko adalah persis kebiasaan yang dilarang §0.3. R-17 unik karena **sudah terbukti sekali** lewat cacat uvicorn di 0.3.3. Ditambahkan `scripts/check.sh` (seluruh rangkaian CI dalam POSIX sh, bisa dijalankan runner mana pun) dan `.gitattributes` — index repo ternyata sudah campur CRLF/LF, dan SHA-256 dataset di golden_queries.md §3 bersifat kontraktual sehingga konversi EOL apa pun akan mematahkan build karena alasan yang tidak berhubungan dengan datanya. |
+| 0.4.0 | 2026-07-29 | **Penutupan sesi — tiga keputusan sesi ini diangkat dari prosa menjadi ADR penuh di §18** (§0.3 aturan 2 → minor version). **D-022** INV-7 tiga lapis, mencatat eksplisit bahwa rumusan lama §13.3 tidak bisa diimplementasikan, dan bahwa **L1/L2 tidak mencakup pemanggil non-HTTP** — perlu ditinjau sebelum Step executor Fase 3 menyentuh data. **D-023** audit log tanpa foreign key. **D-024** satu entry point yang memiliki event loop-nya, termasuk catatan bahwa memasang event loop policy sudah dicoba dan terbukti tidak berpengaruh — supaya tidak ada yang mengulangi percobaan itu. **Penjadwalan ulang, bukan perubahan scope:** separuh P0-5 (engine DuckDB/Polars) bergeser dari Fase 1 ke Fase 2, karena tidak ada yang bisa dibaca sampai ingest ada — membangunnya sekarang berarti menulis pembungkus tanpa satu pun pemanggil dan menebak bentuknya. **Tidak ada yang keluar dari scope MVP**: §15.2 utuh, hanya urutannya bergeser, dan §19.1 memastikan penundaan ini penambahan, bukan migrasi. |
 
 ---
 
@@ -2375,6 +2376,36 @@ Status: 🟡 Proposed · 🟢 Accepted · 🔴 Superseded
 *Keputusan:* Spec deklaratif Vega-Lite.
 *Alternatif:* Rendering imperatif (D3/ECharts) — lebih fleksibel, tapi chart jadi kode, bukan data → tidak bisa di-fingerprint, melanggar D-004.
 *Trade-off:* Terikat pada kemampuan Vega-Lite. Dapat diterima; ia cukup ekspresif untuk EDA.
+
+---
+
+**D-024 · Satu entry point yang memiliki event loop-nya sendiri** 🟢 Accepted · 2026-07-29
+*Konteks:* Ditemukan di review Gerbang 1 dengan menjalankan servernya. `uvicorn app.api.app:create_app --factory` start normal dan menjawab `/health`, lalu mengembalikan **500 di setiap rute yang menyentuh database**. Sebabnya: uvicorn **tidak membaca event loop policy** — `Server.run()` meneruskan `loop_factory` miliknya sendiri, dan di Windows factory itu `ProactorEventLoop`, satu-satunya loop yang ditolak psycopg. Seluruh 236 test hijau saat itu, karena pytest menyuntikkan loop-nya sendiri.
+*Keputusan:* `python -m app` menjalankan `Server.serve()` di dalam loop yang **kita** buat (`asyncio.run(..., loop_factory=LOOP_FACTORY)`), dan `create_app` menolak start di loop yang tidak kompatibel dengan pesan yang menjelaskan cara memperbaikinya.
+*Alternatif:* **(a)** memasang event loop policy sebelum `uvicorn.run()` — dicoba, **terbukti tidak berpengaruh**, karena uvicorn tidak pernah membacanya; **(b)** mendokumentasikan "jangan kembangkan di Windows" — memindahkan cacat ke manusia, dan A-4 tidak menyebut platform; **(c)** kembali ke driver sinkron — membuang alasan D-021 memilih async, demi masalah yang punya perbaikan lima baris.
+*Trade-off:* Hanya ada **satu** cara start yang didukung; memanggil `uvicorn` langsung akan gagal. Diterima, dan justru itu maksudnya — gagal di startup dengan pesan yang benar jauh lebih baik daripada melayani trafik yang 500 di query pertama (P6).
+*Konsekuensi:* Deployment memanggil `python -m app`. Ada test yang **memaku pilihan loop uvicorn**, jadi hari ia berubah kita diberi tahu alih-alih menyimpan pembungkus yang sudah tidak perlu. Pelajaran yang lebih luas dicatat di sini karena akan terulang: **test yang menyuntikkan runtime-nya sendiri tidak membuktikan apa pun tentang runtime yang benar-benar didapat proses.**
+*Ditinjau ulang bila:* uvicorn berhenti memaksakan `loop_factory`-nya (test di atas yang akan memberi tahu), atau kalau nanti dipakai runner ASGI lain.
+
+---
+
+**D-023 · Audit log tidak punya foreign key ke data yang dijelaskannya** 🟢 Accepted · 2026-07-29
+*Konteks:* Ditemukan saat membersihkan data smoke test. `audit_event.workspace_id` membawa `ON DELETE SET NULL`; SET NULL adalah UPDATE, dan trigger append-only (§13.7) menolaknya. Akibatnya **workspace atau user yang pernah menghasilkan satu event audit tidak bisa dihapus sama sekali** — bertabrakan langsung dengan FR-B.6 (penghapusan nyata) dan NFR-PRIV.3 (hard delete ≤ 24 jam).
+*Keputusan:* Buang kedua foreign key. `workspace_id` dan `actor_user_id` menjadi kolom UUID biasa, sama seperti `target_id` sejak awal — mencatat *siapa dan di mana*, per saat kejadian.
+*Alternatif:* **(a)** longgarkan trigger untuk kolom itu saja — satu kolom yang bisa diubah membuat seluruh tabel tidak lagi bisa dipercaya, dan append-only yang berlubang bukan append-only; **(b)** `ON DELETE CASCADE` — menghapus riwayat audit bersama datanya, kebalikan persis dari tujuan tabel ini, dan tetap ditolak karena DELETE juga diblokir; **(c)** hapus baris audit lebih dulu — sama saja, dan memang harus mustahil.
+*Trade-off:* Kehilangan jaminan referensial; menyelesaikan id ke baris yang masih ada menjadi *best-effort*. Diterima tanpa keberatan: audit log adalah catatan sejarah, dan sejarah memang menyebut hal-hal yang sudah tidak ada. Baris yang hilang adalah **fakta tentang masa lalu, bukan referensi yang rusak**.
+*Konsekuensi:* Query audit di-scope lewat filter kolom biasa, bukan join. Ada test yang memaku ketiadaan FK — tanpa itu, ketiadaannya terlihat seperti kelalaian bagi siapa pun yang merapikan skema nanti. Migrasi 0003.
+*Ditinjau ulang bila:* — keputusan ini konsekuensi langsung dari append-only, dan tetap benar selama §13.7 benar.
+
+---
+
+**D-022 · INV-7 ditegakkan tiga lapis, bukan lewat enumerasi rute** 🟢 Accepted · 2026-07-29
+*Konteks:* §13.3 semula menjanjikan *"test yang mengambil daftar seluruh rute dan memverifikasi tidak ada satu pun yang mengakses storage tanpa `data_access.open()`"*. Saat hendak diimplementasikan, janji itu ternyata **tidak bisa dipenuhi**: mengenumerasi rute tidak memberi tahu apa pun tentang apa yang diakses rute. Dibiarkan begitu, ia terdengar seperti jaminan sementara implementasinya akan jauh lebih lemah — dan Gerbang 1 bersandar penuh padanya.
+*Keputusan:* Tiga lapis, masing-masing bisa dieksekusi (§13.3.1). **L1** manifest rute tanpa default — rute yang tidak terklasifikasi menggagalkan test. **L2** penyapuan lintas-tenant yang **digenerate dari L1**, semua wajib 404. **L3** `DataHandle` sebagai satu-satunya objek yang bisa membaca byte, dan `data_access.open()` satu-satunya yang menghasilkannya.
+*Alternatif:* **(a)** analisis panggilan statis — rapuh, dan gugur pada pemanggilan tak langsung pertama; **(b)** instrumentasi runtime yang melacak setiap akses storage — menambah jalur di kode produksi demi kebutuhan test; **(c)** pemeriksaan per-endpoint — sudah ditolak §13.3, dan alasannya tidak berubah.
+*Trade-off:* **L3 bukan jaminan mutlak.** Python tidak punya konstruktor privat, jadi pemanggil yang berniat bisa menjangkau token modulnya. Yang dijamin lebih sempit dan tetap berharga: jalur yang **tidak sengaja** — yang ditulis orang lelah pukul enam sore — gagal pada eksekusi pertama, bukan di produksi.
+*Konsekuensi:* Setiap rute wajib menyatakan kelas tenancy-nya. Rute tenant-scoped baru **otomatis tersapu** tanpa ada yang perlu mengingatnya; empat rute anggota FR-A.5 membuktikannya tanpa satu test pun ditulis tangan. Jawaban penolakan adalah **404, bukan 403** — 403 mengonfirmasi resource-nya ada, dan konfirmasi itu sendiri kebocorannya.
+*Ditinjau ulang bila:* ada akses data dari luar HTTP — job latar belakang, atau **Step executor di Fase 3**. L1 dan L2 tidak mencakupnya sama sekali; hanya L3 yang mencakup. Ini harus ditinjau sebelum executor menyentuh data untuk pertama kalinya.
 
 ---
 
