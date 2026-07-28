@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.2.3 |
+| **Versi** | 0.3.0 |
 | **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-020 Accepted; Gerbang 0 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-28 |
 | **Owner** | Nicholas Darren |
@@ -95,6 +95,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.2.1 | 2026-07-28 | **Concept review dihentikan di sesi 1** — sesi 2–3 dilewati secara sadar; alasan, konsekuensi, dan apa yang menahan risikonya dicatat di §20 Fase 0. **M-1 pra-kode dilepas; M-1a/M-1b runtime tetap** (biaya nol lewat NFR-OBS.2, dan menjaga kill criteria §6.4 serta input OQ-12/OQ-13 tetap hidup). Ditambahkan **R-15** (D-020 bersandar n=1). **Gerbang 4 memikul beban tambahan** sebagai titik peninjauan D-020 — penguji diminta mencatat setiap permintaan di luar scope, sebagai pengganti M-1 pra-kode yang hilang (dan berbasis perilaku, bukan pendapat). Sinyal peringatan R-1 disesuaikan. |
 | 0.2.2 | 2026-07-28 | **Golden queries diselaraskan dengan D-020 → kembali 🟢 Verified** (v0.3.0, 29 query, **72/72 nilai terverifikasi**). Tier C ditulis ulang menjadi komposisi primitif berantai; **Tier H — Cleaning** ditambahkan. Lampiran B diperbarui. **FR-B.3 diperkuat**: inferensi tipe wajib memindai seluruh file — ditemukan secara empiris saat verifikasi (`legacy_code` 97% numerik membuat inferensi berbasis sampel meledak di tengah file). **Gerbang 0 kini benar-benar terlampaui.** |
 | 0.2.3 | 2026-07-28 | **Penutupan sesi & higiene dokumen.** Dua cacat ditemukan saat menutup: field `Versi` di header masih `0.1.0 — Draft` padahal changelog sudah 15 entri, dan urutan changelog kacau akibat entri baru disisipkan di atas. Keduanya diperbaiki, lalu dicegah berulang lewat **§0.3 aturan 0** (header dan changelog wajib sinkron; changelog menaik). Status dokumen dinaikkan ke 🟢 **Baseline aktif** — pernyataan lama *"belum boleh dijadikan dasar implementasi"* sudah tidak benar sejak D-001…D-020 Accepted. Ditambahkan penunjuk pembagian peran: **DESIGN.md menyimpan keputusan, the project notes menyimpan posisi.** Di sisi repo: `pre-commit` dikeraskan (dua stage terpasang, environment mypy diperbaiki) dan the project notes diperbarui dengan batas scope D-020, bagian "Cara kerja di project ini", serta status Fase 0. |
+| 0.3.0 | 2026-07-28 | **Pembukaan Fase 1 — enam cacat ditemukan saat membaca dokumen dengan niat mengimplementasikannya.** Tiga di antaranya keliru, bukan sekadar kurang jelas. **(1) Entitas `Session` tidak ada di §9.2** padahal §13.2 menuntutnya dan FR-A.2 (pencabutan per-perangkat) mustahil tanpanya — sebuah entitas P0 hilang dari bagian yang dokumen ini sendiri sebut paling mahal diperbaiki belakangan. Ditambahkan, bersama `Membership.created_at/invited_by` dan `Workspace.created_by/is_personal` yang dibutuhkan §13.7. **(2) §13.2 tidak menyebut cara token sesi di-hash**, dan default yang tampak aman justru salah: argon2id ber-salt sehingga tidak bisa di-index, dan biayanya dibayar setiap request. Ditetapkan **SHA-256** beserta alasan kenapa itu bukan inkonsistensi dengan argon2id untuk password. **(3) Test INV-7 seperti dirumuskan §13.3 tidak bisa diimplementasikan** — enumerasi rute tidak memberitahu apa yang diakses rute. Diganti §13.3.1: tiga lapis (manifest rute · penyapuan lintas-tenant ter-generate · penjaga runtime pada `DataHandle`). Ini menyangkut Gerbang 1 secara langsung. **(4) §13.7 "append-only" dan INV-2/INV-3 hanya berupa klaim** — ditegakkan trigger Postgres + grant terbatas, ditetapkan sekarang karena keduanya adalah keputusan migrasi pertama atau tidak sama sekali. **(5)** Ditambahkan **D-021** (SQLAlchemy Core tanpa ORM + psycopg3 async) — lapisan persistensi tidak pernah diputuskan di mana pun. **(6)** §10.3 menulis Python 3.12 sementara seluruh repo memakai 3.13 — drift dokumen, diperbaiki. §20 Fase 1 diperjelas: batas migrasi `0001` dan pengakuan bahwa Gerbang 1 dibuktikan atas baris hasil seeder. Tidak ada perubahan scope (§0.3 aturan 3 tidak terpicu). |
 
 ---
 
@@ -720,6 +721,7 @@ Setiap NFR harus **terukur**. NFR yang tidak bisa diukur adalah harapan, bukan r
 ```mermaid
 erDiagram
     ORGANIZATION ||--o{ WORKSPACE : "has (post-MVP)"
+    USER ||--o{ SESSION : "authenticated by"
     USER ||--o{ MEMBERSHIP : has
     WORKSPACE ||--o{ MEMBERSHIP : has
     WORKSPACE ||--o{ PROJECT : contains
@@ -759,13 +761,24 @@ Kolomnya ada di skema, tapi selalu berisi org default. Alasannya NFR-EXT.5: mena
 
 **`User`** — `id, email, password_hash, created_at, status`
 
+**`Session`** — Sesi login yang aktif. **Satu baris per perangkat**, karena FR-A.2 menuntut pencabutan per-perangkat dan pencabutan menyeluruh ("logout semua perangkat").
+`id, user_id, token_hash, created_at, last_seen_at, expires_at, revoked_at, user_agent, ip_created`
+
+- `token_hash` = **SHA-256** atas token opaque, bukan argon2id. Alasannya di §13.2 — ini keputusan yang mudah diambil keliru.
+- Sesi valid ⟺ `revoked_at IS NULL` **dan** `expires_at > now()` **dan** `last_seen_at > now() - idle_ttl`. Pencabutan adalah UPDATE pada `revoked_at`, bukan DELETE: baris yang hilang tidak bisa menjelaskan apa pun saat investigasi.
+
 **`Workspace`** — Batas isolasi data **dan** batas kebijakan. Semua otorisasi bermuara ke sini.
-`id, organization_id, name, created_at`
+`id, organization_id, name, created_at, created_by, is_personal`
+
+- `is_personal` menandai workspace yang dibuat otomatis saat registrasi (FR-A.3). Ia bukan tipe workspace yang berbeda — hanya asal-usulnya yang berbeda, dan itu perlu diketahui UI agar tidak menawarkan "hapus workspace" untuk satu-satunya workspace yang dimiliki pengguna.
 
 **`WorkspacePolicy`** — Kebijakan yang berlaku untuk seluruh isi workspace.
 `workspace_id, llm_privacy_mode, llm_monthly_token_budget, allowed_providers, retention_versions`
 
-**`Membership`** — `user_id, workspace_id, role ∈ {owner, editor, viewer}`
+**`Membership`** — `id, user_id, workspace_id, role ∈ {owner, editor, viewer}, created_at, invited_by`
+
+- `created_at` dan `invited_by` ada karena §13.7 mewajibkan mencatat perubahan anggota & peran. Menambahkannya setelah ada baris berarti backfill dengan nilai yang tidak diketahui.
+- `(user_id, workspace_id)` unik. Satu pengguna punya tepat satu peran per workspace.
 
 **`Project`** — Unit kerja. Mengelompokkan dataset dan analisis yang berkaitan.
 `id, workspace_id, name, description, created_at`
@@ -781,6 +794,10 @@ Kolomnya ada di skema, tapi selalu berisi org default. Alasannya NFR-EXT.5: mena
 - `content_hash` = SHA-256 atas file Parquet ternormalisasi. Dua unggahan identik menghasilkan hash yang sama → dedup penyimpanan gratis.
 - `ingest_options` menyimpan delimiter/encoding/header yang dipakai — bagian dari reproducibility.
 - **INV-2: DatasetVersion tidak pernah di-UPDATE setelah commit.** Hanya boleh dibuat atau dihapus.
+
+> **Bagaimana INV-2 dan INV-3 ditegakkan.** Bukan dengan "repository-nya tidak menyediakan metode update" — itu kedisiplinan, dan §13.3 sudah menolak kedisiplinan sebagai mekanisme keamanan. Keduanya ditegakkan **di Postgres**: trigger `BEFORE UPDATE` pada `dataset_version` dan `schema_contract` yang selalu `RAISE`. Testnya mencoba UPDATE langsung lewat koneksi dan mengharap error.
+>
+> Konsekuensinya jujur: `DELETE` tetap diizinkan (FR-B.6 menuntut penghapusan nyata), dan hanya `UPDATE` yang dilarang. Itu memang persis bunyi invariannya.
 
 **`SourceFile`** — File asli yang diunggah, disimpan apa adanya untuk audit & re-parse.
 `id, dataset_version_id, original_filename, mime_detected, byte_size, storage_uri`
@@ -996,8 +1013,9 @@ flowchart TB
 
 | Area | Pilihan | Alternatif yang dipertimbangkan | Alasan |
 |---|---|---|---|
-| Bahasa backend | **Python 3.12** | Go, TypeScript | Ekosistem data (Polars, DuckDB, Arrow) tak tertandingi. Tim sudah menguasainya (P8). |
+| Bahasa backend | **Python 3.13** | Go, TypeScript | Ekosistem data (Polars, DuckDB, Arrow) tak tertandingi. Tim sudah menguasainya (P8). |
 | Web framework | **FastAPI** | Django, Litestar | Async + Pydantic (validasi argumen tool praktis gratis) + SSE. Terbukti di v1. |
+| Lapisan persistensi | **SQLAlchemy Core + psycopg3 async** | ORM, SQL tulis tangan | Lihat **D-021**. Tabel dideklarasikan sebagai metadata eksplisit; `domain/` tetap dataclass murni; Alembic autogenerate ikut jalan. |
 | Analytics engine | **DuckDB + Polars via Arrow** | pandas, Spark, ClickHouse | DuckDB unggul untuk agregasi single-node; Polars untuk transformasi. Zero-copy lewat Arrow. Spark = over-engineering untuk A-3. |
 | Format penyimpanan | **Parquet** | CSV, Feather | Kolumnar, terkompresi, terketik, dibaca native oleh DuckDB & Polars. |
 | Metadata store | **Postgres** | SQLite, MongoDB | Multi-user + concurrent write + transaksi + JSONB + backup matang. **SQLite (v1) tidak lagi memadai begitu ada auth.** |
@@ -1762,10 +1780,17 @@ Set awal ada di Lampiran B.
 **Keputusan:** sesi milik backend dengan primitif yang sudah teruji.
 
 - Password: **argon2id**, parameter mengikuti rekomendasi OWASP saat ini
-- Sesi: token acak 256-bit opaque, disimpan hashed di Postgres, dikirim lewat cookie `httpOnly` + `Secure` + `SameSite=Lax`
-- Kedaluwarsa: 7 hari idle / 30 hari absolut; dapat dicabut per-perangkat
-- Rate limit: per IP dan per akun, dengan backoff progresif
+- Sesi: token acak 256-bit opaque, disimpan **hashed dengan SHA-256** di Postgres, dikirim lewat cookie `httpOnly` + `Secure` + `SameSite=Lax`
+- Kedaluwarsa: 7 hari idle / 30 hari absolut; dapat dicabut per-perangkat (entitas `Session`, §9.2)
+- Rate limit: per IP dan per akun, dengan backoff progresif. **Penghitungnya di Postgres**, bukan Redis — §19.2 melarang ketergantungan pada layanan terkelola yang tidak punya padanan self-hosted, dan A-2 (< 50 pengguna) tidak menuntut lebih
 - **Tidak ada JWT untuk sesi pengguna** — pencabutan adalah requirement (FR-A.2), dan JWT membuatnya sulit
+
+> **Kenapa token sesi memakai SHA-256 dan password memakai argon2id — perbedaan ini bukan inkonsistensi.** Dokumen ini menyebut argon2id satu baris di atas, sehingga kesimpulan yang wajar (dan salah) adalah memakainya untuk token juga. Itu keliru dua kali:
+>
+> 1. **Argon2id ber-salt per-baris**, sehingga hash-nya tidak bisa di-index dan tidak bisa dicari. Mencari sesi berarti memindai seluruh tabel dan memverifikasi satu per satu.
+> 2. **Biayanya dibayar di setiap request**, bukan sekali per login. Argon2id sengaja dibuat lambat; itu tepat untuk password, dan salah untuk sesuatu yang divalidasi puluhan kali per menit.
+>
+> Hashing lambat melindungi rahasia **berentropi rendah** — password manusia bisa ditebak. Token 256-bit dari CSPRNG tidak bisa ditebak, jadi tidak ada yang perlu diperlambat. Yang dibutuhkan hanya: kalau dump database bocor, isinya tidak langsung bisa dipakai login. SHA-256 sudah memberikan itu, sekaligus tetap bisa di-index unik.
 
 **Alternatif yang dipertimbangkan:**
 
@@ -1800,9 +1825,23 @@ handle = data_access.open(principal, dataset_version_id)
 #   Tidak ada jalan lain untuk membaca Parquet atau menjalankan tool.
 ```
 
-**INV-7 dapat di-test:** ada test yang mengambil daftar seluruh rute dan memverifikasi tidak ada satu pun yang mengakses storage tanpa melewati `data_access.open()`. Test ini gagal saat seseorang menambah jalan pintas — otomatis, tanpa code review.
-
 Model peran (FR-A.5): `owner` (semua + billing + anggota) · `editor` (buat/ubah/hapus data & analisis) · `viewer` (baca + jalankan tool read-only, tidak bisa unggah/hapus)
+
+#### 13.3.1 Bagaimana INV-7 benar-benar di-test
+
+Rumusan sebelumnya berbunyi *"ada test yang mengambil daftar seluruh rute dan memverifikasi tidak ada satu pun yang mengakses storage tanpa melewati `data_access.open()`"*. **Itu tidak bisa diimplementasikan apa adanya:** mengenumerasi rute tidak memberitahu apa pun tentang apa yang diakses rute itu. Membuktikan klaim tersebut butuh analisis panggilan statis (rapuh, dan gugur begitu ada satu pemanggilan tak langsung) atau instrumentasi runtime. Dibiarkan seperti itu, ia terdengar seperti jaminan padahal implementasinya akan berakhir jauh lebih lemah — dan **Gerbang 1 bergantung penuh padanya.**
+
+Penggantinya: tiga lapis, masing-masing bisa dieksekusi, dan **masing-masing gagal secara otomatis ketika seseorang menambah jalan pintas.**
+
+| Lapis | Mekanisme | Yang membuatnya gagal |
+|---|---|---|
+| **L1 · Manifest rute** | Setiap rute wajib terdaftar di satu dari tiga kelas: `public`, `authenticated`, `tenant_scoped`. | Rute yang tidak terklasifikasi → test **gagal**. Bukan default aman, melainkan **tidak ada default sama sekali** — orang yang menambah rute dipaksa menyatakan maksudnya. |
+| **L2 · Penyapuan lintas-tenant** | Setiap rute `tenant_scoped` otomatis diuji: pengguna B memanggil resource milik A. | Respons apa pun selain **404**. Sengaja 404, bukan 403 — 403 mengonfirmasi bahwa resource-nya ada, dan itu sendiri sudah kebocoran. |
+| **L3 · Penjaga runtime** | `ObjectStore` dan engine analitik **hanya menerima `DataHandle`**, tidak pernah `str` path. `DataHandle` tidak punya konstruktor publik; satu-satunya yang menghasilkannya adalah `data_access.open(principal, …)`. | Membangun handle secara langsung, atau memberi path mentah ke store, menaikkan error — bukan mengembalikan data. |
+
+**L3 yang benar-benar menegakkan INV-7; L1 + L2 yang membuat kelalaian ketahuan.** Perbedaannya penting: L3 adalah properti tipe (mustahil dilanggar tanpa sengaja), L1 dan L2 adalah jaring pengaman (menangkap yang lolos).
+
+> Test kelas ini punya satu kegagalan diam yang harus dijaga: ia hanya bernilai kalau **rute baru otomatis ikut tersapu**. Karena itu L2 digenerate dari manifest L1, bukan ditulis satu per satu per rute. Daftar test yang harus diperbarui manual adalah daftar yang cepat atau lambat tertinggal.
 
 ### 13.4 Isolasi & keamanan penyimpanan
 
@@ -1893,7 +1932,16 @@ Satu event stream melayani **dua** kebutuhan: kepatuhan (FR-J.4) dan traceabilit
 
 Yang dicatat: login/logout/gagal login · pembuatan & penghapusan dataset · perubahan skema · eksekusi step · pemakaian copilot (prompt + tool yang dipilih) · ekspor · perubahan anggota & peran
 
-Append-only; tidak bisa diubah dari aplikasi.
+**Append-only, ditegakkan di database.** Pernyataan *"tidak bisa diubah dari aplikasi"* saja hanyalah klaim; kalau penegakannya berupa "jangan tulis `UPDATE audit_event`", itu kedisiplinan — persis yang ditolak §13.3 untuk otorisasi, dan tidak ada alasan standarnya lebih rendah di sini. Dua mekanisme, keduanya di migrasi pertama:
+
+| Mekanisme | Detail |
+|---|---|
+| Trigger | `BEFORE UPDATE OR DELETE ON audit_event` → selalu `RAISE`. Berlaku untuk role mana pun, termasuk role migrasi. |
+| Grant | Role aplikasi hanya menerima `INSERT` dan `SELECT` pada `audit_event`. Pertahanan kedua, untuk kalau trigger-nya ikut ter-drop di migrasi masa depan. |
+
+Testnya mencoba `UPDATE` dan `DELETE` lewat koneksi aplikasi dan mengharap keduanya gagal.
+
+> **Kenapa ini murah sekarang dan mahal nanti.** Memisahkan role DB aplikasi dari role pemilik skema adalah keputusan yang diambil di migrasi pertama atau tidak sama sekali — melakukannya setelah ada deployment berjalan berarti mengubah kredensial produksi sambil berharap tidak ada yang lupa.
 
 ### 13.8 Secrets
 
@@ -2294,6 +2342,16 @@ Status: 🟡 Proposed · 🟢 Accepted · 🔴 Superseded
 
 ---
 
+**D-021 · SQLAlchemy Core (tanpa ORM) + psycopg3 async sebagai lapisan persistensi** 🟢 Accepted · 2026-07-28
+*Konteks:* §10.3 memilih Postgres tapi tidak pernah menyebut **cara** mengaksesnya. `pyproject.toml` punya `alembic` dan `psycopg[binary]` tanpa SQLAlchemy sebagai dependensi langsung — padahal Alembic menariknya. Keputusan ini diambil di Fase 1 karena setiap repository ditulis di atasnya.
+*Keputusan:* **SQLAlchemy Core** — tabel dideklarasikan sebagai `MetaData` eksplisit di `repositories/`, query disusun lewat expression language SQLAlchemy, dan repository memetakan baris → dataclass domain secara manual. **Tanpa ORM**: tidak ada `declarative_base`, tidak ada session identity map, tidak ada lazy loading. Driver `psycopg3` dalam **mode async** dengan connection pool.
+*Alternatif:* **(a) psycopg + SQL tulis tangan + migrasi manual** — dependensi paling sedikit dan kontrol penuh, tapi kehilangan Alembic autogenerate (jaring pengaman nyata untuk drift skema) dan menghasilkan paling banyak kode boilerplate untuk tim A-4. **(b) SQLAlchemy ORM** — paling sedikit kode, tapi model ORM cenderung merangkak menjadi model domain, dan §10.6 melarang `domain/` bergantung pada apa pun yang menyangkut I/O. Sekali entitas domain menjadi baris ORM, aturan itu hilang tanpa ada yang menyadarinya. **(c) Sync alih-alih async** — lebih sederhana, tapi SSE di Fase 5 dan konversi setiap repository belakangan adalah harga yang lebih besar daripada ketidaknyamanan async sekarang.
+*Trade-off:* Pemetaan baris → domain ditulis tangan (kode berulang, dan tempat munculnya bug pemetaan). Diterima secara sadar: itu harga menjaga `domain/` tetap murni, dan pemetaan eksplisit gagal dengan keras sementara ORM gagal dengan senyap. Async menambah beban di test (event loop, pool per-test) — dimitigasi `pytest-asyncio` yang sudah ada di dependensi dev.
+*Konsekuensi:* `sqlalchemy` dan `psycopg_pool` menjadi dependensi langsung. Alembic memakai `MetaData` yang sama untuk autogenerate. `domain/` tetap tidak punya satu pun import dari `repositories/` — ditegakkan test batas import, bukan kesepakatan.
+*Ditinjau ulang bila:* pemetaan manual terbukti menjadi sumber bug berulang, atau kebutuhan query melampaui apa yang nyaman disusun di Core.
+
+---
+
 **D-020 · Batas scope MVP: interpretasi yang tidak bergantung domain** 🟢 Accepted · 2026-07-28
 *Konteks:* Concept review sesi 1 menghasilkan dua sinyal kuat: **(a)** pekerjaan repetitif yang paling menyiksa adalah **data cleaning + profiling**, dan itu *"bisa dipisahkan jadi rule based"*; **(b)** *"EDA mendalam dan komprehensif itu tergantung domainnya"* — sehingga analisis mendalam yang generik bernilai rendah dan bermoat tipis.
 *Keputusan:* Batas scope MVP bukan "univariat" (definisinya kabur dan memotong `aggregate` yang justru paling sering dipakai), melainkan **"interpretasinya tidak bergantung konteks domain"**. Ini prinsip, bukan daftar — ia memberi aturan keputusan untuk setiap penambahan tool berikutnya.
@@ -2494,7 +2552,21 @@ Jadi yang dikorbankan bukan **validitas**, melainkan **waktu**: sinyalnya datang
 - Object store + engine (P0-5)
 - Audit log (P0-24), observability (P0-26)
 
-**🚦 Gerbang 1:** Dua pengguna di workspace berbeda tidak bisa saling melihat apa pun — dibuktikan test otomatis, bukan pemeriksaan manual. Test INV-7 lulus.
+**🚦 Gerbang 1:** Dua pengguna di workspace berbeda tidak bisa saling melihat apa pun — dibuktikan test otomatis, bukan pemeriksaan manual. Test INV-7 lulus (ketiga lapisnya, §13.3.1).
+
+#### Batas migrasi `0001` — dan pengakuan tentang apa yang dibuktikan Gerbang 1
+
+Migrasi pertama **bukan** seluruh §9. Tabel eksekusi (`step`, `computation`, `artifact`, `finding`, `conversation_turn`) menunggu Fase 3; tabel yang dibuat sebelum ada yang memakainya akan membusuk. Yang masuk:
+
+| Kelompok | Tabel | Kenapa sekarang |
+|---|---|---|
+| Identitas & tenancy | `organization` (satu baris default), `user`, `session`, `workspace`, `workspace_policy`, `membership`, `project` | P0-1…P0-3 |
+| Identitas data | `dataset`, `dataset_version`, `source_file`, `schema_contract` | `data_access.open(principal, dataset_version_id)` (P0-4) tidak punya apa pun untuk dibuka tanpa tabel ini |
+| Audit | `audit_event` | P0-24, beserta trigger & grant §13.7 |
+
+**Yang perlu dinyatakan terbuka:** ingest baru ada di Fase 2, sehingga di Fase 1 baris `dataset_version` diisi lewat **seeder test**, bukan unggahan nyata. Artinya Gerbang 1 membuktikan **isolasi tenant**, bukan alur data ujung-ke-ujung.
+
+Itu tetap gerbang yang benar. Alternatifnya adalah menunda gerbang keamanan sampai Fase 2 — dan gerbang yang digeser karena belum nyaman diuji adalah gerbang yang tidak berfungsi sebagai gerbang.
 
 ---
 
