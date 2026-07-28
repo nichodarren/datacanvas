@@ -9,7 +9,8 @@
 
 ## Status
 
-🟡 **Fase 0 — desain & kontrak.** Belum ada kode produk.
+🟢 **Fase 1 — fondasi & identitas. Gerbang 1 terlampaui.**
+Auth, tenancy, otorisasi, object store, dan audit log sudah ada dan ber-test.
 Tidak ada keterkaitan dengan layanan eksternal apa pun (GitHub, Vercel, Fly.io, API key) — itu disengaja.
 
 ## Mulai dari sini
@@ -117,15 +118,37 @@ build tetap hijau.
 - [x] **Concept review** — sesi 1 selesai; sesi 2–3 dilewati secara sadar (DESIGN.md §20 Fase 0)
       · Hasil: **D-020** (batas scope), **FR-I.7**, **NFR-UX.5**, **R-15**
 
-**🚦 Gerbang 0 terlampaui.** Berikutnya: Fase 1.
+**🚦 Gerbang 0 terlampaui.**
+
+## Gerbang 1 — checklist
+
+- [x] Model domain murni + skema Postgres + migrasi 0001
+- [x] INV-2 & INV-3 ditegakkan **trigger Postgres**, bukan kedisiplinan repository
+- [x] Audit log append-only — trigger + grant terbatas (§13.7)
+- [x] Auth: argon2id, sesi opaque ter-hash SHA-256, pencabutan per-perangkat, rate limit
+- [x] Workspace/Project/Membership + provisioning otomatis saat registrasi
+- [x] `data_access.open()` + `DataHandle` — satu-satunya jalan menuju data (INV-7)
+- [x] Object store dengan dua penjaga traversal independen
+- [x] Audit log + observability (correlation id, redaksi rahasia)
+
+**🚦 Gerbang 1 terlampaui.** Dua pengguna di workspace berbeda tidak bisa saling
+melihat apa pun — dibuktikan **penyapuan lintas-tenant yang digenerate dari manifest
+rute** (§13.3.1), bukan daftar test yang ditulis tangan. Rute tenant-scoped baru
+otomatis ikut tersapu.
+
+252 test lulus · coverage 90%.
 
 ## Berikutnya
 
-**Fase 1 — fondasi & identitas** (§20): model domain + skema Postgres, auth & sesi,
-Workspace/Project/Membership, lapisan otorisasi + test INV-7, object store, audit log.
+**Fase 2 — data masuk & dipahami** (§20): ingest + pratinjau + normalisasi Parquet,
+inferensi skema + SchemaContract berversi, preview grid, editor skema + invalidasi.
 
-**Gerbang 1:** dua pengguna di workspace berbeda tidak bisa saling melihat apa pun —
-dibuktikan test otomatis, bukan pemeriksaan manual.
+**Gerbang 2:** unggah 3 dataset berbeda karakter (bersih / kotor / besar); tipe
+terdeteksi masuk akal; koreksi menghasilkan SchemaContract v2; NFR-PERF.1 terpenuhi.
+
+Yang **belum** dikerjakan dari Fase 1: FR-A.5 (undangan anggota) dan FR-A.6 (reset
+password). Keduanya P1 dan tidak menahan Gerbang 1 — model peran beserta
+penegakannya sudah ada dan ber-test; yang kurang hanya endpoint untuk mengundang.
 
 ## Hubungan dengan versi lama
 
