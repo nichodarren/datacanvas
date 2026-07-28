@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.4.0 |
-| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-020 Accepted; Gerbang 0 terlampaui; dokumen ini mengikat untuk implementasi |
-| **Tanggal** | 2026-07-28 |
+| **Versi** | 0.5.0 |
+| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-027 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
+| **Tanggal** | 2026-07-29 |
 | **Owner** | Nicholas Darren |
 | **Reviewer** | (isi) |
 | **Menggantikan** | DataCanvas v1 (`_legacy_datacanvas_backup/`) — referensi saja, bukan fondasi |
@@ -101,6 +101,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.3.3 | 2026-07-28 | **Review gerbang Fase 1 — dua cacat ditemukan dengan menjalankan sistemnya, bukan membaca kodenya.** (1) **Aplikasi tidak jalan di bawah uvicorn.** `/health` menjawab 200, setiap rute yang menyentuh database menjawab 500: uvicorn mengabaikan event loop policy dan meneruskan `loop_factory`-nya sendiri, yang di Windows adalah `ProactorEventLoop` — satu-satunya loop yang tidak bisa dipakai psycopg. Seluruh 236 test hijau saat itu, karena pytest menyuntikkan loop-nya sendiri. Ditambahkan entry point `python -m app` yang memiliki loop-nya, plus penjaga startup yang menolak jalan di loop yang salah (P6). **Pelajarannya lebih luas dari psycopg: test yang menyuntikkan runtime-nya sendiri tidak membuktikan apa pun tentang runtime yang benar-benar didapat proses.** (2) **Workspace dan user tidak bisa dihapus** — FK `ON DELETE SET NULL` pada `audit_event` adalah UPDATE, yang ditolak trigger append-only; bertabrakan dengan FR-B.6 dan NFR-PRIV.3. Diperbaiki migrasi 0003: audit log tidak punya foreign key, dicatat di §13.7. Tidak ada perubahan scope. |
 | 0.3.4 | 2026-07-29 | **Ditambahkan R-16 (project hanya ada di satu mesin, tanpa salinan luar) dan R-17 (CI belum pernah dieksekusi).** Keduanya risiko yang **ditanggung secara sadar**, bukan dimitigasi — dan dicatat begitu, karena menuliskan rencana lalu menurunkan level risiko adalah persis kebiasaan yang dilarang §0.3. R-17 unik karena **sudah terbukti sekali** lewat cacat uvicorn di 0.3.3. Ditambahkan `scripts/check.sh` (seluruh rangkaian CI dalam POSIX sh, bisa dijalankan runner mana pun) dan `.gitattributes` — index repo ternyata sudah campur CRLF/LF, dan SHA-256 dataset di golden_queries.md §3 bersifat kontraktual sehingga konversi EOL apa pun akan mematahkan build karena alasan yang tidak berhubungan dengan datanya. |
 | 0.4.0 | 2026-07-29 | **Penutupan sesi — tiga keputusan sesi ini diangkat dari prosa menjadi ADR penuh di §18** (§0.3 aturan 2 → minor version). **D-022** INV-7 tiga lapis, mencatat eksplisit bahwa rumusan lama §13.3 tidak bisa diimplementasikan, dan bahwa **L1/L2 tidak mencakup pemanggil non-HTTP** — perlu ditinjau sebelum Step executor Fase 3 menyentuh data. **D-023** audit log tanpa foreign key. **D-024** satu entry point yang memiliki event loop-nya, termasuk catatan bahwa memasang event loop policy sudah dicoba dan terbukti tidak berpengaruh — supaya tidak ada yang mengulangi percobaan itu. **Penjadwalan ulang, bukan perubahan scope:** separuh P0-5 (engine DuckDB/Polars) bergeser dari Fase 1 ke Fase 2, karena tidak ada yang bisa dibaca sampai ingest ada — membangunnya sekarang berarti menulis pembungkus tanpa satu pun pemanggil dan menebak bentuknya. **Tidak ada yang keluar dari scope MVP**: §15.2 utuh, hanya urutannya bergeser, dan §19.1 memastikan penundaan ini penambahan, bukan migrasi. |
+| 0.5.0 | 2026-07-29 | **Pembukaan Fase 2 — empat cacat ditemukan saat membaca §7/§9/§10/§13 dengan niat mengimplementasikannya** (§0.3 aturan 2 → minor version). **(1) Alur ingest §10.4 tidak punya tempat untuk file yang sudah diunggah tapi belum di-commit** — §10.5 hanya mengenal path di bawah `versions/{version_id}/`, dan ID itu belum ada saat pratinjau. Jalan keluar yang tampak wajar (baris `DatasetVersion` berstatus *pending* yang diisi setelah konfirmasi) **tertutup secara struktural**: mengisinya adalah UPDATE, dan trigger INV-2 menolaknya. → **D-025**, pratinjau dari potongan awal, tanpa staging. **(2) Klaim `content_hash` → "dedup penyimpanan gratis" (§9.2) tidak benar dan tidak ada yang memakainya** — diuji: polars menulis Parquet byte-identik dalam versi yang sama tapi berbeda dari pyarrow atas data yang sama persis, jadi hash itu properti *penulisnya*, bukan properti *datanya*. Selain itu FR-B.2 mewajibkan unggah ulang selalu menghasilkan versi baru, sehingga tidak ada satu pun jalur kode MVP yang akan men-dedup. → **D-026**, opsi tulis dipin + determinisme dijaga test, klaim dedup dicabut. **(3) "Deteksi magic bytes, bukan ekstensi" (NFR-SEC.4, §13.6) tidak dapat diterapkan pada 3 dari 5 format yang diterima** — CSV, TSV, dan JSON tidak punya magic bytes sama sekali. Dibiarkan begitu, ia terdengar seperti jaminan sementara implementasinya akan jatuh kembali ke ekstensi. → **D-027**, penerimaan berbasis parsing; ekstensi tidak pernah otoritas. Konsekuensi bonus: `python-magic` tidak jadi dibutuhkan. **(4) Separuh "invalidasi" P0-15 tidak punya konsumen di Fase 2** — `Step` dan `Computation` baru ada di Fase 3, dan invalidasinya struktural lewat fingerprint §9.4, jadi tidak ada yang bisa dibangun **maupun di-test**; dinyatakan di §20 agar Gerbang 2 tidak diklaim atas sesuatu yang belum teruji. Ditambahkan pula kebutuhan **dataset besar ber-generator** untuk Gerbang 2 (yang terbundel hanya sampai 16 MB, sehingga NFR-PERF.1 tidak akan pernah teruji). Tidak ada perubahan scope (§0.3 aturan 3 tidak terpicu). |
 
 ---
 
@@ -652,7 +653,7 @@ Setiap NFR harus **terukur**. NFR yang tidak bisa diukur adalah harapan, bukan r
 | NFR-SEC.1 | Otorisasi ditegakkan di **lapisan akses data**, bukan per-endpoint. Tidak mungkin mendapatkan handle dataset tanpa melewati pemeriksaan kepemilikan. |
 | NFR-SEC.2 | Password di-hash dengan argon2id; token sesi acak, opaque, disimpan di cookie `httpOnly`+`Secure`+`SameSite=Lax`, dan dapat dicabut |
 | NFR-SEC.3 | Semua argumen tool tervalidasi skema; tidak ada SQL yang dibangun dari string mentah pengguna |
-| NFR-SEC.4 | File unggahan divalidasi berdasarkan magic bytes, bukan ekstensi; ada batas ukuran, batas dekompresi, dan timeout parsing |
+| NFR-SEC.4 | File unggahan diterima berdasarkan **isinya, tidak pernah berdasarkan ekstensinya** (magic bytes bila ada, parsing bila tidak — §13.6, D-027); ada batas ukuran, batas dekompresi, dan timeout parsing |
 | NFR-SEC.5 | Konten turunan data (nama kolom, nilai sel) diperlakukan sebagai **untrusted** saat masuk prompt LLM |
 | NFR-SEC.6 | Rate limiting pada auth, upload, dan endpoint LLM |
 | NFR-SEC.7 | Secrets hanya dari environment; tidak pernah di repo; tidak pernah masuk log |
@@ -796,9 +797,17 @@ Kolomnya ada di skema, tapi selalu berisi org default. Alasannya NFR-EXT.5: mena
 **`DatasetVersion`** — **Immutable.** Inilah yang sebenarnya berisi data.
 `id, dataset_id, version_no, content_hash, parquet_uri, row_count, column_count, byte_size, ingested_at, ingested_by, ingest_options`
 
-- `content_hash` = SHA-256 atas file Parquet ternormalisasi. Dua unggahan identik menghasilkan hash yang sama → dedup penyimpanan gratis.
+- `content_hash` = SHA-256 atas file Parquet ternormalisasi. **Ini identitas isi dan pemeriksaan integritas — bukan kunci dedup.** Lihat **D-026**.
 - `ingest_options` menyimpan delimiter/encoding/header yang dipakai — bagian dari reproducibility.
 - **INV-2: DatasetVersion tidak pernah di-UPDATE setelah commit.** Hanya boleh dibuat atau dihapus.
+
+> **Koreksi (2026-07-29): versi dokumen ini sebelumnya menulis *"dua unggahan identik menghasilkan hash yang sama → dedup penyimpanan gratis"*. Itu keliru dua kali, dan diuji sebelum dicabut.**
+>
+> **Pertama, ia properti penulisnya, bukan properti datanya.** Polars menghasilkan Parquet byte-identik untuk input yang sama di dalam satu versi library — tapi berbeda dari pyarrow atas data yang persis sama. Row group, urutan metadata, dan default kompresi semuanya boleh berubah antar rilis tanpa satu bit pun data berubah. Sebuah properti yang bisa hilang karena `uv lock --upgrade` bukan properti yang boleh dijadikan sandaran.
+>
+> **Kedua, tidak ada yang memakainya.** FR-B.2 mewajibkan unggah ulang **selalu** menghasilkan DatasetVersion baru, jadi dedup — kalau ada — hanya bisa terjadi di lapisan penyimpanan, dan tidak ada satu pun komponen MVP yang dirancang melakukannya. Klaim itu menggambarkan fitur yang tidak pernah dijadwalkan.
+>
+> Yang tetap dipertahankan justru bagian yang berguna: **penulisan Parquet dibuat deterministik secara sengaja dan dijaga test** (D-026), karena itulah yang dibutuhkan INV-6 — bukan untuk menghemat disk, melainkan agar "ingest yang sama menghasilkan byte yang sama" bisa dibuktikan, bukan diharapkan.
 
 > **Bagaimana INV-2 dan INV-3 ditegakkan.** Bukan dengan "repository-nya tidak menyediakan metode update" — itu kedisiplinan, dan §13.3 sudah menolak kedisiplinan sebagai mekanisme keamanan. Keduanya ditegakkan **di Postgres**: trigger `BEFORE UPDATE` pada `dataset_version` dan `schema_contract` yang selalu `RAISE`. Testnya mencoba UPDATE langsung lewat koneksi dan mengharap error.
 >
@@ -1048,20 +1057,23 @@ sequenceDiagram
     participant S as Storage
 
     U->>FE: pilih file
-    FE->>API: POST /uploads (streaming)
-    API->>ING: validasi (magic bytes, ukuran, dekompresi)
+    FE->>API: POST /uploads/preview (POTONGAN AWAL saja, ±1 MB)
+    API->>ING: validasi (sniffing format, ukuran, dekompresi)
     ING->>ING: deteksi delimiter / encoding / header
-    ING-->>FE: pratinjau parsing + opsi (BELUM commit)
-    U->>FE: koreksi opsi bila perlu → Konfirmasi
-    FE->>API: POST /datasets/{id}/versions
+    ING-->>FE: dialect terdeteksi + baris contoh (BELUM commit)
+    Note over ING: potongan itu dibuang. Tidak ada yang disimpan.
+    U->>FE: koreksi dialect bila perlu → Konfirmasi
+    FE->>API: POST /projects/{id}/datasets (FILE PENUH + dialect)
     ING->>S: tulis Parquet, hitung content_hash
-    ING->>INF: infer tipe logis
+    ING->>INF: infer tipe logis (memindai SELURUH file, FR-B.3)
     INF-->>S: SchemaContract v1 (+ confidence)
     API-->>FE: DatasetVersion siap
     FE->>U: buka Preview + peringatan skema
 ```
 
 **Keputusan kunci:** ada langkah **pratinjau sebelum commit**. v1 langsung menelan file dan kadang salah parse; memperbaikinya setelah 20 analisis berjalan itu mahal. Konfirmasi 5 detik di depan menghemat berjam-jam di belakang.
+
+**Yang dikoreksi 2026-07-29 (D-025):** pratinjau membaca **potongan awal saja**, bukan seluruh file, dan tidak menyimpan apa pun. Rumusan sebelumnya (`POST /uploads` streaming, lalu `POST /datasets/{id}/versions`) menyiratkan file utuh menunggu di suatu tempat di antara dua panggilan itu — dan §10.5 tidak punya tempat untuk file yang belum punya `version_id`. Yang dikoreksi pengguna di langkah ini memang hanya **dialect** (delimiter, encoding, baris header), dan itu terbaca dari kilobyte pertama; inferensi tipe memang sudah berjalan **setelah** commit di diagram ini sejak awal. Alasan lengkapnya di **D-025**.
 
 #### Alur 2 — Menjalankan tool secara manual
 
@@ -1923,13 +1935,33 @@ Mode `strict` harus tetap **berguna**, bukan sekadar ada. Ini yang membuat pemis
 
 | Ancaman | Mitigasi |
 |---|---|
-| Ekstensi palsu | Deteksi magic bytes (bukan ekstensi); allowlist |
+| Ekstensi palsu | Penerimaan berbasis isi + allowlist format (D-027) — lihat di bawah |
 | Zip/parquet bomb | Batas rasio dekompresi + batas memori + timeout parsing |
 | Kelelahan sumber daya | Batas ukuran (500 MB), rate limit, timeout, antrean |
 | Formula injection (ekspor CSV) | Escape sel yang diawali `= + - @` saat ekspor |
 | Payload XSS di data | Frontend tidak pernah render data sebagai HTML |
 | Prompt injection lewat data | §12.7 |
 | Path traversal via nama file | Nama file tidak pernah dipakai sebagai path; storage memakai UUID |
+
+#### 13.6.1 Kenapa bukan "magic bytes" (koreksi 2026-07-29)
+
+Baris pertama tabel di atas dulu berbunyi *"deteksi magic bytes (bukan ekstensi)"*. **Itu tidak bisa diterapkan pada tiga dari lima format yang FR-B.1 wajibkan kita terima:**
+
+| Format | Signature | Cara sebenarnya mengenalinya |
+|---|---|---|
+| Parquet | `PAR1` di awal **dan** di akhir | Magic bytes — periksa keduanya, footer-nya yang otoritatif |
+| XLSX | `PK\x03\x04` (ia arsip ZIP) | Magic bytes, lalu buka sebagai OOXML — **dan di sinilah batas rasio dekompresi berlaku** |
+| CSV · TSV · JSON | **tidak ada** | Hanya bisa dibuktikan dengan mem-parse-nya |
+
+Rumusan lama bukan sekadar kurang lengkap; ia berbahaya, karena implementasi yang jujur mengikutinya akan menemukan bahwa CSV tidak punya signature lalu diam-diam jatuh kembali ke ekstensi — persis hal yang dilarangnya.
+
+**Aturan penggantinya, yang bisa ditegakkan untuk kelimanya:**
+
+> **Sebuah unggahan diterima sebagai format F bila dan hanya bila ia berhasil di-parse sebagai F di bawah batas sumber daya yang berlaku. Ekstensi file hanya menentukan *urutan percobaan*, tidak pernah hasilnya.**
+
+Konsekuensinya jelas dan itu memang tujuannya: `laporan.csv` yang isinya Parquet akan diterima **sebagai Parquet**, dan `data.bin` yang isinya CSV yang sah akan diterima **sebagai CSV**. Format ditentukan isinya; ekstensinya hanya petunjuk yang menghemat satu-dua percobaan.
+
+Konsekuensi lain yang menyenangkan: **kita tidak membutuhkan `libmagic`.** Dua signature yang benar-benar ada cukup ditulis langsung; menarik dependensi biner lintas platform demi delapan byte adalah persis yang dilarang P9. Catatan "Fase 2 → python-magic" di `pyproject.toml` dicabut.
 
 ### 13.7 Audit log
 
@@ -2379,6 +2411,36 @@ Status: 🟡 Proposed · 🟢 Accepted · 🔴 Superseded
 
 ---
 
+**D-027 · Format unggahan ditentukan dengan mem-parse isinya, bukan oleh magic bytes maupun ekstensi** 🟢 Accepted · 2026-07-29
+*Konteks:* NFR-SEC.4 dan §13.6 memerintahkan *"deteksi magic bytes, bukan ekstensi"*. Saat hendak diimplementasikan: **tiga dari lima format yang FR-B.1 wajibkan — CSV, TSV, JSON — sama sekali tidak punya magic bytes.** Aturan itu hanya bisa dipenuhi untuk Parquet (`PAR1`) dan XLSX (`PK\x03\x04`).
+*Keputusan:* Sebuah unggahan diterima sebagai format F **bila dan hanya bila ia berhasil di-parse sebagai F** di bawah batas ukuran, batas dekompresi, dan timeout yang berlaku. Magic bytes dipakai bila ada — sebagai jalan pintas yang murah dan sebagai penentu urutan percobaan — tapi bukan sebagai syarat. Ekstensi hanya mengurutkan percobaan, tidak pernah menentukan hasil.
+*Alternatif:* **(a)** pertahankan rumusan lama dan pakai `libmagic` — tidak menyelesaikan apa pun, karena libmagic mengenali CSV lewat heuristik teks yang persis sama rapuhnya, sambil menambah dependensi biner lintas platform; **(b)** percayai ekstensi untuk format tanpa signature — persis kerentanan yang requirement-nya ada untuk mencegah, dan berarti requirement itu hanya berlaku untuk 2 dari 5 format; **(c)** tolak format tanpa signature — membuang CSV, yaitu format yang paling sering dipakai pengguna kita.
+*Trade-off:* Penerimaan menjadi lebih mahal — sebagian file benar-benar di-parse untuk ditolak. Batasnya dibayar di muka lewat pratinjau yang hanya membaca potongan awal (D-025), jadi biayanya jatuh pada kilobyte, bukan gigabyte. Ada juga konsekuensi yang harus dinyatakan, bukan disembunyikan: **`laporan.csv` yang isinya Parquet akan diterima sebagai Parquet.** Itu benar — format ditentukan isinya — tapi ia mengejutkan kalau tidak ditulis.
+*Konsekuensi:* Tidak ada dependensi `python-magic`; catatan Fase 2 di `pyproject.toml` dicabut. XLSX satu-satunya jalur yang membutuhkan batas rasio dekompresi (ia arsip ZIP). §13.6.1 memuat aturannya lengkap.
+*Ditinjau ulang bila:* FR-B.1 menerima format baru yang parsing-nya mahal atau tidak aman untuk dicoba secara spekulatif.
+
+---
+
+**D-026 · Penulisan Parquet dibuat deterministik dan dijaga test; klaim dedup dicabut** 🟢 Accepted · 2026-07-29
+*Konteks:* §9.2 menyatakan `content_hash` atas Parquet ternormalisasi memberi *"dedup penyimpanan gratis"*. Diuji sebelum dipakai: polars menghasilkan byte identik untuk input yang sama **di dalam satu versi library**, tapi berbeda dari pyarrow atas data yang persis sama. Hash itu properti **penulisnya**, bukan properti **datanya**. Terpisah dari itu, FR-B.2 mewajibkan unggah ulang selalu menghasilkan versi baru, sehingga **tidak ada satu pun jalur kode MVP yang akan men-dedup apa pun.**
+*Keputusan:* Cabut klaim dedup. Pertahankan `content_hash` sebagai identitas isi + pemeriksaan integritas. **Pin seluruh opsi tulis Parquet secara eksplisit** (kompresi, ukuran row group, statistik) alih-alih memakai default library, dan kunci determinismenya dengan test: input yang sama → byte yang sama.
+*Alternatif:* **(a)** hash byte file sumber, bukan Parquet — menjawab *"file yang sama?"* alih-alih *"data yang sama?"*, dan dua CSV dengan dialect berbeda yang mendekode ke tabel identik akan tampak berbeda; **(b)** hash isi logis lewat Arrow, bebas dari format penyimpanan — paling benar secara konseptual, tapi butuh kanonikalisasi yang kita rancang sendiri, dan §11.5 tidak menyediakan anggaran untuk itu tanpa satu pun pemanggil; **(c)** biarkan default library dan berharap — persis yang membuat ini ditemukan.
+*Trade-off:* Opsi tulis yang dipin berarti kita tidak otomatis mendapat perbaikan kompresi dari rilis polars baru, dan mengubahnya nanti mengubah `content_hash` seluruh versi yang ditulis sesudahnya. Diterima: `content_hash` tidak masuk fingerprint (§9.4 memakai `dataset_version_id`), jadi perubahannya tidak menghasilkan satu pun cache basi.
+*Konsekuensi:* Test determinisme adalah test INV-6 pertama yang benar-benar dapat dieksekusi. Kalau upgrade polars mematahkannya, kegagalannya terlihat di CI, bukan diam-diam menjadi hash berbeda di produksi.
+*Ditinjau ulang bila:* muncul kebutuhan dedup penyimpanan yang nyata — saat itu alternatif (b) yang benar, bukan menghidupkan kembali klaim lama.
+
+---
+
+**D-025 · Pratinjau ingest membaca potongan awal dan tidak menyimpan apa pun** 🟢 Accepted · 2026-07-29
+*Konteks:* §10.4 Alur 1 mewajibkan pratinjau parsing **sebelum** commit, tapi §10.5 hanya mengenal path di bawah `datasets/{dataset_id}/versions/{version_id}/` — dan kedua ID itu belum ada saat pratinjau. Dokumen tidak pernah menyebut di mana byte-nya menunggu. Jalan keluar yang tampak paling wajar — membuat baris `DatasetVersion` berstatus *pending* lalu melengkapinya setelah konfirmasi — **tertutup secara struktural**: melengkapinya adalah `UPDATE`, dan trigger INV-2 di Postgres menolaknya. Invariant yang dipasang di Fase 1 menutup pintu desain di Fase 2, dan itu justru tanda invariant-nya bekerja.
+*Keputusan:* Pratinjau adalah endpoint **stateless** atas **potongan awal** (± 1 MB): klien mengirim kepala file, server mendeteksi dialect (delimiter, encoding, baris header) dan mengembalikan baris contoh, lalu **membuang byte-nya**. Saat konfirmasi, klien mengirim file penuh beserta dialect yang sudah dikoreksi, dan barulah `DatasetVersion` + `SourceFile` lahir sekaligus — utuh sejak baris pertamanya ada, seperti yang dituntut INV-2.
+*Alternatif:* **(a)** staging area `uploads/{upload_id}/` + tabel + TTL + GC — klien mengunggah sekali, tapi menciptakan **jalur akses data baru yang tidak dilindungi `data_access.open()`**. INV-7 L3 tidak mencakupnya, jadi ia butuh penjaga otorisasinya sendiri: permukaan INV-7 kedua, dibangun di fase yang tidak sedang membangun otorisasi, demi menghemat satu unggahan; **(b)** hilangkan pratinjau, koreksi lewat SchemaContract v2 — mustahil, karena dialect bukan bagian SchemaContract, dan ini persis perilaku v1 yang §10.4 sebut sebagai kesalahan; **(c)** simpan pratinjau di memori proses — pecah begitu ada lebih dari satu worker, dan menyandera memori sebesar file yang diunggah.
+*Trade-off:* Klien mengirim data dua kali — ± 1 MB, lalu file penuh. Itu biaya sungguhan dan diterima secara sadar: untuk file 500 MB tambahannya 0,2%, dan yang ditukar dengannya adalah nol tabel baru, nol job GC, dan **nol permukaan otorisasi baru**. Yang paling menentukan bukan penghematannya, melainkan bahwa alternatif (a) menuntut kita membangun jalan kedua menuju data pengguna — dan §13.3 sudah menyatakan bahwa jumlah jalan menuju data harus tepat satu.
+*Konsekuensi:* Pratinjau tidak dapat melaporkan tipe logis, hanya dialect dan baris contoh. Itu **sudah** benar sebelumnya: diagram §10.4 menjalankan inferensi tipe setelah commit sejak awal, dan FR-B.3 mewajibkan inferensi memindai seluruh file — yang menurut definisi mustahil dari sebuah potongan. Ketidaknyamanan yang perlu dijaga di UI: dialect yang benar untuk 1 MB pertama bisa saja salah untuk file selebihnya (baris yang lebih pendek, delimiter yang muncul belakangan). Kegagalan parsing di langkah commit karena itu **wajib** dilaporkan sebagai kegagalan jujur yang bisa ditindaklanjuti (P6, D-015), bukan sebagai crash.
+*Ditinjau ulang bila:* ingest lewat koneksi DB atau URL datang (NFR-EXT.4) — sumber yang tidak dikirim klien tidak punya "potongan awal" untuk dikirim dua kali, dan modelnya perlu diperiksa lagi.
+
+---
+
 **D-024 · Satu entry point yang memiliki event loop-nya sendiri** 🟢 Accepted · 2026-07-29
 *Konteks:* Ditemukan di review Gerbang 1 dengan menjalankan servernya. `uvicorn app.api.app:create_app --factory` start normal dan menjawab `/health`, lalu mengembalikan **500 di setiap rute yang menyentuh database**. Sebabnya: uvicorn **tidak membaca event loop policy** — `Server.run()` meneruskan `loop_factory` miliknya sendiri, dan di Windows factory itu `ProactorEventLoop`, satu-satunya loop yang ditolak psycopg. Seluruh 236 test hijau saat itu, karena pytest menyuntikkan loop-nya sendiri.
 *Keputusan:* `python -m app` menjalankan `Server.serve()` di dalam loop yang **kita** buat (`asyncio.run(..., loop_factory=LOOP_FACTORY)`), dan `create_app` menolak start di loop yang tidak kompatibel dengan pesan yang menjelaskan cara memperbaikinya.
@@ -2655,14 +2717,21 @@ Itu tetap gerbang yang benar. Alternatifnya adalah menunda gerbang keamanan samp
 
 **Tujuan:** data bisa masuk, dan interpretasinya benar & bisa dikoreksi.
 
+- Engine DuckDB/Polars (separuh P0-5 yang digeser dari Fase 1) — **dikerjakan lebih dulu**
 - Ingest + pratinjau + normalisasi Parquet (P0-6)
 - Inferensi skema + SchemaContract berversi (P0-7)
 - Preview grid dengan header informatif (P0-14)
-- Editor skema + override + invalidasi (P0-15)
+- Editor skema + override (P0-15) — lihat batasnya di bawah
 
 **🚦 Gerbang 2:** Unggah 3 dataset dengan karakter berbeda (bersih / kotor / besar); tipe terdeteksi masuk akal; koreksi menghasilkan SchemaContract v2; NFR-PERF.1 terpenuhi.
 
 > Di titik ini produk sudah **berguna** meski belum ada satu tool pun. Ini disengaja: kalau Fase 2 tidak terasa berguna, ada yang salah dengan asumsi produk kita.
+
+#### Dua batas yang harus dinyatakan sebelum Gerbang 2 diklaim (2026-07-29)
+
+**Separuh "invalidasi" P0-15 tidak dapat dikerjakan maupun di-test di fase ini.** `Step` dan `Computation` baru lahir di Fase 3, jadi tidak ada apa pun yang bisa menjadi stale. Lebih dari itu, invalidasinya **struktural**: `schema_contract_id` masuk fingerprint (§9.4), sehingga skema baru mengubah seluruh fingerprint turunan dan cache-nya miss dengan sendirinya — tidak ada mekanisme invalidasi untuk dibangun. Yang benar-benar dikerjakan Fase 2 adalah override tipe → SchemaContract vN+1 (FR-C.2, FR-C.3, INV-3). **FR-C.4 diverifikasi di Gerbang 3**, bersama test §9.3 yang lain. Ini penalaran yang sama yang memindahkan engine ke Fase 2: komponen yang belum punya pemanggil tidak bisa dibuktikan benar, dan gerbang yang mengklaimnya adalah gerbang yang berbohong.
+
+**Dataset "besar" belum ada dan harus dibuat.** `eval/datasets/` hanya sampai `hotel_bookings.csv` (16 MB, ± 119 ribu baris) — dua kali lipat lebih kecil dari batas NFR-SCALE.1 dalam ordo besaran, sehingga NFR-PERF.1 (< 1 detik untuk dataset ≤ 5 juta baris) tidak akan pernah benar-benar diuji. Dibuat lewat **generator ber-seed** mengikuti pola `eval/fixtures/build_messy_sales.py`: skrip masuk repo, SHA-256-nya menjadi kontrak di `golden_queries.md` §3, file-nya sendiri tidak di-commit. Reproducible bit-per-bit di mesin mana pun tanpa membebani repo — dan tanpa ketergantungan jaringan, yang penting selama R-17 masih berlaku.
 
 ---
 

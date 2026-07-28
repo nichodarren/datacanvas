@@ -6,7 +6,10 @@ requires-python = ">=3.13"
 
 # Dependensi ditambahkan PER FASE, bukan di muka (P9 — small surface).
 # Fase 1 (fondasi & identitas) sudah tercakup di bawah.
-# Fase 2 (ingest)      -> python-magic / python-magic-bin, openpyxl
+# Fase 2 (ingest)      -> openpyxl (XLSX). BUKAN python-magic: D-027 menetapkan
+#                         penerimaan berbasis parsing, dan hanya dua dari lima
+#                         format kita punya magic bytes sama sekali — keduanya
+#                         delapan byte yang ditulis langsung.
 # Fase 3 (mesin tool)  -> parser expression language
 # Fase 5 (copilot)     -> SDK provider LLM, sse-starlette
 dependencies = [
