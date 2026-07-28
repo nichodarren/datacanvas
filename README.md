@@ -51,7 +51,7 @@ scripts/
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"        # atau: uv sync --group dev
-pre-commit install
+pre-commit install             # memasang hook pre-commit DAN commit-msg
 docker compose up -d           # Postgres (D-011)
 ```
 

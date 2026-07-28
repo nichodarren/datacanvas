@@ -2,6 +2,11 @@
 # (manusia maupun agent), tidak terikat satu editor atau satu tool.
 #
 # Pasang sekali:  pre-commit install
+#
+# `default_install_hook_types` wajib ada: tanpa ini, `pre-commit install`
+# hanya memasang stage `pre-commit` dan hook `commit-msg` diam-diam TIDAK
+# terpasang — validator Conventional Commits jadi tidak pernah jalan.
+default_install_hook_types: [pre-commit, commit-msg]
 default_language_version:
   python: python3.13
 
@@ -31,10 +36,21 @@ repos:
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.18.2
     hooks:
+      # Berjalan di environment terisolasi milik pre-commit, BUKAN venv project.
+      # Konsekuensinya: setiap dependensi yang tipenya perlu dikenali mypy harus
+      # didaftarkan manual di bawah, dan daftar ini WAJIB disinkronkan setiap
+      # kali dependensi ber-tipe ditambahkan ke pyproject.toml.
+      #
+      # Isolasi ini dipilih dengan sadar meski merepotkan: alternatifnya
+      # (`language: system` memakai venv project) gagal dengan pesan
+      # "Executable `mypy` not found" setiap kali commit dilakukan dari shell
+      # yang venv-nya belum diaktifkan — dan itu sering, terutama lewat UI git
+      # di IDE. Kegagalan yang membingungkan setiap hari lebih buruk daripada
+      # satu baris yang perlu diingat saat menambah dependensi.
       - id: mypy
         args: [--strict]
-        files: ^(backend|eval|tests)/
-        additional_dependencies: [pydantic, polars, types-requests]
+        files: ^(backend|eval|tests|scripts)/
+        additional_dependencies: [pydantic, polars, pytest]
 
   - repo: local
     hooks:

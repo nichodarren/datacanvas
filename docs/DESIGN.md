@@ -2682,5 +2682,3 @@ Yang sengaja ditinggalkan:
 ---
 
 *Akhir dokumen · v0.1.0 · Status: Draft, menunggu review*
-
-
