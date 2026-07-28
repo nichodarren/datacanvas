@@ -45,6 +45,10 @@ jobs:
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: datacanvas_test
+          # Sama dengan cluster lokal dan docker-compose: urutan byte,
+          # deterministik dan identik di setiap mesin. Kalau ketiganya berbeda,
+          # bug collation hanya muncul di satu tempat.
+          POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
         options: >-
           --health-cmd pg_isready --health-interval 10s
           --health-timeout 5s --health-retries 5
@@ -58,6 +62,10 @@ jobs:
       - run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/datacanvas_test
+          # Tanpa ini, seluruh test isolasi tenant yang menopang Gerbang 1 bisa
+          # melewatkan dirinya sendiri dan build tetap hijau — persis mode
+          # kegagalan yang membuat test keamanan tidak ada gunanya.
+          DATACANVAS_REQUIRE_DB: "1"
 
   eval-contract:
     name: Kontrak evaluasi

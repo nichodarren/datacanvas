@@ -12,6 +12,10 @@ services:
       POSTGRES_USER: datacanvas
       POSTGRES_PASSWORD: datacanvas
       POSTGRES_DB: datacanvas
+      # Urutan byte, deterministik dan identik di setiap mesin. Cluster lokal
+      # portable (README) dan CI memakai yang sama — kalau ketiganya berbeda,
+      # bug collation muncul hanya di satu tempat.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
     ports:
       - "5432:5432"
     volumes:

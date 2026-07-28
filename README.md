@@ -52,8 +52,37 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"        # atau: uv sync --group dev
 pre-commit install             # memasang hook pre-commit DAN commit-msg
-docker compose up -d           # Postgres (D-011)
 ```
+
+### Postgres (D-011)
+
+**Kalau ada Docker:** `docker compose up -d` — selesai.
+
+**Kalau tidak ada Docker** (mis. disk C: sempit, tanpa hak admin), pakai binary
+portable. Tanpa installer, tanpa service Windows, semuanya di satu folder:
+
+```powershell
+# Unduh & ekstrak PostgreSQL 17 dari https://www.enterprisedb.com/download-postgresql-binaries
+# → D:\pgsql   (zip berisi folder `pgsql`, jadi ekstrak ke D:\)
+
+D:\pgsql\bin\initdb -D D:\pgdata -U datacanvas -A scram-sha-256 `
+    --pwfile=<file berisi password> --encoding=UTF8 --locale=C
+D:\pgsql\bin\pg_ctl -D D:\pgdata -l D:\pgdata\server.log start
+D:\pgsql\bin\createdb -h localhost -U datacanvas datacanvas
+D:\pgsql\bin\createdb -h localhost -U datacanvas datacanvas_test
+```
+
+`--locale=C` disengaja: urutan byte, deterministik dan identik di setiap mesin.
+Cluster lokal, `docker-compose.yml`, dan CI ketiganya memakainya — kalau berbeda,
+bug collation muncul hanya di satu tempat.
+
+Lalu salin `.env.example` → `.env` dan jalankan migrasi:
+
+```powershell
+alembic upgrade head
+```
+
+Menghapusnya nanti = hentikan server, hapus `D:\pgsql` dan `D:\pgdata`.
 
 ## Perintah
 
@@ -61,13 +90,20 @@ docker compose up -d           # Postgres (D-011)
 ruff check . ; ruff format --check .          # lint & format
 mypy backend eval tests                       # type check (strict)
 pytest                                        # test
+alembic upgrade head                          # migrasi skema
 python eval/fixtures/build_messy_sales.py     # bangun ulang fixture kotor
 python eval/verify_expected_values.py         # verifikasi kontrak evaluasi
 ```
 
-Keempatnya dijalankan CI pada setiap PR, plus satu pemeriksaan tambahan:
-**fixture harus reproducible bit-per-bit** — kalau generator dan CSV ter-commit
-tidak sinkron, build gagal.
+Semuanya dijalankan CI pada setiap PR, plus dua pemeriksaan tambahan:
+**fixture harus reproducible bit-per-bit** (kalau generator dan CSV ter-commit
+tidak sinkron, build gagal), dan **`DATACANVAS_REQUIRE_DB=1`** yang mengubah
+"tidak ada database" dari *skip* menjadi *gagal*. Tanpa itu, seluruh test isolasi
+tenant yang menopang Gerbang 1 bisa diam-diam melewatkan dirinya sendiri dan
+build tetap hijau.
+
+> Tanpa Postgres berjalan, `pytest` tetap lulus — test integrasi ter-skip dan
+> alasannya dicetak. Itu nyaman, dan justru itulah kenapa penjaga di atas ada.
 
 ## Gerbang 0 — checklist
 

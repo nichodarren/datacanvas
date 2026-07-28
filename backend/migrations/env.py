@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.config import get_settings
 from app.repositories.tables import NAMING_CONVENTION, metadata
+from app.runtime import LOOP_FACTORY
 
 config = context.config
 
@@ -74,4 +75,5 @@ async def run_migrations_online() -> None:
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    asyncio.run(run_migrations_online())
+    # loop_factory, not the default: psycopg cannot use Windows' ProactorEventLoop.
+    asyncio.run(run_migrations_online(), loop_factory=LOOP_FACTORY)

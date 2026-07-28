@@ -55,6 +55,7 @@ repos:
           - pydantic-settings
           - polars
           - pytest
+          - pytest-asyncio
           - sqlalchemy
           - alembic
 
