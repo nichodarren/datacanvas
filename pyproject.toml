@@ -17,7 +17,10 @@ dependencies = [
     "polars>=1.32",
     "duckdb>=1.5",
     "pyarrow>=21",
-    "psycopg[binary]>=3.2",
+    # D-021: SQLAlchemy Core (no ORM) over psycopg3 in async mode. The `pool`
+    # extra brings psycopg_pool; async connections are pointless without it.
+    "sqlalchemy>=2.0",
+    "psycopg[binary,pool]>=3.2",
     "alembic>=1.16",
     "argon2-cffi>=25.1",
     "loguru>=0.7",
@@ -55,6 +58,9 @@ select = [
     "T20",      # tidak ada print() di kode produk
 ]
 ignore = ["S101"]  # assert diizinkan
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "T20"]
