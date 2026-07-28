@@ -185,6 +185,22 @@ project = sa.Table(
 )
 
 
+# One-shot password reset permissions (FR-A.6). Same hashing choice as sessions
+# and for the same reason (§13.2): high entropy, must be findable by hash.
+password_reset_token = sa.Table(
+    "password_reset_token",
+    metadata,
+    _id(),
+    sa.Column("user_id", UUID, sa.ForeignKey("app_user.id", ondelete="CASCADE"), nullable=False),
+    sa.Column("token_hash", sa.Text, nullable=False, unique=True),
+    sa.Column("created_at", TS, nullable=False),
+    sa.Column("expires_at", TS, nullable=False),
+    sa.Column("used_at", TS, nullable=True),
+    sa.Column("requested_ip", sa.Text, nullable=True),
+    sa.Index("ix_password_reset_token_user_id_used_at", "user_id", "used_at"),
+)
+
+
 # ------------------------------------------------------------------- data ----
 
 dataset = sa.Table(
@@ -352,6 +368,7 @@ __all__ = [
     "membership",
     "metadata",
     "organization",
+    "password_reset_token",
     "project",
     "schema_contract",
     "source_file",

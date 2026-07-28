@@ -33,6 +33,7 @@ class Tenant:
 
     email: str
     token: str
+    user_id: str
     workspace_id: str
     project_id: str
     dataset_version_id: str
@@ -96,6 +97,7 @@ async def _register(client: AsyncClient, database: Database, email: str) -> Tena
     return Tenant(
         email=email,
         token=token,
+        user_id=body["user"]["id"],
         workspace_id=workspace_id,
         project_id=project_id,
         dataset_version_id=str(version_id),
@@ -107,8 +109,8 @@ def _as(tenant: Tenant) -> dict[str, str]:
     return {"Cookie": f"{COOKIE_NAME}={tenant.token}"}
 
 
-def _url(spec: RouteSpec, owner: Tenant, caller: Tenant) -> str:
-    """Build a URL aimed at the *owner's* resource, called by someone else.
+def _url(spec: RouteSpec, owner: Tenant, member_user_id: str | None = None) -> str:
+    """Build a URL aimed at the *owner's* resource.
 
     ``workspace_id`` is filled from the owner too. Filling it from the caller
     instead would only prove that a member cannot reach a stranger's nested
@@ -119,6 +121,7 @@ def _url(spec: RouteSpec, owner: Tenant, caller: Tenant) -> str:
         workspace_id=owner.workspace_id,
         project_id=owner.project_id,
         version_id=owner.dataset_version_id,
+        member_user_id=member_user_id or owner.user_id,
     )
 
 
@@ -149,7 +152,7 @@ async def test_cross_tenant_access_returns_404(
     assert spec.resource is not None
     response = await api.request(
         spec.method,
-        _url(spec, owner=alice, caller=bob),
+        _url(spec, owner=alice),
         headers=_as(bob),
         json=spec.sample_body,
     )
@@ -169,32 +172,45 @@ async def test_tenant_scoped_routes_reject_anonymous_callers(
     """No cookie at all must not be treated as "no membership required"."""
     alice = await _register(api, database, "alice@example.com")
 
-    response = await api.request(
-        spec.method, _url(spec, owner=alice, caller=alice), json=spec.sample_body
-    )
+    response = await api.request(spec.method, _url(spec, owner=alice), json=spec.sample_body)
     assert response.status_code in {401, 404}
 
 
 @pytest.mark.invariant
-async def test_owner_still_reaches_their_own_resources(
+async def test_owner_is_never_refused_on_their_own_resources(
     api: AsyncClient, database: Database
 ) -> None:
     """The sweep proves nothing if every route 404s for everyone.
 
     A `deny all` implementation would pass every test above. This is the
     control that rules it out.
+
+    The assertion is "not 404" rather than "200", because some of these routes
+    legitimately answer 409 — removing the last owner, for one. Widening it to
+    any non-denial response keeps the control honest instead of forcing the
+    routes to bend around the test.
     """
     alice = await _register(api, database, "alice@example.com")
+    # A second account that already exists, so adding it as a member succeeds
+    # and the member routes have a real target that is not the last owner.
+    guest = await _register(api, database, "swept@example.com")
+    added = await api.post(
+        f"/workspaces/{alice.workspace_id}/members",
+        headers=_as(alice),
+        json={"email": guest.email, "role": "viewer"},
+    )
+    assert added.status_code == 201, added.text
 
     for spec in TENANT_SCOPED:
         response = await api.request(
             spec.method,
-            _url(spec, owner=alice, caller=alice),
+            _url(spec, owner=alice, member_user_id=guest.user_id),
             headers=_as(alice),
             json=spec.sample_body,
         )
-        assert response.status_code in {200, 201}, (
-            f"{spec.method} {spec.path} returned {response.status_code} to its own owner"
+        assert response.status_code != 404, (
+            f"{spec.method} {spec.path} returned 404 to its own owner — "
+            f"tenant isolation must not deny the tenant"
         )
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -62,6 +63,42 @@ class CreateProjectRequest(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
 
 
+class MemberResponse(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    role: str
+    created_at: datetime
+    invited_by: uuid.UUID | None
+
+
+class AddMemberRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    # Literal rather than the enum itself: the wire format should not shift
+    # because somebody renames a Python member.
+    role: Literal["owner", "editor", "viewer"] = "editor"
+
+
+class ChangeRoleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["owner", "editor", "viewer"]
+
+
+class PasswordResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=512)
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+
+
 class MeResponse(BaseModel):
     user: UserResponse
     workspaces: list[WorkspaceResponse]
@@ -92,11 +129,16 @@ class LogoutAllResponse(BaseModel):
 
 
 __all__ = [
+    "AddMemberRequest",
+    "ChangeRoleRequest",
     "CreateProjectRequest",
     "DatasetVersionResponse",
     "LoginRequest",
     "LogoutAllResponse",
     "MeResponse",
+    "MemberResponse",
+    "PasswordResetConfirmRequest",
+    "PasswordResetRequest",
     "ProjectResponse",
     "RegisterRequest",
     "RegisterResponse",

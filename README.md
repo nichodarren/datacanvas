@@ -130,13 +130,15 @@ build tetap hijau.
 - [x] `data_access.open()` + `DataHandle` — satu-satunya jalan menuju data (INV-7)
 - [x] Object store dengan dua penjaga traversal independen
 - [x] Audit log + observability (correlation id, redaksi rahasia)
+- [x] FR-A.5 — anggota workspace, peran, dan aturan **owner terakhir dilindungi**
+- [x] FR-A.6 — reset password (token sekali pakai, cabut semua sesi) · pengiriman menunggu **OQ-14**
 
 **🚦 Gerbang 1 terlampaui.** Dua pengguna di workspace berbeda tidak bisa saling
 melihat apa pun — dibuktikan **penyapuan lintas-tenant yang digenerate dari manifest
 rute** (§13.3.1), bukan daftar test yang ditulis tangan. Rute tenant-scoped baru
 otomatis ikut tersapu.
 
-252 test lulus · coverage 90%.
+236 test lulus · coverage 88%.
 
 ## Berikutnya
 
@@ -146,9 +148,11 @@ inferensi skema + SchemaContract berversi, preview grid, editor skema + invalida
 **Gerbang 2:** unggah 3 dataset berbeda karakter (bersih / kotor / besar); tipe
 terdeteksi masuk akal; koreksi menghasilkan SchemaContract v2; NFR-PERF.1 terpenuhi.
 
-Yang **belum** dikerjakan dari Fase 1: FR-A.5 (undangan anggota) dan FR-A.6 (reset
-password). Keduanya P1 dan tidak menahan Gerbang 1 — model peran beserta
-penegakannya sudah ada dan ber-test; yang kurang hanya endpoint untuk mengundang.
+Satu hal dari Fase 1 yang sengaja tergantung: **pengiriman email**. Reset password
+lengkap dan ber-test, tapi tidak ada penyedia email yang pernah diputuskan — itu
+**OQ-14**, terbuka sampai Gerbang 6, dan §19.1 melarang mengambil ketergantungan
+layanan eksternal diam-diam. Sampai itu diputuskan, token ditulis ke log oleh
+pengirim versi pengembangan.
 
 ## Hubungan dengan versi lama
 

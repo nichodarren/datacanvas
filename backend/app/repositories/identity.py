@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.domain.enums import PrivacyMode, Role, UserStatus
 from app.domain.identity import (
     Membership,
+    PasswordResetToken,
     Project,
     Session,
     User,
@@ -28,6 +29,7 @@ from app.domain.identity import (
 from app.domain.ids import (
     MembershipId,
     OrganizationId,
+    PasswordResetTokenId,
     ProjectId,
     SessionId,
     UserId,
@@ -37,6 +39,7 @@ from app.repositories.tables import (
     app_user,
     login_attempt,
     membership,
+    password_reset_token,
     project,
     user_session,
     workspace,
@@ -76,6 +79,17 @@ def _to_workspace(row: Row[tuple[object, ...]]) -> Workspace:
         created_at=row.created_at,
         created_by=UserId(row.created_by),
         is_personal=row.is_personal,
+    )
+
+
+def _to_membership(row: Row[tuple[object, ...]]) -> Membership:
+    return Membership(
+        id=MembershipId(row.id),
+        user_id=UserId(row.user_id),
+        workspace_id=WorkspaceId(row.workspace_id),
+        role=Role(row.role),
+        created_at=row.created_at,
+        invited_by=UserId(row.invited_by) if row.invited_by else None,
     )
 
 
@@ -336,6 +350,67 @@ class MembershipRepository:
         )
         return created
 
+    async def get(self, user_id: UserId, workspace_id: WorkspaceId) -> Membership | None:
+        row = (
+            await self._c.execute(
+                sa.select(membership).where(
+                    membership.c.user_id == user_id,
+                    membership.c.workspace_id == workspace_id,
+                )
+            )
+        ).one_or_none()
+        return _to_membership(row) if row else None
+
+    async def list_for_workspace(self, workspace_id: WorkspaceId) -> list[tuple[Membership, str]]:
+        """Members with their email addresses, oldest first.
+
+        The email is joined in because a member list showing only UUIDs is a
+        member list nobody can act on.
+        """
+        rows = await self._c.execute(
+            sa.select(membership, app_user.c.email)
+            .join(app_user, app_user.c.id == membership.c.user_id)
+            .where(membership.c.workspace_id == workspace_id)
+            .order_by(membership.c.created_at)
+        )
+        return [(_to_membership(row), row.email) for row in rows]
+
+    async def count_owners(self, workspace_id: WorkspaceId) -> int:
+        """Used to refuse the change that would leave a workspace unadministrable."""
+        value = await self._c.scalar(
+            sa.select(sa.func.count())
+            .select_from(membership)
+            .where(
+                membership.c.workspace_id == workspace_id,
+                membership.c.role == Role.OWNER.value,
+            )
+        )
+        return int(value or 0)
+
+    async def set_role(self, user_id: UserId, workspace_id: WorkspaceId, role: Role) -> None:
+        await self._c.execute(
+            sa.update(membership)
+            .where(
+                membership.c.user_id == user_id,
+                membership.c.workspace_id == workspace_id,
+            )
+            .values(role=role.value)
+        )
+
+    async def revoke(self, user_id: UserId, workspace_id: WorkspaceId) -> None:
+        """Removes access only. Nothing the member created is touched.
+
+        Their datasets and analyses belong to the workspace, not to them.
+        Deleting somebody's work because their access ended would be a
+        surprising thing for a tool to decide on its own.
+        """
+        await self._c.execute(
+            sa.delete(membership).where(
+                membership.c.user_id == user_id,
+                membership.c.workspace_id == workspace_id,
+            )
+        )
+
     async def roles_for_user(self, user_id: UserId) -> dict[WorkspaceId, Role]:
         """Everything a Principal needs about tenancy, in one query.
 
@@ -348,6 +423,112 @@ class MembershipRepository:
             )
         )
         return {WorkspaceId(row.workspace_id): Role(row.role) for row in rows}
+
+
+class PasswordResetRepository:
+    """One-shot reset permissions (FR-A.6)."""
+
+    def __init__(self, connection: AsyncConnection) -> None:
+        self._c = connection
+
+    async def create(
+        self,
+        *,
+        user_id: UserId,
+        token_hash: str,
+        now: datetime,
+        expires_at: datetime,
+        ip: str | None = None,
+    ) -> PasswordResetToken:
+        token = PasswordResetToken(
+            id=PasswordResetTokenId(uuid.uuid4()),
+            user_id=user_id,
+            token_hash=token_hash,
+            created_at=now,
+            expires_at=expires_at,
+            requested_ip=ip,
+        )
+        await self._c.execute(
+            sa.insert(password_reset_token).values(
+                id=token.id,
+                user_id=token.user_id,
+                token_hash=token.token_hash,
+                created_at=token.created_at,
+                expires_at=token.expires_at,
+                requested_ip=token.requested_ip,
+            )
+        )
+        return token
+
+    async def get_by_token_hash(self, token_hash: str) -> PasswordResetToken | None:
+        row = (
+            await self._c.execute(
+                sa.select(password_reset_token).where(
+                    password_reset_token.c.token_hash == token_hash
+                )
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        return PasswordResetToken(
+            id=PasswordResetTokenId(row.id),
+            user_id=UserId(row.user_id),
+            token_hash=row.token_hash,
+            created_at=row.created_at,
+            expires_at=row.expires_at,
+            used_at=row.used_at,
+            requested_ip=row.requested_ip,
+        )
+
+    async def mark_used(self, token_id: PasswordResetTokenId, now: datetime) -> int:
+        """Consume the token. Returns how many rows changed.
+
+        The ``used_at IS NULL`` clause is the concurrency guard: two
+        simultaneous confirmations race on the same UPDATE and exactly one sees
+        a row count of 1. Reading "is it used?" and then marking it used as two
+        separate statements would let both win.
+        """
+        result = await self._c.execute(
+            sa.update(password_reset_token)
+            .where(
+                password_reset_token.c.id == token_id,
+                password_reset_token.c.used_at.is_(None),
+            )
+            .values(used_at=now)
+        )
+        return result.rowcount
+
+    async def count_recent(self, *, user_id: UserId, since: datetime) -> int:
+        """How many resets this account asked for lately.
+
+        Caps inbox flooding without a second table: the requests themselves are
+        the counter.
+        """
+        value = await self._c.scalar(
+            sa.select(sa.func.count())
+            .select_from(password_reset_token)
+            .where(
+                password_reset_token.c.user_id == user_id,
+                password_reset_token.c.created_at >= since,
+            )
+        )
+        return int(value or 0)
+
+    async def invalidate_outstanding(self, user_id: UserId, now: datetime) -> int:
+        """Burn earlier unused tokens when a new one is issued.
+
+        Otherwise every reset mail ever sent stays a live key to the account
+        until its own expiry runs out.
+        """
+        result = await self._c.execute(
+            sa.update(password_reset_token)
+            .where(
+                password_reset_token.c.user_id == user_id,
+                password_reset_token.c.used_at.is_(None),
+            )
+            .values(used_at=now)
+        )
+        return result.rowcount
 
 
 class ProjectRepository:
@@ -438,6 +619,7 @@ class LoginAttemptRepository:
 __all__ = [
     "LoginAttemptRepository",
     "MembershipRepository",
+    "PasswordResetRepository",
     "ProjectRepository",
     "SessionRepository",
     "UserRepository",

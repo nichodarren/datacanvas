@@ -39,6 +39,9 @@ ROUTES: tuple[RouteSpec, ...] = (
     RouteSpec("GET", "/health", RouteClass.PUBLIC),
     RouteSpec("POST", "/auth/register", RouteClass.PUBLIC),
     RouteSpec("POST", "/auth/login", RouteClass.PUBLIC),
+    # Public by necessity: whoever needs these has lost their password.
+    RouteSpec("POST", "/auth/password-reset", RouteClass.PUBLIC),
+    RouteSpec("POST", "/auth/password-reset/confirm", RouteClass.PUBLIC),
     # --- authenticated, not tied to one workspace ------------------------
     RouteSpec("GET", "/auth/me", RouteClass.AUTHENTICATED),
     RouteSpec("POST", "/auth/logout", RouteClass.AUTHENTICATED),
@@ -66,6 +69,32 @@ ROUTES: tuple[RouteSpec, ...] = (
         "/workspaces/{workspace_id}/projects/{project_id}",
         RouteClass.TENANT_SCOPED,
         resource="project",
+    ),
+    RouteSpec(
+        "GET",
+        "/workspaces/{workspace_id}/members",
+        RouteClass.TENANT_SCOPED,
+        resource="workspace",
+    ),
+    RouteSpec(
+        "POST",
+        "/workspaces/{workspace_id}/members",
+        RouteClass.TENANT_SCOPED,
+        resource="workspace",
+        sample_body={"email": "swept@example.com", "role": "viewer"},
+    ),
+    RouteSpec(
+        "PATCH",
+        "/workspaces/{workspace_id}/members/{member_user_id}",
+        RouteClass.TENANT_SCOPED,
+        resource="member",
+        sample_body={"role": "viewer"},
+    ),
+    RouteSpec(
+        "DELETE",
+        "/workspaces/{workspace_id}/members/{member_user_id}",
+        RouteClass.TENANT_SCOPED,
+        resource="member",
     ),
     RouteSpec(
         "GET",

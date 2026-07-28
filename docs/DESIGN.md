@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.3.1 |
+| **Versi** | 0.3.2 |
 | **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-020 Accepted; Gerbang 0 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-28 |
 | **Owner** | Nicholas Darren |
@@ -97,6 +97,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.2.3 | 2026-07-28 | **Penutupan sesi & higiene dokumen.** Dua cacat ditemukan saat menutup: field `Versi` di header masih `0.1.0 — Draft` padahal changelog sudah 15 entri, dan urutan changelog kacau akibat entri baru disisipkan di atas. Keduanya diperbaiki, lalu dicegah berulang lewat **§0.3 aturan 0** (header dan changelog wajib sinkron; changelog menaik). Status dokumen dinaikkan ke 🟢 **Baseline aktif** — pernyataan lama *"belum boleh dijadikan dasar implementasi"* sudah tidak benar sejak D-001…D-020 Accepted. Ditambahkan penunjuk pembagian peran: **DESIGN.md menyimpan keputusan, the project notes menyimpan posisi.** Di sisi repo: `pre-commit` dikeraskan (dua stage terpasang, environment mypy diperbaiki) dan the project notes diperbarui dengan batas scope D-020, bagian "Cara kerja di project ini", serta status Fase 0. |
 | 0.3.0 | 2026-07-28 | **Pembukaan Fase 1 — enam cacat ditemukan saat membaca dokumen dengan niat mengimplementasikannya.** Tiga di antaranya keliru, bukan sekadar kurang jelas. **(1) Entitas `Session` tidak ada di §9.2** padahal §13.2 menuntutnya dan FR-A.2 (pencabutan per-perangkat) mustahil tanpanya — sebuah entitas P0 hilang dari bagian yang dokumen ini sendiri sebut paling mahal diperbaiki belakangan. Ditambahkan, bersama `Membership.created_at/invited_by` dan `Workspace.created_by/is_personal` yang dibutuhkan §13.7. **(2) §13.2 tidak menyebut cara token sesi di-hash**, dan default yang tampak aman justru salah: argon2id ber-salt sehingga tidak bisa di-index, dan biayanya dibayar setiap request. Ditetapkan **SHA-256** beserta alasan kenapa itu bukan inkonsistensi dengan argon2id untuk password. **(3) Test INV-7 seperti dirumuskan §13.3 tidak bisa diimplementasikan** — enumerasi rute tidak memberitahu apa yang diakses rute. Diganti §13.3.1: tiga lapis (manifest rute · penyapuan lintas-tenant ter-generate · penjaga runtime pada `DataHandle`). Ini menyangkut Gerbang 1 secara langsung. **(4) §13.7 "append-only" dan INV-2/INV-3 hanya berupa klaim** — ditegakkan trigger Postgres + grant terbatas, ditetapkan sekarang karena keduanya adalah keputusan migrasi pertama atau tidak sama sekali. **(5)** Ditambahkan **D-021** (SQLAlchemy Core tanpa ORM + psycopg3 async) — lapisan persistensi tidak pernah diputuskan di mana pun. **(6)** §10.3 menulis Python 3.12 sementara seluruh repo memakai 3.13 — drift dokumen, diperbaiki. §20 Fase 1 diperjelas: batas migrasi `0001` dan pengakuan bahwa Gerbang 1 dibuktikan atas baris hasil seeder. Tidak ada perubahan scope (§0.3 aturan 3 tidak terpicu). |
 | 0.3.1 | 2026-07-28 | **§13.7.1 ditambahkan — aturan isi audit log.** Ditemukan saat migrasi 0001 dijalankan sungguhan: begitu `DELETE` pada `audit_event` benar-benar ditolak database, tabrakan antara **append-only (§13.7)** dan **NFR-PRIV.3 (hard delete ≤ 24 jam)** berubah dari teoretis menjadi mendesak — §13.7 memerintahkan mencatat prompt copilot, dan prompt adalah teks bebas yang bisa memuat PII. Aturan baru: `audit_event.metadata` tidak pernah memuat nilai data maupun teks bebas pengguna; untuk copilot yang disimpan adalah **hash prompt** + tool + `computation_id`, sementara kalimat aslinya tetap di `ConversationTurn` yang bisa dihapus. Nama kolom ikut dikecualikan (K1, §13.5.1). Alternatif yang ditolak dicatat. Tidak ada perubahan scope. |
+| 0.3.2 | 2026-07-28 | **Fase 1 ditutup — FR-A.5 dan FR-A.6 diimplementasi.** Ditambahkan **OQ-14: bagaimana email keluar dari sistem**, terbuka sampai Gerbang 6. FR-A.6 dibangun penuh kecuali pengirimannya: token, kedaluwarsa 1 jam, sekali pakai, pembatalan token lama, cap permintaan, dan **pencabutan seluruh sesi saat reset berhasil** — semuanya di belakang antarmuka `EmailSender` yang implementasi dev-nya menulis ke log. Menambah SMTP nanti adalah satu adapter; menyalahkan semantik token nanti adalah insiden keamanan, jadi urutannya begini. FR-A.5 menambah aturan **owner terakhir tidak bisa diturunkan atau dikeluarkan** — workspace tanpa owner tidak bisa diadministrasi dan tidak ada endpoint untuk memperbaikinya. §13.9 menambah paparan yang diterima secara sadar: menambah anggota lewat email mengungkap status pendaftaran kepada owner (berbeda standarnya dari login/reset yang publik dan wajib bungkam). Tidak ada perubahan scope — keduanya FR-A yang memang milik Fase 1. |
 
 ---
 
@@ -1970,6 +1971,12 @@ Hanya dari environment. Tidak pernah di repo, tidak pernah di log, tidak pernah 
 
 Setiap desain keamanan yang tidak menyatakan batasnya adalah desain yang tidak jujur.
 
+> **Ditambahkan saat mengimplementasi FR-A.5.** Menambahkan anggota dilakukan lewat alamat email, dan endpoint-nya menjawab berbeda untuk alamat yang punya akun dan yang tidak. Itu **mengungkap status pendaftaran** kepada pemilik workspace.
+>
+> Diterima secara sadar, dengan batas yang jelas: penyerangnya harus sudah terautentikasi **dan** menjadi owner di suatu workspace, dan yang diungkap hanyalah "alamat ini punya akun di sini". Alternatifnya lebih buruk — no-op senyap membuat pemilik menatap daftar anggota yang tidak berubah tanpa tahu apakah ia salah ketik. Bandingkan dengan **login dan reset password, yang keduanya wajib tidak membocorkan apa pun**: keduanya publik dan tidak terautentikasi, jadi standarnya memang berbeda.
+>
+> Ditinjau ulang bila undangan lewat email ada (OQ-14) — saat itu alamat yang belum terdaftar bisa diundang, dan perbedaan jawabannya hilang dengan sendirinya.
+
 | Tidak dilindungi | Alasan | Kapan ditinjau |
 |---|---|---|
 | Insider/operator dengan akses server | Enkripsi per-tenant + manajemen kunci adalah proyek tersendiri | Saat ada tenant eksternal |
@@ -2428,6 +2435,7 @@ Pertanyaan yang **sengaja belum diputuskan**. Masing-masing punya default supaya
 | **OQ-11** | Bahasa antarmuka: Indonesia, Inggris, atau keduanya? | Memengaruhi seluruh copywriting dan golden query | **Inggris saja.** Golden query EN, dengan variasi parafrase menggantikan variasi bahasa | ✅ **Diputuskan 2026-07-28** |
 | **OQ-12** | Model monetisasi (jika ada)? | Memengaruhi anggaran LLM & batas workspace | Tidak ada di MVP. **Naik tenggatnya karena A-9:** ditinjau bersama keputusan moat (§5.3) dan keputusan final OQ-2 | 🟡 Terbuka — **setelah Gerbang 5** (bukan lagi "post-MVP" tanpa tenggat) |
 | **OQ-13** | Moat mana yang dikejar — kedalaman katalog, switching cost, atau vertikal? (§5.3) | Menentukan ke mana effort pasca-MVP diarahkan; tanpa keputusan, effort menyebar tanpa arah | Belum diputuskan; butuh data M-1 dulu | 🟡 Terbuka — **setelah Gerbang 5** |
+| **OQ-14** | **Bagaimana email keluar dari sistem?** (reset password FR-A.6, dan nanti undangan anggota) | Tanpa ini FR-A.6 punya seluruh mekanismenya tapi tidak pernah sampai ke pengguna | Default: SMTP yang bisa di-self-host (§19.2 melarang layanan terkelola tanpa padanan self-hosted). Mekanisme token sudah dibangun di belakang `EmailSender`, jadi keputusan ini menambah satu adapter, bukan mengubah desain | 🟡 Terbuka — **sebelum rilis (Gerbang 6)** |
 
 > **Empat OQ paling mahal sudah diputuskan (2026-07-28).** Sisanya aman berjalan di default sampai tenggat masing-masing. Yang paling perlu diawasi berikutnya adalah **OQ-3** (sebelum Fase 2) dan **OQ-4** (sebelum Fase 5) — keduanya bisa mengubah pilihan teknologi, bukan sekadar prioritas.
 
@@ -2570,6 +2578,8 @@ Jadi yang dikorbankan bukan **validitas**, melainkan **waktu**: sinyalnya datang
 - Audit log (P0-24), observability (P0-26)
 
 **🚦 Gerbang 1:** Dua pengguna di workspace berbeda tidak bisa saling melihat apa pun — dibuktikan test otomatis, bukan pemeriksaan manual. Test INV-7 lulus (ketiga lapisnya, §13.3.1).
+
+✅ **Fase 1 selesai (2026-07-28).** Gerbang 1 terlampaui: penyapuan lintas-tenant **digenerate dari manifest rute**, sehingga rute tenant-scoped yang ditambahkan nanti ikut tersapu tanpa ada yang perlu mengingatnya. FR-A.5 dan FR-A.6 (keduanya P1) ikut diselesaikan; satu-satunya bagian yang tertinggal adalah **pengiriman email**, yang menunggu OQ-14.
 
 #### Batas migrasi `0001` — dan pengakuan tentang apa yang dibuktikan Gerbang 1
 

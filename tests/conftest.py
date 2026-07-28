@@ -18,12 +18,14 @@ import pytest
 import pytest_asyncio
 from alembic import command
 from alembic.config import Config
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from app.api.app import create_app
+from app.auth.email import NullEmailSender
 from app.auth.passwords import PasswordHasher
-from app.config import Settings
+from app.config import Settings, get_settings
 from app.repositories.connection import Database
 from app.repositories.tables import metadata
 from app.runtime import selector_event_loop
@@ -100,6 +102,15 @@ def migrated_database_url() -> Iterator[str]:
     config.set_main_option("script_location", str(ROOT / "backend" / "migrations"))
     previous = os.environ.get("DATABASE_URL")
     os.environ["DATABASE_URL"] = url
+
+    # `get_settings()` is lru_cached, and Alembic's env.py reads the URL through
+    # it. Any earlier call — a unit test building an app, for instance — caches
+    # the *development* URL from .env, and then this migration silently runs
+    # against the wrong database. The test schema is left unmigrated and the
+    # first query fails with "relation app_user does not exist", pointing
+    # nowhere near the cause. Clearing the cache on both sides is what keeps
+    # the environment variable set above authoritative.
+    get_settings.cache_clear()
     try:
         command.upgrade(config, "head")
         yield url
@@ -108,6 +119,7 @@ def migrated_database_url() -> Iterator[str]:
             os.environ.pop("DATABASE_URL", None)
         else:
             os.environ["DATABASE_URL"] = previous
+        get_settings.cache_clear()
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -136,25 +148,35 @@ def test_hasher() -> PasswordHasher:
     return PasswordHasher(memory_cost=8, time_cost=1, parallelism=1)
 
 
+@pytest.fixture
+def api_application(database: Database, test_hasher: PasswordHasher, tmp_path: Path) -> FastAPI:
+    """The application object itself.
+
+    Exposed separately so a test can swap a collaborator — the email sender,
+    for instance — without reaching into the HTTP client's internals.
+    """
+    return create_app(
+        settings=Settings(database_url=_test_database_url(), storage_root=tmp_path),
+        database=database,
+        store=FilesystemObjectStore(tmp_path / "storage"),
+        hasher=test_hasher,
+        # No mail leaves the tests. What matters is the token row.
+        email_sender=NullEmailSender(),
+        # Secure cookies are dropped over the ASGI transport's http:// scheme,
+        # and the failure looks like "login silently does nothing".
+        secure_cookies=False,
+    )
+
+
 @pytest_asyncio.fixture(loop_scope="session")
-async def api(
-    database: Database, test_hasher: PasswordHasher, tmp_path: Path
-) -> AsyncIterator[AsyncClient]:
+async def api(api_application: FastAPI) -> AsyncIterator[AsyncClient]:
     """An HTTP client speaking to the real application.
 
     The real app, not a rehearsal of it: same routes, same dependencies, same
     authorization. Only the clock, the password cost and the storage root are
     swapped, and each of those is an injection point the app already has.
     """
-    application = create_app(
-        settings=Settings(database_url=_test_database_url(), storage_root=tmp_path),
-        database=database,
-        store=FilesystemObjectStore(tmp_path / "storage"),
-        hasher=test_hasher,
-        # Secure cookies are dropped over the ASGI transport's http:// scheme,
-        # and the failure looks like "login silently does nothing".
-        secure_cookies=False,
-    )
+    application = api_application
     # httpx's ASGI transport does not run lifespan, and lifespan is where the
     # app wires its database and store. Entering it explicitly keeps the test
     # exercising the same startup path production uses.

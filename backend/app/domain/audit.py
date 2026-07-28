@@ -32,6 +32,10 @@ class AuditAction(StrEnum):
     LOGIN_FAILED = "auth.login_failed"
     LOGOUT = "auth.logout"
     LOGOUT_ALL = "auth.logout_all"
+    # S105 flags these as hardcoded passwords because of the member names.
+    # They are audit action labels; nothing secret is involved.
+    PASSWORD_RESET_REQUESTED = "auth.password_reset_requested"  # noqa: S105
+    PASSWORD_RESET_COMPLETED = "auth.password_reset_completed"  # noqa: S105
     WORKSPACE_CREATED = "workspace.created"
     PROJECT_CREATED = "project.created"
     MEMBERSHIP_GRANTED = "membership.granted"

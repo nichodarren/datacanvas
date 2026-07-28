@@ -26,6 +26,8 @@ DatasetVersionId = NewType("DatasetVersionId", UUID)
 SourceFileId = NewType("SourceFileId", UUID)
 SchemaContractId = NewType("SchemaContractId", UUID)
 
+PasswordResetTokenId = NewType("PasswordResetTokenId", UUID)
+
 AuditEventId = NewType("AuditEventId", UUID)
 
 __all__ = [
@@ -34,6 +36,7 @@ __all__ = [
     "DatasetVersionId",
     "MembershipId",
     "OrganizationId",
+    "PasswordResetTokenId",
     "ProjectId",
     "SchemaContractId",
     "SessionId",

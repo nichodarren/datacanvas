@@ -16,6 +16,7 @@ from .errors import InvariantViolation
 from .ids import (
     MembershipId,
     OrganizationId,
+    PasswordResetTokenId,
     ProjectId,
     SessionId,
     UserId,
@@ -26,6 +27,11 @@ from .ids import (
 # shortening the policy later cannot silently extend sessions already issued.
 SESSION_IDLE_TTL = timedelta(days=7)
 SESSION_ABSOLUTE_TTL = timedelta(days=30)
+
+#: Password reset window (FR-A.6). Short on purpose: the token arrives in a
+#: mailbox, and a mailbox is exactly the thing that may already be compromised
+#: when somebody resets a password.
+PASSWORD_RESET_TTL = timedelta(hours=1)
 
 
 def normalize_email(raw: str) -> str:
@@ -112,6 +118,45 @@ class Session:
 
 
 @dataclass(frozen=True, slots=True)
+class PasswordResetToken:
+    """A one-shot permission to choose a new password (FR-A.6).
+
+    Hashed with SHA-256 like a session token and for the same reason (§13.2):
+    it is high-entropy, it must be findable by hash, and a leaked database dump
+    must not hand out working reset links.
+    """
+
+    id: PasswordResetTokenId
+    user_id: UserId
+    token_hash: str
+    created_at: datetime
+    expires_at: datetime
+    used_at: datetime | None = None
+    requested_ip: str | None = None
+
+    def __post_init__(self) -> None:
+        ensure_aware(self.created_at, "created_at")
+        ensure_aware(self.expires_at, "expires_at")
+        if self.used_at is not None:
+            ensure_aware(self.used_at, "used_at")
+        ensure_non_empty(self.token_hash, "token_hash")
+
+    @property
+    def is_used(self) -> bool:
+        return self.used_at is not None
+
+    def is_valid_at(self, now: datetime) -> bool:
+        """Single use, and time-limited.
+
+        Both halves matter. Without single use, a reset link sitting in a
+        mailbox stays a working key to the account for as long as the mailbox
+        exists.
+        """
+        ensure_aware(now, "now")
+        return not self.is_used and now < self.expires_at
+
+
+@dataclass(frozen=True, slots=True)
 class Workspace:
     """The isolation boundary and the policy boundary. All authorization ends here."""
 
@@ -175,10 +220,12 @@ class Project:
 
 
 __all__ = [
+    "PASSWORD_RESET_TTL",
     "SESSION_ABSOLUTE_TTL",
     "SESSION_IDLE_TTL",
     "Membership",
     "Organization",
+    "PasswordResetToken",
     "Project",
     "Session",
     "User",

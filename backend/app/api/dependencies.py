@@ -12,6 +12,8 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.auth.email import EmailSender
+from app.auth.password_reset import PasswordResetService
 from app.auth.passwords import PasswordHasher
 from app.auth.service import AuthService
 from app.auth.tokens import COOKIE_NAME
@@ -62,6 +64,20 @@ def get_auth_service(
     return AuthService(connection, database=database, hasher=hasher, clock=clock)
 
 
+async def get_email_sender(request: Request) -> EmailSender:
+    sender: EmailSender = request.app.state.email_sender
+    return sender
+
+
+def get_password_reset_service(
+    connection: Annotated[AsyncConnection, Depends(get_connection)],
+    sender: Annotated[EmailSender, Depends(get_email_sender)],
+    hasher: Annotated[PasswordHasher, Depends(get_hasher)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> PasswordResetService:
+    return PasswordResetService(connection, email_sender=sender, hasher=hasher, clock=clock)
+
+
 async def get_optional_principal(
     request: Request,
     auth: Annotated[AuthService, Depends(get_auth_service)],
@@ -83,19 +99,23 @@ CurrentPrincipal = Annotated[Principal, Depends(require_principal)]
 Connection = Annotated[AsyncConnection, Depends(get_connection)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Store = Annotated[ObjectStore, Depends(get_store)]
+PasswordReset = Annotated[PasswordResetService, Depends(get_password_reset_service)]
 
 
 __all__ = [
     "Auth",
     "Connection",
     "CurrentPrincipal",
+    "PasswordReset",
     "Store",
     "get_auth_service",
     "get_clock",
     "get_connection",
     "get_database",
+    "get_email_sender",
     "get_hasher",
     "get_optional_principal",
+    "get_password_reset_service",
     "get_store",
     "require_principal",
 ]

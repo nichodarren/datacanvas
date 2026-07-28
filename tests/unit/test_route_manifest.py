@@ -104,6 +104,18 @@ def test_tenant_scoped_routes_take_an_id_in_the_path() -> None:
 
 
 def test_public_routes_are_few_and_named() -> None:
-    """Public means unauthenticated. The list should be short enough to read in one go."""
+    """Public means unauthenticated. The list stays short enough to read in one go.
+
+    Written as an exact set so that widening the unauthenticated surface is a
+    deliberate edit to this line, with whatever review that attracts — rather
+    than a route that quietly became reachable without a session.
+    """
     public = {spec.path for spec in ROUTES if spec.tenancy is RouteClass.PUBLIC}
-    assert public == {"/health", "/auth/register", "/auth/login"}
+    assert public == {
+        "/health",
+        "/auth/register",
+        "/auth/login",
+        # Public by necessity: whoever needs these has lost their password.
+        "/auth/password-reset",
+        "/auth/password-reset/confirm",
+    }

@@ -14,7 +14,8 @@ from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from app.api import routes_auth, routes_workspaces
+from app.api import routes_auth, routes_members, routes_workspaces
+from app.auth.email import EmailSender, LoggingEmailSender
 from app.auth.passwords import PasswordHasher
 from app.clock import Clock, system_clock
 from app.config import Settings, get_settings
@@ -44,6 +45,7 @@ def create_app(
     database: Database | None = None,
     store: ObjectStore | None = None,
     hasher: PasswordHasher | None = None,
+    email_sender: EmailSender | None = None,
     clock: Clock = system_clock,
     secure_cookies: bool | None = None,
 ) -> FastAPI:
@@ -61,6 +63,10 @@ def create_app(
         application.state.database = database or Database(resolved.database_url)
         application.state.store = store or FilesystemObjectStore(Path(resolved.storage_root))
         application.state.hasher = hasher or PasswordHasher()
+        # No provider is wired (see app.auth.email). The development sender
+        # logs a loud warning with the token, so "reset mail never arrived" is
+        # answered by the logs rather than by guesswork.
+        application.state.email_sender = email_sender or LoggingEmailSender()
         application.state.clock = clock
         application.state.settings = resolved
         # Secure cookies are dropped silently over plain http, which turns
@@ -117,6 +123,7 @@ def create_app(
     application.include_router(health_router)
     application.include_router(routes_auth.router)
     application.include_router(routes_workspaces.router)
+    application.include_router(routes_members.router)
     return application
 
 

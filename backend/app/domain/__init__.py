@@ -13,10 +13,12 @@ from .data import ColumnSpec, Dataset, DatasetVersion, SchemaContract, SourceFil
 from .enums import ColumnRole, LogicalType, PrivacyMode, Role, RouteClass, UserStatus
 from .errors import AuthorizationError, DomainError, InvariantViolation
 from .identity import (
+    PASSWORD_RESET_TTL,
     SESSION_ABSOLUTE_TTL,
     SESSION_IDLE_TTL,
     Membership,
     Organization,
+    PasswordResetToken,
     Project,
     Session,
     User,
@@ -27,6 +29,7 @@ from .identity import (
 from .principal import Principal
 
 __all__ = [
+    "PASSWORD_RESET_TTL",
     "SESSION_ABSOLUTE_TTL",
     "SESSION_IDLE_TTL",
     "AuditAction",
@@ -41,6 +44,7 @@ __all__ = [
     "LogicalType",
     "Membership",
     "Organization",
+    "PasswordResetToken",
     "Principal",
     "PrivacyMode",
     "Project",
