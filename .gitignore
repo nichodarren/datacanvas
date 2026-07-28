@@ -27,7 +27,11 @@ build/
 *.key
 
 # --- Data runtime (bukan data eval) ---
-storage/
+# Berlabuh di akar repo. Tanpa garis miring di depan, pola ini cocok di
+# kedalaman mana pun — dan pernah menelan `backend/app/storage/` (seluruh
+# paket ObjectStore) tanpa satu pun tanda peringatan. Dijaga
+# `tests/test_repo_hygiene.py`.
+/storage/
 *.duckdb
 *.db
 
