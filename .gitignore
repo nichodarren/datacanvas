@@ -53,3 +53,9 @@ Thumbs.db
 # --- Layanan eksternal (project baru tidak terikat apa pun — §19.1) ---
 .vercel/
 .fly/
+
+# --- Frontend ---
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo

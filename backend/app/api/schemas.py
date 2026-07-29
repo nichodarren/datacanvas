@@ -207,6 +207,22 @@ class SchemaContractResponse(BaseModel):
     derived_from: uuid.UUID | None
 
 
+class RowPageResponse(BaseModel):
+    """One server-side page of the grid (FR-D.1, FR-D.2).
+
+    Cells are strings because the normalized Parquet holds strings — the table
+    is stored as text and interpreted by the SchemaContract (D-029). Sending
+    typed JSON would let the grid form a second opinion about the type, quietly
+    competing with the one the user can actually see and correct.
+    """
+
+    columns: list[str]
+    rows: list[list[str | None]]
+    offset: int
+    limit: int
+    total_rows: int
+
+
 class ColumnOverrideRequest(BaseModel):
     """One column correction (FR-C.2).
 

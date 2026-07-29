@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.8.0 |
-| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-029 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
+| **Versi** | 0.9.0 |
+| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-030 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-29 |
 | **Owner** | Nicholas Darren |
 | **Reviewer** | (isi) |
@@ -106,6 +106,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.6.0 | 2026-07-29 | **Rute ingest dibangun — dan sebuah lubang di §13.3.1 ditemukan dengan mencoba menulisnya** (§0.3 aturan 2 → minor version). **D-028:** L3 seluruhnya dirumuskan tentang *membaca* (`DataHandle` hanya lahir dari `open_dataset_version`), sehingga jalur ingest — yang belum punya DatasetVersion untuk dibuka — tidak punya gerbang otorisasi sama sekali. Ditutup dengan `IngestScope`, saudara kembarnya untuk arah menulis, yang mencetak setiap URI dari workspace-nya sendiri dan menolak URI yang menyebut workspace lain. **Amandemen D-025:** klaim "tidak menyimpan apa pun" diperhalus setelah ditemukan bahwa Starlette menyangga `UploadFile` ke direktori temp OS di atas ambang tertentu; ambangnya kini di-pin, dan batasnya dinyatakan alih-alih ditemukan saat audit Fase 6. **NFR-SEC.6 dinyatakan setengah terpenuhi** — auth dibatasi, upload belum; ditagih di Gerbang 6. Tiga cacat lagi ditemukan lewat test: `utf8-lossy` **merusak data secara senyap** untuk setiap file non-UTF-8 (setiap karakter non-ASCII menjadi U+FFFD, tanpa satu pun error, pada persis jenis file yang persona kita terima); pratinjau memperlakukan file utuh sebagai potongan sehingga baris terakhir file kecil hilang; dan `normalize_file` bergantung pada pemanggilnya sudah membuat direktori tujuan. Allowlist metadata audit §13.7.1 menolak event ingest pertama — allowlist bekerja sebagaimana mestinya, dan lima kunci Fase 2 ditambahkan secara eksplisit. |
 | 0.7.0 | 2026-07-29 | **P0-7 selesai — inferensi skema + SchemaContract v1** (§0.3 aturan 2 → minor version). **D-029** menetapkan dua hal yang keduanya tampak sudah jelas jawabannya. **(1) Cakupan harus 100%**, bukan 90 atau 95: `messy_sales.legacy_code` adalah 4.850 dari 5.000 digit murni, dan ambang berapa pun di bawah 100% menjadikannya `integer` — lalu 150 nilai nyata menjadi null secara senyap begitu ada yang meng-cast kolomnya. **(2) Kecocokan diperiksa aturan bentuk, bukan `TRY_CAST`** — diukur, dan hasilnya menutup pilihan itu: `1.5` → `2` (dibulatkan), `007` → `7` (kehilangan digit), `0x1F` → `31`, `inf` → `DATE 9999-12-31`, dan sebuah timestamp menjadi `DATE` dengan waktunya dibuang. Semuanya kesalahan `utf8-lossy` sekali lagi — fungsi konversi pemaaf dipakai untuk mengambil keputusan. Konsekuensi terpenting: **`detection_confidence` kini mengukur ambiguitas, bukan cakupan** — `qty` bisa 100% integer dan tetap 0,6 karena 5 nilai distinct pada 5.000 baris lebih mungkin kategori (PQ-4). Ditambahkan field `detection_reason` ke `columns[]` §9.2, karena FR-B.3 menuntut deteksi ditampilkan **untuk dikoreksi** dan angka 0,5 telanjang bukan sesuatu yang bisa dibantah seseorang. Satu batasan nyata juga diperbaiki: **CSV satu kolom sebelumnya ditolak** — daftar ID adalah CSV yang sah, dan "tidak ditemukan pemisah" adalah jawaban, bukan kegagalan. Tipe hasil inferensi untuk keempat dataset terbundel kini dipaku sebagai kontrak test. |
 | 0.8.0 | 2026-07-29 | **Fase 2 selesai di sisi backend; Gerbang 2 terlampaui dengan angka.** P0-15 (override tipe → SchemaContract v2, FR-C.2/FR-C.3) dan sisa FR-B.1 (pembaca XLSX & JSON) masuk. Keputusan yang layak dicatat pada override: **koreksi yang membuang nilai diterima dan dicatat, bukan ditolak dan bukan dituruti diam-diam.** §10.2 memberi keputusan kepada orang yang tahu arti kolomnya; D-029 ada karena kehilangan nilai secara senyap adalah kegagalan yang dihindari seluruh desain ini. Keduanya berlaku: koreksinya berhasil, dan kontraknya menyatakan berapa nilai yang tidak cocok. Pada pembaca baru: **XLSX dan JSON membuang tipe aslinya** dan tiba sebagai teks seperti CSV — dua jalur inferensi berarti dua set bug, dan Excel adalah program yang mengubah nama gen menjadi tanggal, jadi menurunkan opininya bukan kehilangan otoritas. Ditambahkan `eval/fixtures/build_wide_orders.py` (5 juta baris, 480 MB, ber-seed, tidak di-commit) karena tanpanya NFR-PERF.1 hanya diasumsikan. **NFR-PERF.4 diperbaiki rumusannya** — ia tidak menyebut inferensi, dan diambil harfiah angkanya menjadi 1,5 detik yang menyenangkan alih-alih 29 detik yang sebenarnya; mengukur separuh yang cepat adalah cara membuat gerbang lolos tanpa membuktikan apa pun. Hasil terukur: halaman pertama **56 ms** pada 5 juta baris terhadap anggaran 1 detik. Dinyatakan terbuka: **Gerbang 2 terlampaui untuk backend, belum untuk UI** — P0-14 belum ada, jadi "halaman pertama tampil" yang terukur adalah waktu server, bukan waktu browser. |
+| 0.9.0 | 2026-07-29 | **Fase 2 SELESAI — P0-14 dibangun, Gerbang 2 ditutup penuh.** Frontend Next.js pertama: shell §14.2, login, alur unggah dengan konfirmasi dialect (FR-B.3), **preview grid tervirtualisasi dengan header informatif** (FR-D.1/D.2/D.4), dan koreksi tipe langsung dari klik header (FR-C.2). Ditambahkan **D-030** (proxy same-origin) beserta **dua koreksi terhadap diri sendiri**: alasan pertama yang ditulis untuk proxy keliru — SameSite membandingkan *site* dan port bukan bagian darinya, jadi cookie akan terkirim lintas-port; yang menghalangi adalah CORS. Dan **proxy Next membatasi body di 10 MB**, 2% dari NFR-SCALE.4 — ditemukan dengan mengunggah 480 MB dan mendapat 500 dari proxy tanpa satu baris pun di log API. Gerbang 2 sebelumnya dinyatakan "terlampaui untuk backend, terbuka untuk UI"; kini diukur ulang lewat jalur browser sungguhan: **muat halaman pertama 94 ms pada 5 juta baris** terhadap anggaran 1.000 ms, dan lompat ke baris terakhir 82 ms. Alur §14.3 langkah 1–6 dijalankan utuh. Shell menampilkan Library, Steps, Findings dan Run Log sebagai **kosong yang menjelaskan dirinya** (§14.5), bukan placeholder — Run Log berisi baris contoh akan menyiratkan traceability yang belum ada, dan P3 adalah janji yang tidak boleh diperlakukan santai. CI bertambah satu job (typecheck + build frontend). |
 
 ---
 
@@ -2431,6 +2432,16 @@ Status: 🟡 Proposed · 🟢 Accepted · 🔴 Superseded
 
 ---
 
+**D-030 · Frontend memanggil API lewat proxy same-origin, dan batas body-nya dipin** 🟢 Accepted · 2026-07-29
+*Konteks:* Frontend berjalan di :3000, API di :8000. Pertanyaannya bagaimana keduanya bicara.
+*Keputusan:* Next me-*rewrite* `/api/*` ke API, sehingga setiap panggilan same-origin — sama seperti di produksi, di mana §10.1 menggambarkan **satu** sistem. Ambang body proxy di-pin ke 512 MB agar cocok dengan NFR-SCALE.4.
+*Alternatif:* memanggil origin API langsung + CORS dengan credentials — permukaan keamanan kedua, dikonfigurasi di tempat kedua, untuk mereproduksi sesuatu yang sudah diberikan deployment secara gratis.
+*Trade-off:* Ada satu lompatan proxy di pengembangan yang tidak ada di produksi. Diterima; yang ditukar adalah tidak perlu menjaga konfigurasi CORS yang hanya benar di satu lingkungan.
+*Dua koreksi yang layak dicatat, karena keduanya salah dan ditemukan dengan menjalankannya:*
+1. **Alasan pertama yang saya tulis keliru.** Ditulis bahwa proxy *wajib* karena §13.2 memakai cookie `SameSite=Lax`. Tidak benar: SameSite membandingkan **site**, dan port bukan bagian dari site — `localhost:3000` dan `localhost:8000` itu same-site, cookienya akan terkirim. Yang benar-benar menghalangi adalah CORS. Keputusannya tetap; alasannya tidak.
+2. **Proxy Next membatasi body request di 10 MB** — 2% dari yang diizinkan NFR-SCALE.4. Ditemukan dengan mengunggah file 480 MB dan mendapat **500 dari proxy**, tanpa satu baris pun di log API. Penolakan di atas batas harus datang dari API, yang menyebut batas mana yang kena dan kenapa (P6), bukan dari default proxy yang melaporkan *socket hang up*.
+*Ditinjau ulang bila:* deployment produksi berhenti menyajikan keduanya dari satu origin.
+
 **D-029 · Tipe logis diberikan hanya bila SELURUH nilai cocok, dan kecocokan diputuskan aturan bentuk — bukan `TRY_CAST`** 🟢 Accepted · 2026-07-29
 *Konteks:* P0-7 harus memutuskan dua hal yang keduanya tampak punya jawaban jelas, dan keduanya tidak. **(1) Berapa persen nilai harus cocok?** Rumusan yang wajar adalah 90% atau 95%. **(2) Bagaimana memeriksa kecocokan?** Jawaban yang wajar adalah `TRY_CAST` — DuckDB sudah menyediakannya.
 
@@ -2811,7 +2822,20 @@ Itu tetap gerbang yang benar. Alternatifnya adalah menunda gerbang keamanan samp
 
 NFR-PERF.1 memberi anggaran 1 detik; yang terukur 56 ms pada batas NFR-SCALE.1 penuh — **18× di bawah anggaran**. Koreksi → SchemaContract v2 dibuktikan `tests/integration/test_schema_override.py`. Aturan cakupan 100% (D-029) diverifikasi masih berlaku pada 5 juta baris, bukan hanya pada 5.000.
 
-> **Yang belum dibuktikan gerbang ini, dan harus dikatakan:** kriterianya berbunyi *"unggah"*, dan yang diukur adalah jalur backend-nya. **Preview grid (P0-14) belum ada** — tidak ada frontend sama sekali. NFR-PERF.1 mengukur "halaman pertama tampil", dan yang terukur adalah waktu server menyiapkan halaman itu, bukan waktu browser menggambarnya. Angka 56 ms adalah lantai, bukan keseluruhan. Gerbang 2 karena itu **terlampaui untuk backend dan terbuka untuk UI**.
+✅ **Ditutup penuh (2026-07-29).** Catatan sebelumnya menyatakan gerbang ini terbuka untuk UI karena P0-14 belum ada dan yang terukur baru waktu server. P0-14 kini ada, dan pengukurannya diulang lewat **jalur yang persis dipakai browser** — proxy Next, cookie sesi, tiga panggilan yang dilakukan halaman saat dibuka:
+
+| Diukur dari klien, 5 juta baris | p95 |
+|---|---|
+| metadata versi | 20 ms |
+| SchemaContract | 20 ms |
+| halaman baris (200 baris) | 78 ms |
+| **muat halaman pertama (ketiganya)** | **94 ms** |
+| lompat ke baris 2.500.000 | 69 ms |
+| lompat ke baris terakhir | 82 ms |
+
+Anggaran NFR-PERF.1 adalah 1.000 ms. Unggahan 480 MB lewat HTTP sungguhan: 28 detik ujung ke ujung, termasuk normalisasi dan inferensi.
+
+Alur §14.3 langkah 1–6 dijalankan utuh: daftar → unggah → pratinjau dialect → konfirmasi → grid → koreksi tipe → SchemaContract v2. **Seluruh empat kriteria Gerbang 2 terpenuhi.**
 
 > Di titik ini produk sudah **berguna** meski belum ada satu tool pun. Ini disengaja: kalau Fase 2 tidak terasa berguna, ada yang salah dengan asumsi produk kita.
 

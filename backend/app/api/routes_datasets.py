@@ -28,6 +28,7 @@ from app.api.schemas import (
     DatasetWithVersionResponse,
     DialectResponse,
     IngestPreviewResponse,
+    RowPageResponse,
     SchemaContractResponse,
     SchemaOverrideRequest,
 )
@@ -52,7 +53,7 @@ from app.repositories.data import DatasetRepository
 from app.repositories.schema import SchemaContractRepository
 from app.schema import override
 from app.schema.override import SchemaOverrideRejected
-from app.storage.engine import TableEngine
+from app.storage.engine import EngineError, TableEngine
 from app.storage.object_store import ObjectStore
 
 router = APIRouter(tags=["datasets"])
@@ -335,6 +336,59 @@ async def get_schema_contract(
     if contract is None:
         raise NOT_FOUND
     return _contract_response(contract)
+
+
+@router.get("/workspaces/{workspace_id}/dataset-versions/{version_id}/rows")
+async def get_rows(
+    workspace_id: uuid.UUID,
+    version_id: uuid.UUID,
+    connection: Connection,
+    principal: CurrentPrincipal,
+    store: Store,
+    engine: Engine,
+    offset: int = 0,
+    limit: int = 100,
+) -> RowPageResponse:
+    """Server-side pagination for the preview grid (FR-D.1, FR-D.2).
+
+    The whole point of FR-D.1 is that a million-row dataset never reaches the
+    browser. The cap lives in the engine (``MAX_PAGE_SIZE``) rather than here,
+    so it holds for every caller and not only for this route.
+
+    Row order is file order and is stable across requests — see
+    ``DuckDBEngine.page``. Without that, paging forward would show rows twice
+    and skip others, silently.
+    """
+    try:
+        handle = await open_dataset_version(
+            principal, DatasetVersionId(version_id), connection=connection, store=store
+        )
+    except DataAccessDenied as exc:
+        raise NOT_FOUND from exc
+    if handle.workspace_id != WorkspaceId(workspace_id):
+        raise NOT_FOUND
+    if not handle.exists():
+        # The row outlived its bytes. Saying so beats a 500 (P6), and the grid
+        # can show it rather than spinning forever.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="the data for this version is no longer present in storage",
+        )
+
+    try:
+        page = engine.page(handle, offset=offset, limit=limit)
+    except EngineError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+    return RowPageResponse(
+        columns=list(page.columns),
+        rows=[[None if cell is None else str(cell) for cell in row] for row in page.rows],
+        offset=page.offset,
+        limit=page.limit,
+        total_rows=handle.version.row_count,
+    )
 
 
 @router.post(

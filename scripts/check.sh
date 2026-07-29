@@ -80,6 +80,18 @@ if [ "$before" != "$after" ]; then
 fi
 printf '   %s\n' "$after"
 
+step "Frontend (kalau dependensinya sudah terpasang)"
+# Frontend punya toolchain sendiri. Dilewati kalau `npm ci` belum pernah jalan,
+# karena memaksa checkout backend-saja untuk memasang Node adalah pajak yang
+# tidak berhubungan. CI memasangnya, jadi di sana langkah ini selalu jalan.
+if [ -d "frontend/node_modules" ]; then
+    (cd frontend && npx tsc --noEmit)
+    (cd frontend && npx next build --no-lint >/dev/null)
+    printf '   typecheck + build OK\n'
+else
+    printf '   (frontend/node_modules belum ada — lewati; jalankan npm ci di frontend/)\n'
+fi
+
 step "Nilai harapan golden query"
 "$PY" eval/verify_expected_values.py
 
