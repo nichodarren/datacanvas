@@ -22,9 +22,25 @@
  */
 const backend = process.env.DATACANVAS_API_ORIGIN ?? "http://127.0.0.1:8000";
 
+/**
+ * Where the build output goes.
+ *
+ * `scripts/check.sh` sets this so a verification build writes somewhere else
+ * than `.next`. Without it, running the checks while the demo is up corrupts
+ * the dev server: both processes write the same chunk files, and the running
+ * app starts serving half of one build and half of another. It presents as
+ * `Cannot find module './833.js'` and, before that, as a page that renders
+ * with **no CSS at all** — which is how it was found.
+ *
+ * A check script that breaks the application it is checking is worse than no
+ * check script, because the damage looks like a bug in the code under test.
+ */
+const distDir = process.env.DATACANVAS_NEXT_DIST_DIR ?? ".next";
+
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
+  distDir,
   experimental: {
     // NFR-SCALE.4 is 500 MB. A refusal above that should come from the API,
     // which names the limit and why (P6) — not from a proxy default reporting

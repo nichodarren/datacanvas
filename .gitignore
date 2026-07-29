@@ -59,5 +59,6 @@ Thumbs.db
 # --- Frontend ---
 frontend/node_modules/
 frontend/.next/
+frontend/.next-check/
 frontend/next-env.d.ts
 frontend/*.tsbuildinfo

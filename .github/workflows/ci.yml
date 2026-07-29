@@ -59,8 +59,12 @@ jobs:
       # as a type error rather than as a build failure ten lines deep.
       - run: npx tsc --noEmit
         working-directory: frontend
+      # Output dir terpisah, sama seperti scripts/check.sh — supaya perintah
+      # yang dijalankan CI identik dengan yang dijalankan orang di laptop.
       - run: npx next build
         working-directory: frontend
+        env:
+          DATACANVAS_NEXT_DIST_DIR: .next-check
 
   test:
     name: Tests
