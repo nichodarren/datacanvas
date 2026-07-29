@@ -85,10 +85,31 @@ alembic upgrade head
 
 Menghapusnya nanti = hentikan server, hapus `D:\pgsql` dan `D:\pgdata`.
 
-## Menjalankan API
+## Menjalankan prototipe
+
+Satu perintah menyalakan API dan frontend sekaligus, dan memeriksa prasyaratnya
+lebih dulu:
+
+```bash
+sh scripts/demo.sh
+```
+
+Lalu buka **http://localhost:3000** → *Create an account* → tarik salah satu
+file dari `eval/datasets/`. `messy_sales.csv` adalah yang paling menarik: tiga
+kolomnya sengaja ambigu, dan grid akan menandainya beserta alasannya.
+
+Sekali saja sebelum itu:
+
+```bash
+python -m pip install -e .     # supaya `python -m app` jalan dari akar repo
+cd frontend && npm ci
+```
+
+### Manual, kalau perlu terpisah
 
 ```powershell
 python -m app          # http://127.0.0.1:8000
+cd frontend; npm run dev   # http://localhost:3000
 ```
 
 > **Hanya lewat `python -m app`.** `uvicorn app.api.app:create_app --factory` akan
