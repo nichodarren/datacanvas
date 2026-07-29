@@ -24,6 +24,7 @@ from app.domain.errors import AuthorizationError, InvariantViolation
 from app.observability import configure_logging, correlation_id, new_correlation_id
 from app.repositories.connection import Database
 from app.runtime import assert_compatible_event_loop
+from app.storage.engine import DuckDBEngine, TableEngine
 from app.storage.object_store import FilesystemObjectStore, ObjectStore
 
 CORRELATION_HEADER = "X-Correlation-ID"
@@ -59,6 +60,7 @@ def create_app(
     settings: Settings | None = None,
     database: Database | None = None,
     store: ObjectStore | None = None,
+    engine: TableEngine | None = None,
     hasher: PasswordHasher | None = None,
     email_sender: EmailSender | None = None,
     clock: Clock = system_clock,
@@ -81,6 +83,7 @@ def create_app(
         assert_compatible_event_loop()
         application.state.database = database or Database(resolved.database_url)
         application.state.store = store or FilesystemObjectStore(Path(resolved.storage_root))
+        application.state.engine = engine or DuckDBEngine()
         application.state.hasher = hasher or PasswordHasher()
         # No provider is wired (see app.auth.email). The development sender
         # logs a loud warning with the token, so "reset mail never arrived" is

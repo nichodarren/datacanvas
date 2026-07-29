@@ -171,6 +171,31 @@ class IngestScope:
         self._must_be_ours(uri)
         return self._store.write_stream(uri, reader)
 
+    def reader_for(self, version: DatasetVersion) -> DataHandle:
+        """A read handle for a version this scope just wrote.
+
+        Ingest has to read back what it wrote — schema inference scans the
+        normalized Parquet (FR-B.3), and the engine takes a ``DataHandle`` and
+        nothing else (§13.3.1 L3). Rather than carve an exception for the one
+        caller that already has the bytes in hand, the scope mints the handle:
+        it has already proved this principal may write here, and writing is the
+        stronger permission of the two.
+
+        The workspace check is not ceremony. A ``DatasetVersion`` carries its
+        own ``parquet_uri``, so without it a caller could hand over somebody
+        else's version and receive a handle to their data.
+        """
+        uri = StorageUri.parse(version.parquet_uri)
+        self._must_be_ours(uri)
+        return DataHandle(
+            principal=self.principal,
+            workspace_id=self.workspace_id,
+            version=version,
+            uri=uri,
+            _store=self._store,
+            _grant=_GRANT,
+        )
+
     def discard_version(self, dataset_id: DatasetId, version_id: DatasetVersionId) -> None:
         """Remove everything written for one version.
 

@@ -160,12 +160,42 @@ class DatasetResponse(BaseModel):
     created_at: datetime
 
 
+class ColumnSpecResponse(BaseModel):
+    """One column's interpretation (§9.2).
+
+    ``detection_reason`` travels with ``detection_confidence`` for a reason:
+    FR-B.3 requires the detection be shown **for correction**, and a bare 0.5
+    gives a person nothing to disagree with.
+    """
+
+    name: str
+    ordinal: int
+    physical_type: str
+    logical_type: str
+    role: str | None
+    null_markers: list[str]
+    detection_confidence: float
+    detection_reason: str
+    overridden: bool
+
+
+class SchemaContractResponse(BaseModel):
+    """A versioned interpretation of a DatasetVersion (FR-C.3, INV-3)."""
+
+    id: uuid.UUID
+    dataset_version_id: uuid.UUID
+    version_no: int
+    columns: list[ColumnSpecResponse]
+    created_at: datetime
+    derived_from: uuid.UUID | None
+
+
 class DatasetWithVersionResponse(BaseModel):
     """The result of a committed upload."""
 
     dataset: DatasetResponse
     version: DatasetVersionResponse
-    columns: list[str]
+    schema_contract: SchemaContractResponse
     original_filename: str
 
 

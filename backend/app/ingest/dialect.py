@@ -27,6 +27,11 @@ from app.ingest.text import decode, drop_partial_last_line
 #: Ordered by how common they are in the wild. Order only breaks exact ties.
 CANDIDATE_DELIMITERS: Final = (",", ";", "\t", "|")
 
+#: Recorded when a file turns out to have a single column. The value is
+#: arbitrary and that is the point: with one column every candidate yields the
+#: same table, so what goes into `ingest_options` only has to be stable.
+SINGLE_COLUMN_DELIMITER: Final = ","
+
 #: Rows examined when scoring delimiters. Enough to see a pattern, few enough
 #: that the work is bounded no matter how large the preview is.
 _SCORING_ROWS: Final = 40
@@ -94,7 +99,20 @@ def _score(rows: list[list[str]]) -> tuple[int, float]:
 
 
 def detect_delimiter(text: str) -> tuple[str, float]:
-    """Pick the delimiter and say how consistent it was."""
+    """Pick the delimiter and say how consistent it was.
+
+    **A file where nothing splits is a single-column file, not a broken one.**
+    An earlier version raised here, which refused a list of order ids — a
+    perfectly ordinary CSV, and one that FR-B.1 says we accept. The mistake was
+    treating "found no separator" as a failure when it is an answer: with one
+    column, every candidate delimiter produces the same table, so there is
+    nothing to get wrong and nothing to ask the user about.
+
+    What still has to be caught is the *other* single-column case — rows that
+    were never split because the delimiter was wrong. That is
+    :func:`normalize._reject_unsplit_rows`, and it can tell the two apart
+    because the wrong-delimiter case is visibly full of some other separator.
+    """
     best: tuple[str, int, float] | None = None
     for candidate in CANDIDATE_DELIMITERS:
         width, consistency = _score(_rows_for(text, candidate))
@@ -104,11 +122,7 @@ def detect_delimiter(text: str) -> tuple[str, float]:
             best = (candidate, width, consistency)
 
     if best is None:
-        raise IngestRejected(
-            "could not find a column separator. Tried "
-            f"{', '.join(repr(d) for d in CANDIDATE_DELIMITERS)}. "
-            "If the file uses something else, set the delimiter manually."
-        )
+        return SINGLE_COLUMN_DELIMITER, 1.0
     return best[0], best[2]
 
 
@@ -197,6 +211,7 @@ def detect(data: bytes, *, is_prefix: bool = True) -> Dialect:
 
 __all__ = [
     "CANDIDATE_DELIMITERS",
+    "SINGLE_COLUMN_DELIMITER",
     "Dialect",
     "detect",
     "detect_delimiter",

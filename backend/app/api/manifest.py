@@ -116,6 +116,12 @@ ROUTES: tuple[RouteSpec, ...] = (
     ),
     RouteSpec(
         "GET",
+        "/workspaces/{workspace_id}/dataset-versions/{version_id}/schema",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset_version",
+    ),
+    RouteSpec(
+        "GET",
         "/workspaces/{workspace_id}/projects/{project_id}/datasets",
         RouteClass.TENANT_SCOPED,
         resource="project",

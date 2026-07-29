@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.6.0 |
-| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-028 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
+| **Versi** | 0.7.0 |
+| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-029 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-29 |
 | **Owner** | Nicholas Darren |
 | **Reviewer** | (isi) |
@@ -104,6 +104,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.5.0 | 2026-07-29 | **Pembukaan Fase 2 — empat cacat ditemukan saat membaca §7/§9/§10/§13 dengan niat mengimplementasikannya** (§0.3 aturan 2 → minor version). **(1) Alur ingest §10.4 tidak punya tempat untuk file yang sudah diunggah tapi belum di-commit** — §10.5 hanya mengenal path di bawah `versions/{version_id}/`, dan ID itu belum ada saat pratinjau. Jalan keluar yang tampak wajar (baris `DatasetVersion` berstatus *pending* yang diisi setelah konfirmasi) **tertutup secara struktural**: mengisinya adalah UPDATE, dan trigger INV-2 menolaknya. → **D-025**, pratinjau dari potongan awal, tanpa staging. **(2) Klaim `content_hash` → "dedup penyimpanan gratis" (§9.2) tidak benar dan tidak ada yang memakainya** — diuji: polars menulis Parquet byte-identik dalam versi yang sama tapi berbeda dari pyarrow atas data yang sama persis, jadi hash itu properti *penulisnya*, bukan properti *datanya*. Selain itu FR-B.2 mewajibkan unggah ulang selalu menghasilkan versi baru, sehingga tidak ada satu pun jalur kode MVP yang akan men-dedup. → **D-026**, opsi tulis dipin + determinisme dijaga test, klaim dedup dicabut. **(3) "Deteksi magic bytes, bukan ekstensi" (NFR-SEC.4, §13.6) tidak dapat diterapkan pada 3 dari 5 format yang diterima** — CSV, TSV, dan JSON tidak punya magic bytes sama sekali. Dibiarkan begitu, ia terdengar seperti jaminan sementara implementasinya akan jatuh kembali ke ekstensi. → **D-027**, penerimaan berbasis parsing; ekstensi tidak pernah otoritas. Konsekuensi bonus: `python-magic` tidak jadi dibutuhkan. **(4) Separuh "invalidasi" P0-15 tidak punya konsumen di Fase 2** — `Step` dan `Computation` baru ada di Fase 3, dan invalidasinya struktural lewat fingerprint §9.4, jadi tidak ada yang bisa dibangun **maupun di-test**; dinyatakan di §20 agar Gerbang 2 tidak diklaim atas sesuatu yang belum teruji. Ditambahkan pula kebutuhan **dataset besar ber-generator** untuk Gerbang 2 (yang terbundel hanya sampai 16 MB, sehingga NFR-PERF.1 tidak akan pernah teruji). Tidak ada perubahan scope (§0.3 aturan 3 tidak terpicu). |
 | 0.5.1 | 2026-07-29 | **R-16 ditutup, R-17 turun Tinggi → Sedang — digerakkan bukti, bukan rencana (§0.3).** Remote privat dipasang dan seluruh riwayat ter-push; repo v1 di-rename `datacanvas-v1` dan dijadikan privat alih-alih dihapus (riwayatnya diperiksa lebih dulu: 104 commit, nol rahasia, `.env` tidak pernah di-commit — dan v1 adalah bahan bukti yang dikutip D-002, D-004 dan §10.3, jadi menghapusnya bertentangan dengan aturan "keputusan lama tidak dihapus"). **Run CI pertama project ini langsung menemukan cacat khusus Linux** — `asyncio.ProactorEventLoop` tidak ada di sana, mypy gagal sementara seluruh pemeriksaan lokal hijau. Itu persis arah yang kolom R-17 sebut tidak akan ketahuan sampai deploy. Diperbaiki, lalu dicegah secara struktural: mypy kini dijalankan dari **sudut pandang platform yang berlawanan** di CI maupun `scripts/check.sh`, sehingga arah yang tidak sedang ditempati tetap diperiksa. |
 | 0.6.0 | 2026-07-29 | **Rute ingest dibangun — dan sebuah lubang di §13.3.1 ditemukan dengan mencoba menulisnya** (§0.3 aturan 2 → minor version). **D-028:** L3 seluruhnya dirumuskan tentang *membaca* (`DataHandle` hanya lahir dari `open_dataset_version`), sehingga jalur ingest — yang belum punya DatasetVersion untuk dibuka — tidak punya gerbang otorisasi sama sekali. Ditutup dengan `IngestScope`, saudara kembarnya untuk arah menulis, yang mencetak setiap URI dari workspace-nya sendiri dan menolak URI yang menyebut workspace lain. **Amandemen D-025:** klaim "tidak menyimpan apa pun" diperhalus setelah ditemukan bahwa Starlette menyangga `UploadFile` ke direktori temp OS di atas ambang tertentu; ambangnya kini di-pin, dan batasnya dinyatakan alih-alih ditemukan saat audit Fase 6. **NFR-SEC.6 dinyatakan setengah terpenuhi** — auth dibatasi, upload belum; ditagih di Gerbang 6. Tiga cacat lagi ditemukan lewat test: `utf8-lossy` **merusak data secara senyap** untuk setiap file non-UTF-8 (setiap karakter non-ASCII menjadi U+FFFD, tanpa satu pun error, pada persis jenis file yang persona kita terima); pratinjau memperlakukan file utuh sebagai potongan sehingga baris terakhir file kecil hilang; dan `normalize_file` bergantung pada pemanggilnya sudah membuat direktori tujuan. Allowlist metadata audit §13.7.1 menolak event ingest pertama — allowlist bekerja sebagaimana mestinya, dan lima kunci Fase 2 ditambahkan secara eksplisit. |
+| 0.7.0 | 2026-07-29 | **P0-7 selesai — inferensi skema + SchemaContract v1** (§0.3 aturan 2 → minor version). **D-029** menetapkan dua hal yang keduanya tampak sudah jelas jawabannya. **(1) Cakupan harus 100%**, bukan 90 atau 95: `messy_sales.legacy_code` adalah 4.850 dari 5.000 digit murni, dan ambang berapa pun di bawah 100% menjadikannya `integer` — lalu 150 nilai nyata menjadi null secara senyap begitu ada yang meng-cast kolomnya. **(2) Kecocokan diperiksa aturan bentuk, bukan `TRY_CAST`** — diukur, dan hasilnya menutup pilihan itu: `1.5` → `2` (dibulatkan), `007` → `7` (kehilangan digit), `0x1F` → `31`, `inf` → `DATE 9999-12-31`, dan sebuah timestamp menjadi `DATE` dengan waktunya dibuang. Semuanya kesalahan `utf8-lossy` sekali lagi — fungsi konversi pemaaf dipakai untuk mengambil keputusan. Konsekuensi terpenting: **`detection_confidence` kini mengukur ambiguitas, bukan cakupan** — `qty` bisa 100% integer dan tetap 0,6 karena 5 nilai distinct pada 5.000 baris lebih mungkin kategori (PQ-4). Ditambahkan field `detection_reason` ke `columns[]` §9.2, karena FR-B.3 menuntut deteksi ditampilkan **untuk dikoreksi** dan angka 0,5 telanjang bukan sesuatu yang bisa dibantah seseorang. Satu batasan nyata juga diperbaiki: **CSV satu kolom sebelumnya ditolak** — daftar ID adalah CSV yang sah, dan "tidak ditemukan pemisah" adalah jawaban, bukan kegagalan. Tipe hasil inferensi untuk keempat dataset terbundel kini dipaku sebagai kontrak test. |
 
 ---
 
@@ -838,13 +839,15 @@ Setiap entri `columns[]`:
   role,                 # identifier | measure | dimension | timestamp | ignored
   format_hint,          # format tanggal, desimal separator, dsb.
   null_markers[],       # nilai yang harus diperlakukan sebagai null
-  detection_confidence, # 0..1 dari auto-detect
+  detection_confidence, # 0..1 — seberapa AMBIGU, bukan seberapa banyak yang cocok (D-029)
+  detection_reason,     # satu kalimat: kenapa tipe ini (ditambahkan 2026-07-29)
   overridden_by         # null jika masih hasil auto-detect
 }
 ```
 
 - `version_no` 1 selalu hasil auto-detect murni. Setiap koreksi pengguna → versi baru.
 - **INV-3: SchemaContract tidak pernah di-UPDATE.** Koreksi = versi baru.
+- `detection_reason` ditambahkan **2026-07-29** saat mengimplementasi P0-7. Alasannya: FR-B.3 menuntut deteksi **ditampilkan untuk dikoreksi**, dan `detection_confidence: 0.5` sendirian bukan sesuatu yang bisa disetujui atau dibantah seseorang. *"97,0% nilai numerik, tapi 150 bukan"* bisa — ia menyebut hal yang harus mereka periksa. Penambahan field, bukan perubahan scope.
 
 > **Kenapa SchemaContract terpisah dari DatasetVersion?** Karena keduanya berubah karena alasan berbeda dan pada frekuensi berbeda. Data berubah ketika ada file baru; interpretasi berubah ketika manusia belajar sesuatu tentang datanya. Menggabungkannya memaksa duplikasi seluruh data hanya untuk mengoreksi satu tipe kolom.
 
@@ -2424,6 +2427,36 @@ Status: 🟡 Proposed · 🟢 Accepted · 🔴 Superseded
 *Keputusan:* Spec deklaratif Vega-Lite.
 *Alternatif:* Rendering imperatif (D3/ECharts) — lebih fleksibel, tapi chart jadi kode, bukan data → tidak bisa di-fingerprint, melanggar D-004.
 *Trade-off:* Terikat pada kemampuan Vega-Lite. Dapat diterima; ia cukup ekspresif untuk EDA.
+
+---
+
+**D-029 · Tipe logis diberikan hanya bila SELURUH nilai cocok, dan kecocokan diputuskan aturan bentuk — bukan `TRY_CAST`** 🟢 Accepted · 2026-07-29
+*Konteks:* P0-7 harus memutuskan dua hal yang keduanya tampak punya jawaban jelas, dan keduanya tidak. **(1) Berapa persen nilai harus cocok?** Rumusan yang wajar adalah 90% atau 95%. **(2) Bagaimana memeriksa kecocokan?** Jawaban yang wajar adalah `TRY_CAST` — DuckDB sudah menyediakannya.
+
+*Keputusan:* **Cakupan harus 100% dari nilai yang ada**, dan kecocokan diperiksa dengan **ekspresi reguler eksplisit** (ditambah cast hanya untuk validitas tanggal).
+
+*Kenapa 100%, bukan 95%:* `messy_sales.legacy_code` adalah 4.850 dari 5.000 digit murni. Ambang berapa pun di bawah 100% menjadikannya `integer` — dan 150 nilai yang tidak pernah berupa angka menjadi null begitu ada yang meng-cast kolom itu. Kehilangannya **senyap**, tidak terlihat di pratinjau, dan baru ketahuan — kalau ketahuan — ketika sebuah hitungan meleset tiga analisis kemudian. **Tipe yang membuang nilai bukan inferensi; ia keputusan untuk membuang data.** Selain itu, ambang persentase menuntut sebuah angka, setiap angka bisa diperdebatkan, dan angka mana pun yang menang tetap membuang nilai di bawahnya.
+
+*Kenapa bukan `TRY_CAST` — diukur, bukan diduga:*
+
+| Nilai | `TRY_CAST(… AS BIGINT)` | Yang hilang |
+|---|---|---|
+| `1.5` | `2` | Dibulatkan — kolom desimal terbaca integer |
+| `007` | `7` | Kode pos / ID kehilangan nol di depan |
+| `0x1F` | `31` | Heksadesimal diterima sebagai desimal |
+| `1_000` | `1000` | Underscore diterima |
+| `inf` | `DATE 9999-12-31` | Teks `inf` menjadi **tanggal** |
+| `2024-03-01 10:00:00` | sebuah `DATE` | Komponen waktu dibuang diam-diam |
+
+Setiap barisnya adalah kesalahan `utf8-lossy` sekali lagi (D-026 pendahulunya): **fungsi konversi yang sengaja pemaaf, dipakai untuk mengambil keputusan** — dan kepemaafan itulah yang menghancurkan informasi. Aturan bentuk menyatakan apa yang kita terima; sebuah cast menyatakan apa yang bisa dipaksakan.
+
+*Konsekuensi — `detection_confidence` berubah artinya, dan ini bagian terpentingnya.* Karena cakupan yang memutuskan tipe, confidence tidak lagi mengukur "berapa banyak yang cocok". Ia mengukur **ambiguitas**: `qty` bisa 100% integer dan tetap ber-confidence 0,6, karena 5 nilai distinct pada 5.000 baris jauh lebih mungkin kategori daripada kuantitas (PQ-4). Itulah sinyal yang dipakai FR-C.6 dan katalog §11.7.4, dan itulah yang menentukan seberapa keras UI bertanya. Near miss (97% numerik) menjadi **peringatan berikut alasannya**, bukan sebuah tipe.
+
+*Alternatif yang ditolak:* **(a)** ambang 95% + laporkan kegagalan cast — tetap membuang nilai, hanya sambil memberi tahu; **(b)** `TRY_CAST` dengan daftar hitam nilai bermasalah — daftar hitam gagal pada hal yang tidak ada yang mencantumkan, dan yang di atas ditemukan hanya karena diuji; **(c)** menyerahkan seluruh penentuan tipe ke pengguna — melanggar FR-C.1, dan membuat pekerjaan pertama pada data asing menjadi 32 dropdown.
+
+*Trade-off:* Kita mengetik ulang aturan yang "sudah ada" di library, dan aturan itu harus dirawat sendiri. Diterima: aturannya sekitar lima baris, seluruhnya terbaca, dan tidak berubah karena upgrade dependensi. Satu kolom kotor juga menurunkan seluruh kolom ke `text` — itu memang benar, dan tool cleaning (§11.4 Lapis 2b) ada tepat untuk mengangkatnya kembali setelah dibersihkan.
+
+*Ditinjau ulang bila:* FR-C.7 (format hint & null marker, P1) datang — sebuah kolom dengan `null_markers` ditetapkan harus dinilai ulang **setelah** penanda itu dibuang, dan itu mengubah apa arti "seluruh nilai yang ada".
 
 ---
 

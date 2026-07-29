@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.authz.data_access import IngestScope
 from app.domain.audit import AuditAction
-from app.domain.data import Dataset, DatasetVersion, SourceFile
+from app.domain.data import Dataset, DatasetVersion, SchemaContract, SourceFile
 from app.domain.enums import SourceFormat
 from app.domain.ids import DatasetId, DatasetVersionId, SourceFileId, UserId
 from app.ingest.dialect import Dialect
@@ -40,6 +40,9 @@ from app.repositories.data import (
     DatasetVersionRepository,
     SourceFileRepository,
 )
+from app.repositories.schema import SchemaContractRepository, first_contract
+from app.schema.inference import build_columns
+from app.storage.engine import TableEngine
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +52,7 @@ class CommittedVersion:
     dataset: Dataset
     version: DatasetVersion
     source_file: SourceFile
-    columns: tuple[str, ...]
+    contract: SchemaContract
 
 
 def _suffix_of(filename: str) -> str:
@@ -72,9 +75,12 @@ class IngestService:
     it has no way to name a location outside the workspace it was handed.
     """
 
-    def __init__(self, connection: AsyncConnection, *, scope: IngestScope) -> None:
+    def __init__(
+        self, connection: AsyncConnection, *, scope: IngestScope, engine: TableEngine
+    ) -> None:
         self._c = connection
         self._scope = scope
+        self._engine = engine
 
     async def commit(
         self,
@@ -144,6 +150,20 @@ class IngestService:
                 storage_uri=str(source_uri),
             )
             await SourceFileRepository(self._c).create(source)
+
+            # SchemaContract v1, read back through the same authorization path
+            # any later reader uses (§13.3.1 L3). Inference scans the whole file
+            # (FR-B.3) — which it can only do now that the file exists, and
+            # cheaply, because every column was written as text (D-029).
+            contract = await SchemaContractRepository(self._c).create(
+                first_contract(
+                    dataset_version_id=version_id,
+                    columns=build_columns(
+                        self._engine.column_statistics(self._scope.reader_for(version))
+                    ),
+                    now=now,
+                )
+            )
         except Exception:
             # Everything written for this version goes, including the verbatim
             # copy. The database transaction will roll back on its own; the
@@ -172,10 +192,7 @@ class IngestService:
         )
 
         return CommittedVersion(
-            dataset=target,
-            version=version,
-            source_file=source,
-            columns=normalized.columns,
+            dataset=target, version=version, source_file=source, contract=contract
         )
 
     async def delete_dataset(self, dataset_id: DatasetId, *, actor: UserId, now: datetime) -> None:

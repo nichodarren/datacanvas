@@ -21,7 +21,12 @@ import pytest
 
 from app.domain.enums import SourceFormat
 from app.ingest import formats, text
-from app.ingest.dialect import detect, detect_delimiter, detect_header
+from app.ingest.dialect import (
+    SINGLE_COLUMN_DELIMITER,
+    detect,
+    detect_delimiter,
+    detect_header,
+)
 from app.ingest.limits import IngestRejected, check_decompression_ratio, check_upload_size
 
 # --------------------------------------------------------------- encoding ---
@@ -153,9 +158,21 @@ def test_ragged_rows_lower_confidence_rather_than_being_hidden() -> None:
     assert confidence < 1.0
 
 
-def test_a_file_with_no_delimiter_is_refused_not_guessed() -> None:
-    with pytest.raises(IngestRejected, match="separator"):
-        detect_delimiter("one\ntwo\nthree\n")
+def test_a_file_where_nothing_splits_is_a_single_column_file() -> None:
+    """This test used to assert a refusal, and the assertion was wrong.
+
+    "No separator found" is an answer, not a failure: a list of order ids is an
+    ordinary CSV that FR-B.1 says we accept, and refusing it refused a real
+    file. With one column every candidate delimiter yields the same table, so
+    there is nothing to get wrong and nothing to ask the user about.
+
+    The genuinely broken single-column case — rows never split because the
+    delimiter was wrong — is caught in ``normalize``, which can tell the two
+    apart because that one is visibly full of some other separator.
+    """
+    delimiter, confidence = detect_delimiter("one\ntwo\nthree\n")
+    assert delimiter == SINGLE_COLUMN_DELIMITER
+    assert confidence == 1.0
 
 
 # ------------------------------------------------------------------ header ---

@@ -20,6 +20,7 @@ from app.auth.tokens import COOKIE_NAME
 from app.clock import Clock
 from app.domain.principal import Principal
 from app.repositories.connection import Database
+from app.storage.engine import TableEngine
 from app.storage.object_store import ObjectStore
 
 
@@ -31,6 +32,17 @@ def get_database(request: Request) -> Database:
 def get_store(request: Request) -> ObjectStore:
     store: ObjectStore = request.app.state.store
     return store
+
+
+def get_engine(request: Request) -> TableEngine:
+    """One engine per process, not per request.
+
+    DuckDB holds an in-process database; building one per request would pay the
+    setup cost on every call for no isolation benefit, since every query is
+    scoped by the handle it is given rather than by connection state.
+    """
+    engine: TableEngine = request.app.state.engine
+    return engine
 
 
 def get_hasher(request: Request) -> PasswordHasher:
@@ -99,6 +111,7 @@ CurrentPrincipal = Annotated[Principal, Depends(require_principal)]
 Connection = Annotated[AsyncConnection, Depends(get_connection)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Store = Annotated[ObjectStore, Depends(get_store)]
+Engine = Annotated[TableEngine, Depends(get_engine)]
 PasswordReset = Annotated[PasswordResetService, Depends(get_password_reset_service)]
 
 
@@ -106,6 +119,7 @@ __all__ = [
     "Auth",
     "Connection",
     "CurrentPrincipal",
+    "Engine",
     "PasswordReset",
     "Store",
     "get_auth_service",
@@ -113,6 +127,7 @@ __all__ = [
     "get_connection",
     "get_database",
     "get_email_sender",
+    "get_engine",
     "get_hasher",
     "get_optional_principal",
     "get_password_reset_service",

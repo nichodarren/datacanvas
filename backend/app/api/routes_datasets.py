@@ -20,25 +20,34 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
-from app.api.dependencies import Connection, CurrentPrincipal, Store
+from app.api.dependencies import Connection, CurrentPrincipal, Engine, Store
 from app.api.schemas import (
+    ColumnSpecResponse,
     DatasetResponse,
     DatasetVersionResponse,
     DatasetWithVersionResponse,
     DialectResponse,
     IngestPreviewResponse,
+    SchemaContractResponse,
 )
-from app.authz.data_access import DataAccessDenied, IngestScope, open_project_for_ingest
+from app.authz.data_access import (
+    DataAccessDenied,
+    IngestScope,
+    open_dataset_version,
+    open_project_for_ingest,
+)
 from app.clock import system_clock
-from app.domain.data import Dataset, DatasetVersion
+from app.domain.data import Dataset, DatasetVersion, SchemaContract
 from app.domain.enums import SourceFormat
-from app.domain.ids import DatasetId, ProjectId, WorkspaceId
+from app.domain.ids import DatasetId, DatasetVersionId, ProjectId, WorkspaceId
 from app.domain.principal import Principal
 from app.ingest import formats, preview
 from app.ingest.dialect import Dialect, detect
 from app.ingest.limits import PREVIEW_BYTES, IngestRejected
 from app.ingest.service import IngestService
 from app.repositories.data import DatasetRepository
+from app.repositories.schema import SchemaContractRepository
+from app.storage.engine import TableEngine
 from app.storage.object_store import ObjectStore
 
 router = APIRouter(tags=["datasets"])
@@ -136,6 +145,30 @@ def _version_response(version: DatasetVersion, *, data_present: bool) -> Dataset
     )
 
 
+def _contract_response(contract: SchemaContract) -> SchemaContractResponse:
+    return SchemaContractResponse(
+        id=contract.id,
+        dataset_version_id=contract.dataset_version_id,
+        version_no=contract.version_no,
+        created_at=contract.created_at,
+        derived_from=contract.derived_from,
+        columns=[
+            ColumnSpecResponse(
+                name=column.name,
+                ordinal=column.ordinal,
+                physical_type=column.physical_type,
+                logical_type=column.logical_type.value,
+                role=None if column.role is None else column.role.value,
+                null_markers=list(column.null_markers),
+                detection_confidence=column.detection_confidence,
+                detection_reason=column.detection_reason,
+                overridden=column.is_user_overridden,
+            )
+            for column in sorted(contract.columns, key=lambda c: c.ordinal)
+        ],
+    )
+
+
 def _dataset_response(item: Dataset) -> DatasetResponse:
     return DatasetResponse(
         id=item.id, project_id=item.project_id, name=item.name, created_at=item.created_at
@@ -207,6 +240,7 @@ async def create_dataset(
     connection: Connection,
     principal: CurrentPrincipal,
     store: Store,
+    engine: Engine,
     file: Annotated[UploadFile, File()],
     name: Annotated[str | None, Form()] = None,
     delimiter: Annotated[str | None, Form()] = None,
@@ -218,6 +252,7 @@ async def create_dataset(
     return await _commit(
         scope=scope,
         connection=connection,
+        engine=engine,
         principal=principal,
         file=file,
         dataset_id=None,
@@ -239,6 +274,7 @@ async def create_dataset_version(
     connection: Connection,
     principal: CurrentPrincipal,
     store: Store,
+    engine: Engine,
     file: Annotated[UploadFile, File()],
     delimiter: Annotated[str | None, Form()] = None,
     encoding: Annotated[str | None, Form()] = None,
@@ -254,6 +290,7 @@ async def create_dataset_version(
     return await _commit(
         scope=scope,
         connection=connection,
+        engine=engine,
         principal=principal,
         file=file,
         dataset_id=DatasetId(dataset_id),
@@ -262,6 +299,37 @@ async def create_dataset_version(
         encoding=encoding,
         has_header=has_header,
     )
+
+
+@router.get("/workspaces/{workspace_id}/dataset-versions/{version_id}/schema")
+async def get_schema_contract(
+    workspace_id: uuid.UUID,
+    version_id: uuid.UUID,
+    connection: Connection,
+    principal: CurrentPrincipal,
+    store: Store,
+) -> SchemaContractResponse:
+    """The current interpretation of a DatasetVersion (FR-C.1, FR-C.3).
+
+    Goes through ``open_dataset_version`` rather than checking membership here.
+    A schema describes data — column names are already sensitive on their own
+    (K1, §13.5.1) — so it is guarded by exactly what guards the data.
+    """
+    try:
+        handle = await open_dataset_version(
+            principal, DatasetVersionId(version_id), connection=connection, store=store
+        )
+    except DataAccessDenied as exc:
+        raise NOT_FOUND from exc
+    if handle.workspace_id != WorkspaceId(workspace_id):
+        raise NOT_FOUND
+
+    contract = await SchemaContractRepository(connection).latest_for_version(
+        DatasetVersionId(version_id)
+    )
+    if contract is None:
+        raise NOT_FOUND
+    return _contract_response(contract)
 
 
 @router.delete(
@@ -275,8 +343,15 @@ async def delete_dataset(
     connection: Connection,
     principal: CurrentPrincipal,
     store: Store,
+    engine: Engine,
 ) -> None:
-    """FR-B.6 — the files really go, not only the rows."""
+    """FR-B.6 — the files really go, not only the rows.
+
+    The engine is not used here and is asked for anyway: ``IngestService`` is
+    one object with one set of collaborators, and giving deletion a second,
+    thinner constructor would mean two ways to build the thing that deletes
+    data. One of them would eventually skip something.
+    """
     scope = await _scope(principal, workspace_id, project_id, connection, store)
 
     located = await DatasetRepository(connection).locate(DatasetId(dataset_id))
@@ -284,7 +359,7 @@ async def delete_dataset(
         raise NOT_FOUND
 
     try:
-        await IngestService(connection, scope=scope).delete_dataset(
+        await IngestService(connection, scope=scope, engine=engine).delete_dataset(
             DatasetId(dataset_id), actor=principal.user_id, now=system_clock()
         )
     except IngestRejected as exc:
@@ -295,6 +370,7 @@ async def _commit(
     *,
     scope: IngestScope,
     connection: Connection,
+    engine: TableEngine,
     principal: Principal,
     file: UploadFile,
     dataset_id: DatasetId | None,
@@ -308,7 +384,7 @@ async def _commit(
         fmt, detected = await _inspect(file)
         dialect = _dialect_from_form(delimiter, encoding, has_header, detected)
 
-        committed = await IngestService(connection, scope=scope).commit(
+        committed = await IngestService(connection, scope=scope, engine=engine).commit(
             upload=file.file,
             filename=filename,
             declared_size=file.size or 0,
@@ -325,7 +401,7 @@ async def _commit(
     return DatasetWithVersionResponse(
         dataset=_dataset_response(committed.dataset),
         version=_version_response(committed.version, data_present=True),
-        columns=list(committed.columns),
+        schema_contract=_contract_response(committed.contract),
         original_filename=committed.source_file.original_filename,
     )
 

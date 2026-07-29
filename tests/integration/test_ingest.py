@@ -17,7 +17,9 @@ The claims worth testing here are the ones a happy-path test would skip:
 
 from __future__ import annotations
 
+import io
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -118,16 +120,24 @@ async def test_preview_requires_a_session(api: AsyncClient) -> None:
 
 
 async def test_a_file_that_cannot_be_parsed_is_refused_with_a_reason(api: AsyncClient) -> None:
-    """P6: an honest failure that names the problem, not a 500."""
+    """P6: an honest failure that names the problem, not a 500.
+
+    A ZIP archive, because that is a file we genuinely cannot read. Plain text
+    with no separator is *not* one — it is a single-column CSV, and an earlier
+    version of this test asserted a refusal that turned out to be a bug.
+    """
     session = await _login(api, "alice@example.com")
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("notes.txt", "hello")
 
     response = await api.post(
         "/uploads/preview",
         headers=_headers(session),
-        files={"file": ("notes.txt", b"just one line, no columns anywhere", "text/plain")},
+        files={"file": ("book.xlsx", archive.getvalue(), "application/zip")},
     )
     assert response.status_code == 422
-    assert "separator" in response.json()["detail"]
+    assert "not an Excel workbook" in response.json()["detail"]
 
 
 # ------------------------------------------------------------------- commit --
@@ -144,7 +154,12 @@ async def test_upload_creates_a_dataset_a_version_and_a_source_file(
     assert body["version"]["version_no"] == 1
     assert body["version"]["row_count"] == 3
     assert body["version"]["column_count"] == 3
-    assert body["columns"] == ["order_id", "region", "amount"]
+    assert [c["name"] for c in body["schema_contract"]["columns"]] == [
+        "order_id",
+        "region",
+        "amount",
+    ]
+    assert body["schema_contract"]["version_no"] == 1
     assert body["original_filename"] == "orders.csv"
     assert len(body["version"]["content_hash"]) == 64
 
@@ -337,6 +352,83 @@ async def test_a_viewer_cannot_upload(api: AsyncClient, database: Database) -> N
         data={"name": "sneaky"},
     )
     assert response.status_code == 404
+
+
+# ------------------------------------------------------------------- schema --
+
+
+async def test_a_schema_contract_is_created_on_ingest(api: AsyncClient) -> None:
+    """P0-7: every DatasetVersion arrives with an interpretation (FR-C.1).
+
+    Version 1 is pure auto-detection, so it has no author — recording the
+    uploader would answer a later "who chose this type?" with the wrong name.
+    """
+    session = await _login(api, "alice@example.com")
+    body = await _upload(api, session, ORDERS)
+
+    response = await api.get(
+        f"/workspaces/{session['workspace_id']}/dataset-versions/{body['version']['id']}/schema",
+        headers=_headers(session),
+    )
+    assert response.status_code == 200, response.text
+    contract = response.json()
+
+    assert contract["version_no"] == 1
+    assert contract["derived_from"] is None
+    assert [c["name"] for c in contract["columns"]] == ["order_id", "region", "amount"]
+    assert [c["ordinal"] for c in contract["columns"]] == [0, 1, 2]
+    assert all(c["overridden"] is False for c in contract["columns"])
+    assert all(c["detection_reason"] for c in contract["columns"]), (
+        "FR-B.3 requires the detection be shown for correction, and a bare "
+        "confidence number is not something a person can disagree with"
+    )
+
+
+async def test_inference_reads_the_whole_file_not_a_sample(api: AsyncClient) -> None:
+    """FR-B.3 through the API, using the shape that broke sampling.
+
+    The offending value sits far past any plausible sample window. A detector
+    that peeked at the first rows types this ``integer`` and then nulls the one
+    row that is not — which is the failure FR-B.3 was written after.
+    """
+    session = await _login(api, "alice@example.com")
+    rows = b"code\n" + b"".join(f"{i}\n".encode() for i in range(20_000)) + b"LG-042\n"
+
+    body = await _upload(api, session, rows, name="codes.csv")
+    response = await api.get(
+        f"/workspaces/{session['workspace_id']}/dataset-versions/{body['version']['id']}/schema",
+        headers=_headers(session),
+    )
+
+    column = response.json()["columns"][0]
+    assert column["logical_type"] == "text", "one non-numeric value in 20 001 decides the type"
+    assert "1 are not" in column["detection_reason"]
+
+
+async def test_a_new_version_gets_its_own_contract(api: AsyncClient) -> None:
+    """Interpretation belongs to a version, not to a dataset.
+
+    Two versions of the same dataset can legitimately disagree about a column —
+    that is what happens when the second upload is the fixed export.
+    """
+    session = await _login(api, "alice@example.com")
+    first = await _upload(api, session, b"code\n1\n2\n3\n", name="codes.csv")
+
+    second = await api.post(
+        f"{_datasets_url(session)}/{first['dataset']['id']}/versions",
+        headers=_headers(session),
+        files={"file": ("codes.csv", b"code\n1\n2\nLG-9\n", "text/csv")},
+    )
+    assert second.status_code == 201, second.text
+
+    assert first["schema_contract"]["columns"][0]["logical_type"] == "integer"
+    assert second.json()["schema_contract"]["columns"][0]["logical_type"] == "text"
+    assert (
+        second.json()["schema_contract"]["dataset_version_id"]
+        != first["schema_contract"]["dataset_version_id"]
+    )
+    # Both are version 1 — of different DatasetVersions (§9.2).
+    assert second.json()["schema_contract"]["version_no"] == 1
 
 
 # ------------------------------------------------------------------ deletion --

@@ -23,7 +23,7 @@ from httpx import AsyncClient
 from app.api.manifest import TENANT_SCOPED, RouteSpec
 from app.auth.tokens import COOKIE_NAME
 from app.repositories.connection import Database
-from app.repositories.tables import dataset, dataset_version, project
+from app.repositories.tables import dataset, dataset_version, project, schema_contract
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -94,6 +94,32 @@ async def _register(client: AsyncClient, database: Database, email: str) -> Tena
                 byte_size=512,
                 ingested_at=sa.func.now(),
                 ingested_by=uuid.UUID(body["user"]["id"]),
+            )
+        )
+        # A version always has an interpretation (P0-7), so the seeded one gets
+        # a contract too. Without it the schema route would answer 404 to its
+        # own owner — and the control test that rules out a "deny all"
+        # implementation would fail for the wrong reason.
+        await connection.execute(
+            sa.insert(schema_contract).values(
+                id=uuid.uuid4(),
+                dataset_version_id=version_id,
+                version_no=1,
+                columns=[
+                    {
+                        "name": "seeded",
+                        "ordinal": 0,
+                        "physical_type": "VARCHAR",
+                        "logical_type": "text",
+                        "role": None,
+                        "format_hint": None,
+                        "null_markers": [],
+                        "detection_confidence": 1.0,
+                        "detection_reason": "seeded",
+                        "overridden_by": None,
+                    }
+                ],
+                created_at=sa.func.now(),
             )
         )
 

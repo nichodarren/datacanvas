@@ -108,6 +108,13 @@ class ColumnSpec:
     format_hint: str | None = None
     null_markers: tuple[str, ...] = ()
     detection_confidence: float = 1.0
+    #: Why the detector chose this type, in one sentence.
+    #:
+    #: Added 2026-07-29. FR-B.3 requires the detection be **shown for
+    #: correction**, and a bare confidence of 0.5 gives a person nothing to
+    #: agree or disagree with. *"97.0% of values are numeric, but 150 are not"*
+    #: does — it names the thing they would have to go and look at.
+    detection_reason: str = ""
     overridden_by: UserId | None = None
 
     def __post_init__(self) -> None:
