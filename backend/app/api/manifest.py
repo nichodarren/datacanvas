@@ -61,6 +61,9 @@ ROUTES: tuple[RouteSpec, ...] = (
     # the decision — if this route ever starts retaining an upload, it becomes
     # tenant-scoped on the same day.
     RouteSpec("POST", "/uploads/preview", RouteClass.AUTHENTICATED),
+    # A catalogue of what the server ships (FR-B.5). Identical for everyone and
+    # naming nobody's data, so there is nothing to scope it to.
+    RouteSpec("GET", "/samples", RouteClass.AUTHENTICATED),
     # --- tenant-scoped ---------------------------------------------------
     RouteSpec("GET", "/workspaces/{workspace_id}", RouteClass.TENANT_SCOPED, resource="workspace"),
     RouteSpec(
@@ -146,6 +149,13 @@ ROUTES: tuple[RouteSpec, ...] = (
         resource="project",
         sample_files={"file": ("swept.csv", b"a,b\n1,2\n", "text/csv")},
         sample_form={"name": "swept"},
+    ),
+    RouteSpec(
+        "POST",
+        "/workspaces/{workspace_id}/projects/{project_id}/datasets/samples",
+        RouteClass.TENANT_SCOPED,
+        resource="project",
+        sample_body={"key": "titanic"},
     ),
     RouteSpec(
         "POST",

@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     storage_backend: Literal["filesystem", "s3"] = "filesystem"
     storage_root: Path = Field(default=Path("./storage"))
 
+    # Where FR-B.5's sample datasets are read from. Points at `eval/datasets`
+    # by default because those files already exist and their SHA-256 is a
+    # contract (golden_queries.md §3) — copying them into the package would
+    # create a second copy that can drift, and the drifting one would be the
+    # copy no check ever looks at.
+    samples_root: Path = Field(default=Path("./eval/datasets"))
+
     # --- Phase 5: copilot ------------------------------------------------
     default_llm_privacy_mode: PrivacyMode = PrivacyMode.BALANCED
 

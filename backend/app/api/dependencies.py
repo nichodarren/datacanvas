@@ -18,6 +18,7 @@ from app.auth.passwords import PasswordHasher
 from app.auth.service import AuthService
 from app.auth.tokens import COOKIE_NAME
 from app.clock import Clock
+from app.config import Settings
 from app.domain.principal import Principal
 from app.repositories.connection import Database
 from app.storage.engine import TableEngine
@@ -32,6 +33,17 @@ def get_database(request: Request) -> Database:
 def get_store(request: Request) -> ObjectStore:
     store: ObjectStore = request.app.state.store
     return store
+
+
+def get_settings_dep(request: Request) -> Settings:
+    """The resolved settings for this process.
+
+    Read from app state rather than the module-level cache so a test that builds
+    an app with different settings gets *those* settings, not whatever the first
+    call to `get_settings()` happened to memoise.
+    """
+    settings: Settings = request.app.state.settings
+    return settings
 
 
 def get_engine(request: Request) -> TableEngine:
@@ -112,6 +124,7 @@ Connection = Annotated[AsyncConnection, Depends(get_connection)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Store = Annotated[ObjectStore, Depends(get_store)]
 Engine = Annotated[TableEngine, Depends(get_engine)]
+SettingsDep = Annotated[Settings, Depends(get_settings_dep)]
 PasswordReset = Annotated[PasswordResetService, Depends(get_password_reset_service)]
 
 
@@ -131,6 +144,7 @@ __all__ = [
     "get_hasher",
     "get_optional_principal",
     "get_password_reset_service",
+    "get_settings_dep",
     "get_store",
     "require_principal",
 ]

@@ -2134,6 +2134,14 @@ Bukan "aku mengobrol dengan AI tentang data". Perbedaan ini menentukan seluruh t
 | Keadaan | Desain |
 |---|---|
 | Belum ada dataset | Dataset contoh yang bisa langsung dipakai + zona drop. **Jangan tampilkan kanvas kosong** — orang perlu melihat produknya bekerja sebelum mengunggah data mereka. |
+
+> **Ditambahkan 2026-07-29, setelah orang pertama memakai layar ini.** Reaksinya: *"aku langsung bingung sebenarnya apa yang harus dilakukan dan bagaimana urutannya."* Tiga sebab, dan hanya satu soal selera.
+>
+> **(1) Baris dataset tidak bisa diklik.** Unggah melempar ke grid, tapi kembali ke beranda berarti menatap data sendiri tanpa satu pun jalan masuk. Buntu fungsional, dan penyebab terbesar kebingungannya. **(2) Tidak ada yang menyebut tindakan pertama** — "Add data" dan "Datasets" dua judul berbobot sama, tak satu pun berkata *mulai di sini*. **(3) Layar kosongnya benar-benar kosong**, yang justru dilarang baris di atas.
+>
+> **Aturan yang ditambahkan:** layar pertama wajib **menyatakan urutannya sebelum dijalani**, dan setiap artefak yang ditampilkan wajib bisa dibuka. Daftar nama tanpa jalan masuk bukan orientasi, ia jalan buntu.
+>
+> **Yang ditolak, dan alasannya:** meniru Google Flow — galeri project sebagai layar pertama, dengan tombol besar "Project baru". Di Flow, *project* **adalah** karyanya, jadi galeri memang rumah yang wajar. Di sini FR-A.4 mendefinisikan Project sebagai **pengelompok** — map, bukan karya — dan §15.2 membuatkan satu otomatis saat registrasi justru supaya tak ada yang perlu membuatnya. Menirunya harfiah berarti mendaratkan pengguna baru di galeri berisi satu kartu yang harus diklik sebelum apa pun nyata terjadi: satu langkah administratif menjawab kebingungan yang penyebabnya bukan itu. **Yang diambil dari Flow adalah prinsipnya** — layar pertama menyebut tindakan pertama, di tengah, tak mungkin terlewat. Project tetap di dropdown header, persis seperti §14.2 sudah menggambarkannya.
 | Tool gagal | Pesan yang bisa ditindaklanjuti + argumen yang bisa diedit di tempat |
 | Tidak ada tool yang cocok | Pernyataan jujur + saran terdekat + konfirmasi bahwa permintaan dicatat |
 | LLM mati | Banner: *"Copilot tidak tersedia. Semua tool tetap bisa dipakai."* |

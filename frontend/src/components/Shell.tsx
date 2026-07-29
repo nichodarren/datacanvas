@@ -23,10 +23,13 @@ import type { ReactNode } from "react";
  */
 export function Shell({
   children,
+  headerExtras,
   versionBadge,
   active,
 }: {
   children: ReactNode;
+  /** The `Project ▾` control §14.2 places next to the brand. */
+  headerExtras?: ReactNode;
   versionBadge?: ReactNode;
   active?: "preview" | "schema";
 }) {
@@ -36,6 +39,7 @@ export function Shell({
         <Link href="/" className="brand" style={{ color: "var(--ink)", textDecoration: "none" }}>
           DataCanvas
         </Link>
+        {headerExtras}
         {versionBadge}
         <div className="spacer" />
         {/* NFR-PRIV.2 / UX-6: the privacy mode is visible whenever the copilot

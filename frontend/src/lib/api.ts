@@ -106,6 +106,33 @@ export interface Dataset {
   created_at: string;
 }
 
+/**
+ * A dataset as the home screen shows it.
+ *
+ * Deliberately more than a name. `columns_needing_attention` is what turns a
+ * list of uploads into a place to start — it answers "which of these wants me?"
+ * without opening any of them, and it is the same threshold the grid header
+ * uses so the two cannot disagree.
+ */
+export interface DatasetSummary {
+  id: string;
+  name: string;
+  created_at: string;
+  version_count: number;
+  latest_version_id: string | null;
+  version_no: number | null;
+  row_count: number | null;
+  column_count: number | null;
+  schema_version_no: number | null;
+  columns_needing_attention: number;
+}
+
+export interface SampleDataset {
+  key: string;
+  name: string;
+  description: string;
+}
+
 export interface DatasetVersion {
   id: string;
   dataset_id: string;
@@ -183,8 +210,20 @@ export const api = {
   projects: (workspaceId: string) =>
     request<Project[]>(`/workspaces/${workspaceId}/projects`),
 
+  createProject: (workspaceId: string, name: string) =>
+    json<Project>(`/workspaces/${workspaceId}/projects`, "POST", { name }),
+
   datasets: (workspaceId: string, projectId: string) =>
-    request<Dataset[]>(`/workspaces/${workspaceId}/projects/${projectId}/datasets`),
+    request<DatasetSummary[]>(`/workspaces/${workspaceId}/projects/${projectId}/datasets`),
+
+  samples: () => request<SampleDataset[]>("/samples"),
+
+  loadSample: (workspaceId: string, projectId: string, key: string) =>
+    json<DatasetWithVersion>(
+      `/workspaces/${workspaceId}/projects/${projectId}/datasets/samples`,
+      "POST",
+      { key },
+    ),
 
   /**
    * D-025: only the first megabyte is sent, and the server keeps none of it.

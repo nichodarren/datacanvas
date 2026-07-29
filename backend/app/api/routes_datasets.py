@@ -20,15 +20,18 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
-from app.api.dependencies import Connection, CurrentPrincipal, Engine, Store
+from app.api.dependencies import Connection, CurrentPrincipal, Engine, SettingsDep, Store
 from app.api.schemas import (
     ColumnSpecResponse,
     DatasetResponse,
+    DatasetSummaryResponse,
     DatasetVersionResponse,
     DatasetWithVersionResponse,
     DialectResponse,
     IngestPreviewResponse,
+    LoadSampleRequest,
     RowPageResponse,
+    SampleDatasetResponse,
     SchemaContractResponse,
     SchemaOverrideRequest,
 )
@@ -44,7 +47,7 @@ from app.domain.data import Dataset, DatasetVersion, SchemaContract
 from app.domain.enums import ColumnRole, LogicalType, Role, SourceFormat
 from app.domain.ids import DatasetId, DatasetVersionId, ProjectId, WorkspaceId
 from app.domain.principal import Principal
-from app.ingest import formats, preview
+from app.ingest import formats, preview, samples
 from app.ingest.dialect import Dialect, detect
 from app.ingest.limits import PREVIEW_BYTES, IngestRejected
 from app.ingest.service import IngestService
@@ -230,10 +233,95 @@ async def list_datasets(
     connection: Connection,
     principal: CurrentPrincipal,
     store: Store,
-) -> list[DatasetResponse]:
+) -> list[DatasetSummaryResponse]:
+    """Datasets with enough context to choose one.
+
+    Returns summaries rather than names. A name on its own is a dead end — it
+    says what was uploaded and nothing about which one wants attention — and
+    that was exactly the complaint the first person to use this screen had.
+    """
     scope = await _scope(principal, workspace_id, project_id, connection, store)
-    items = await DatasetRepository(connection).list_for_project(scope.project_id)
-    return [_dataset_response(item) for item in items]
+    summaries = await DatasetRepository(connection).summaries_for_project(scope.project_id)
+    return [
+        DatasetSummaryResponse(
+            id=summary.dataset.id,
+            name=summary.dataset.name,
+            created_at=summary.dataset.created_at,
+            version_count=summary.version_count,
+            latest_version_id=None if summary.latest_version is None else summary.latest_version.id,
+            version_no=None
+            if summary.latest_version is None
+            else summary.latest_version.version_no,
+            row_count=None if summary.latest_version is None else summary.latest_version.row_count,
+            column_count=(
+                None if summary.latest_version is None else summary.latest_version.column_count
+            ),
+            schema_version_no=summary.schema_version_no,
+            columns_needing_attention=summary.columns_needing_attention,
+        )
+        for summary in summaries
+    ]
+
+
+@router.get("/samples")
+async def list_samples(principal: CurrentPrincipal) -> list[SampleDatasetResponse]:
+    """What the empty state can offer (FR-B.5).
+
+    Authenticated but not tenant-scoped: this is a catalogue of what the server
+    ships, identical for everyone, and it names no data belonging to anybody.
+    """
+    del principal
+    return [
+        SampleDatasetResponse(key=s.key, name=s.name, description=s.description)
+        for s in samples.SAMPLES
+    ]
+
+
+@router.post(
+    "/workspaces/{workspace_id}/projects/{project_id}/datasets/samples",
+    status_code=status.HTTP_201_CREATED,
+)
+async def load_sample(
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    payload: LoadSampleRequest,
+    connection: Connection,
+    principal: CurrentPrincipal,
+    store: Store,
+    engine: Engine,
+    settings: SettingsDep,
+) -> DatasetWithVersionResponse:
+    """Ingest a bundled sample (FR-B.5).
+
+    Goes through **the same commit path** an upload does — same authorization,
+    same normalization, same inference. A shortcut that produced a dataset by
+    some other route would make the demo prove something the product does not
+    do, which is worse than having no demo.
+    """
+    scope = await _scope(principal, workspace_id, project_id, connection, store)
+    try:
+        sample, path = samples.resolve(payload.key, settings.samples_root)
+        with path.open("rb") as handle:
+            committed = await IngestService(connection, scope=scope, engine=engine).commit(
+                upload=handle,
+                filename=sample.filename,
+                declared_size=path.stat().st_size,
+                fmt=SourceFormat.CSV,
+                dialect=detect(path.open("rb").read(PREVIEW_BYTES), is_prefix=True),
+                dataset_id=None,
+                dataset_name=sample.name,
+                actor=principal.user_id,
+                now=system_clock(),
+            )
+    except IngestRejected as exc:
+        raise _rejected(exc) from exc
+
+    return DatasetWithVersionResponse(
+        dataset=_dataset_response(committed.dataset),
+        version=_version_response(committed.version, data_present=True),
+        schema_contract=_contract_response(committed.contract),
+        original_filename=committed.source_file.original_filename,
+    )
 
 
 @router.post(

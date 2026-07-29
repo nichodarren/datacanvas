@@ -177,6 +177,41 @@ class DatasetResponse(BaseModel):
     created_at: datetime
 
 
+class DatasetSummaryResponse(BaseModel):
+    """A dataset card (FR-D.4 in spirit, one level up).
+
+    A list of names tells someone what they uploaded and nothing about which one
+    needs them. ``columns_needing_attention`` is what turns the list into a
+    starting point, and it is the same threshold the grid header uses so the two
+    can never disagree.
+    """
+
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    version_count: int
+    latest_version_id: uuid.UUID | None
+    version_no: int | None
+    row_count: int | None
+    column_count: int | None
+    schema_version_no: int | None
+    columns_needing_attention: int
+
+
+class SampleDatasetResponse(BaseModel):
+    """One offer on the empty state (FR-B.5)."""
+
+    key: str
+    name: str
+    description: str
+
+
+class LoadSampleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=64)
+
+
 class ColumnSpecResponse(BaseModel):
     """One column's interpretation (§9.2).
 

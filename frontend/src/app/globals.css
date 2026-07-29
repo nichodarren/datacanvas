@@ -425,3 +425,133 @@ table.plain td {
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
+
+/* ------------------------------------------------- first screen (§14.5) --- */
+
+/* The empty state is the one screen where a first-time user decides whether
+   this product is worth their file. It gets a narrower measure and a single
+   focal point, rather than the two equal-weight headings it used to have. */
+.start {
+  max-width: 760px;
+}
+.start h1 {
+  font-size: 24px;
+  margin-bottom: 2px;
+}
+
+/* The order, stated before it is walked. A sequence someone has to infer is a
+   sequence they infer wrongly. */
+.steps {
+  list-style: none;
+  counter-reset: step;
+  padding: 0;
+  margin: 18px 0 6px;
+}
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 6px 0 6px 32px;
+  color: var(--ink-dim);
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+/* A dataset is a link, not a table row. The previous version rendered names as
+   plain cells, so returning to this screen left you looking at your own data
+   with no way into it. */
+a.card.dataset,
+div.card.dataset,
+button.card.sample {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  margin: 0;
+  color: var(--ink);
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+}
+a.card.dataset:hover,
+button.card.sample:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+div.card.dataset {
+  cursor: default;
+}
+
+/* --------------------------------------------------- project picker ------- */
+
+.picker {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--ink);
+  font-weight: 600;
+  padding: 4px 10px;
+}
+.picker:hover {
+  border-color: var(--line);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 240px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--ink-dim);
+}
+.menu-item:hover {
+  background: var(--panel);
+  color: var(--ink);
+}
+.menu-item.current {
+  color: var(--ink);
+  font-weight: 600;
+}
+.menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 4px;
+}
+.menu-form {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+}
+.menu-form input {
+  flex: 1;
+  min-width: 0;
+}
