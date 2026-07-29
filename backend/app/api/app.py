@@ -13,8 +13,9 @@ from pathlib import Path
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from loguru import logger
+from starlette.formparsers import MultiPartParser
 
-from app.api import routes_auth, routes_members, routes_workspaces
+from app.api import routes_auth, routes_datasets, routes_members, routes_workspaces
 from app.auth.email import EmailSender, LoggingEmailSender
 from app.auth.passwords import PasswordHasher
 from app.clock import Clock, system_clock
@@ -26,6 +27,19 @@ from app.runtime import assert_compatible_event_loop
 from app.storage.object_store import FilesystemObjectStore, ObjectStore
 
 CORRELATION_HEADER = "X-Correlation-ID"
+
+#: How much of an upload Starlette keeps in memory before spilling it to the OS
+#: temp directory (D-025 amendment).
+#:
+#: **Pinned, not inherited.** D-025 says the preview keeps nothing, and that is
+#: true of *us* — but Starlette buffers `UploadFile` in a `SpooledTemporaryFile`,
+#: so above this threshold the user's bytes do land on disk, outside the
+#: workspace-namespaced tree §10.5 relies on. The spill is transient, unnamed,
+#: has no database row and cannot be redeemed by a later request, which is why
+#: it is a buffer and not the staging area D-025 rejected. But whether it
+#: happens at all is decided by this number, and a number that can change under
+#: us in a dependency upgrade is not a decision we have made.
+UPLOAD_SPOOL_MAX_BYTES = 1024 * 1024
 
 health_router = APIRouter(tags=["ops"])
 
@@ -57,6 +71,7 @@ def create_app(
     parallel wiring that might not match.
     """
     resolved = settings or get_settings()
+    MultiPartParser.spool_max_size = UPLOAD_SPOOL_MAX_BYTES
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -128,6 +143,7 @@ def create_app(
     application.include_router(routes_auth.router)
     application.include_router(routes_workspaces.router)
     application.include_router(routes_members.router)
+    application.include_router(routes_datasets.router)
     return application
 
 

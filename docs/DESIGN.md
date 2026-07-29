@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.5.1 |
-| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-027 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
+| **Versi** | 0.6.0 |
+| **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-028 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-29 |
 | **Owner** | Nicholas Darren |
 | **Reviewer** | (isi) |
@@ -103,6 +103,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.4.0 | 2026-07-29 | **Penutupan sesi — tiga keputusan sesi ini diangkat dari prosa menjadi ADR penuh di §18** (§0.3 aturan 2 → minor version). **D-022** INV-7 tiga lapis, mencatat eksplisit bahwa rumusan lama §13.3 tidak bisa diimplementasikan, dan bahwa **L1/L2 tidak mencakup pemanggil non-HTTP** — perlu ditinjau sebelum Step executor Fase 3 menyentuh data. **D-023** audit log tanpa foreign key. **D-024** satu entry point yang memiliki event loop-nya, termasuk catatan bahwa memasang event loop policy sudah dicoba dan terbukti tidak berpengaruh — supaya tidak ada yang mengulangi percobaan itu. **Penjadwalan ulang, bukan perubahan scope:** separuh P0-5 (engine DuckDB/Polars) bergeser dari Fase 1 ke Fase 2, karena tidak ada yang bisa dibaca sampai ingest ada — membangunnya sekarang berarti menulis pembungkus tanpa satu pun pemanggil dan menebak bentuknya. **Tidak ada yang keluar dari scope MVP**: §15.2 utuh, hanya urutannya bergeser, dan §19.1 memastikan penundaan ini penambahan, bukan migrasi. |
 | 0.5.0 | 2026-07-29 | **Pembukaan Fase 2 — empat cacat ditemukan saat membaca §7/§9/§10/§13 dengan niat mengimplementasikannya** (§0.3 aturan 2 → minor version). **(1) Alur ingest §10.4 tidak punya tempat untuk file yang sudah diunggah tapi belum di-commit** — §10.5 hanya mengenal path di bawah `versions/{version_id}/`, dan ID itu belum ada saat pratinjau. Jalan keluar yang tampak wajar (baris `DatasetVersion` berstatus *pending* yang diisi setelah konfirmasi) **tertutup secara struktural**: mengisinya adalah UPDATE, dan trigger INV-2 menolaknya. → **D-025**, pratinjau dari potongan awal, tanpa staging. **(2) Klaim `content_hash` → "dedup penyimpanan gratis" (§9.2) tidak benar dan tidak ada yang memakainya** — diuji: polars menulis Parquet byte-identik dalam versi yang sama tapi berbeda dari pyarrow atas data yang sama persis, jadi hash itu properti *penulisnya*, bukan properti *datanya*. Selain itu FR-B.2 mewajibkan unggah ulang selalu menghasilkan versi baru, sehingga tidak ada satu pun jalur kode MVP yang akan men-dedup. → **D-026**, opsi tulis dipin + determinisme dijaga test, klaim dedup dicabut. **(3) "Deteksi magic bytes, bukan ekstensi" (NFR-SEC.4, §13.6) tidak dapat diterapkan pada 3 dari 5 format yang diterima** — CSV, TSV, dan JSON tidak punya magic bytes sama sekali. Dibiarkan begitu, ia terdengar seperti jaminan sementara implementasinya akan jatuh kembali ke ekstensi. → **D-027**, penerimaan berbasis parsing; ekstensi tidak pernah otoritas. Konsekuensi bonus: `python-magic` tidak jadi dibutuhkan. **(4) Separuh "invalidasi" P0-15 tidak punya konsumen di Fase 2** — `Step` dan `Computation` baru ada di Fase 3, dan invalidasinya struktural lewat fingerprint §9.4, jadi tidak ada yang bisa dibangun **maupun di-test**; dinyatakan di §20 agar Gerbang 2 tidak diklaim atas sesuatu yang belum teruji. Ditambahkan pula kebutuhan **dataset besar ber-generator** untuk Gerbang 2 (yang terbundel hanya sampai 16 MB, sehingga NFR-PERF.1 tidak akan pernah teruji). Tidak ada perubahan scope (§0.3 aturan 3 tidak terpicu). |
 | 0.5.1 | 2026-07-29 | **R-16 ditutup, R-17 turun Tinggi → Sedang — digerakkan bukti, bukan rencana (§0.3).** Remote privat dipasang dan seluruh riwayat ter-push; repo v1 di-rename `datacanvas-v1` dan dijadikan privat alih-alih dihapus (riwayatnya diperiksa lebih dulu: 104 commit, nol rahasia, `.env` tidak pernah di-commit — dan v1 adalah bahan bukti yang dikutip D-002, D-004 dan §10.3, jadi menghapusnya bertentangan dengan aturan "keputusan lama tidak dihapus"). **Run CI pertama project ini langsung menemukan cacat khusus Linux** — `asyncio.ProactorEventLoop` tidak ada di sana, mypy gagal sementara seluruh pemeriksaan lokal hijau. Itu persis arah yang kolom R-17 sebut tidak akan ketahuan sampai deploy. Diperbaiki, lalu dicegah secara struktural: mypy kini dijalankan dari **sudut pandang platform yang berlawanan** di CI maupun `scripts/check.sh`, sehingga arah yang tidak sedang ditempati tetap diperiksa. |
+| 0.6.0 | 2026-07-29 | **Rute ingest dibangun — dan sebuah lubang di §13.3.1 ditemukan dengan mencoba menulisnya** (§0.3 aturan 2 → minor version). **D-028:** L3 seluruhnya dirumuskan tentang *membaca* (`DataHandle` hanya lahir dari `open_dataset_version`), sehingga jalur ingest — yang belum punya DatasetVersion untuk dibuka — tidak punya gerbang otorisasi sama sekali. Ditutup dengan `IngestScope`, saudara kembarnya untuk arah menulis, yang mencetak setiap URI dari workspace-nya sendiri dan menolak URI yang menyebut workspace lain. **Amandemen D-025:** klaim "tidak menyimpan apa pun" diperhalus setelah ditemukan bahwa Starlette menyangga `UploadFile` ke direktori temp OS di atas ambang tertentu; ambangnya kini di-pin, dan batasnya dinyatakan alih-alih ditemukan saat audit Fase 6. **NFR-SEC.6 dinyatakan setengah terpenuhi** — auth dibatasi, upload belum; ditagih di Gerbang 6. Tiga cacat lagi ditemukan lewat test: `utf8-lossy` **merusak data secara senyap** untuk setiap file non-UTF-8 (setiap karakter non-ASCII menjadi U+FFFD, tanpa satu pun error, pada persis jenis file yang persona kita terima); pratinjau memperlakukan file utuh sebagai potongan sehingga baris terakhir file kecil hilang; dan `normalize_file` bergantung pada pemanggilnya sudah membuat direktori tujuan. Allowlist metadata audit §13.7.1 menolak event ingest pertama — allowlist bekerja sebagaimana mestinya, dan lima kunci Fase 2 ditambahkan secara eksplisit. |
 
 ---
 
@@ -656,10 +657,18 @@ Setiap NFR harus **terukur**. NFR yang tidak bisa diukur adalah harapan, bukan r
 | NFR-SEC.3 | Semua argumen tool tervalidasi skema; tidak ada SQL yang dibangun dari string mentah pengguna |
 | NFR-SEC.4 | File unggahan diterima berdasarkan **isinya, tidak pernah berdasarkan ekstensinya** (magic bytes bila ada, parsing bila tidak — §13.6, D-027); ada batas ukuran, batas dekompresi, dan timeout parsing |
 | NFR-SEC.5 | Konten turunan data (nama kolom, nilai sel) diperlakukan sebagai **untrusted** saat masuk prompt LLM |
-| NFR-SEC.6 | Rate limiting pada auth, upload, dan endpoint LLM |
+| NFR-SEC.6 | Rate limiting pada auth, upload, dan endpoint LLM. **Status 2026-07-29: auth sudah (§13.2, penghitung di Postgres); upload BELUM** — lihat catatan di bawah |
 | NFR-SEC.7 | Secrets hanya dari environment; tidak pernah di repo; tidak pernah masuk log |
 | NFR-SEC.8 | Dependency scanning otomatis |
 | NFR-SEC.9 | Semua aksi sensitif tercatat di audit log yang tidak bisa diubah dari aplikasi |
+
+> **Utang terbuka pada NFR-SEC.6 — upload belum dibatasi (2026-07-29).** Dicatat di sini alih-alih di daftar todo, karena requirement yang setengah terpenuhi dan tidak dinyatakan akan dibaca sebagai terpenuhi.
+>
+> Yang ada: pembatasan login & reset password, dihitung per akun **dan** per alamat (§13.2). Yang tidak ada: pembatasan apa pun pada `POST /uploads/preview` dan pada commit. Mekanisme yang sudah dibangun tidak bisa dipakai ulang apa adanya — ia ber-kunci email/IP dan hidup di jalur autentikasi.
+>
+> **Kenapa ini penting lebih dari sekadar kelengkapan:** pratinjau **mem-parse byte sembarang** dari pengguna mana pun yang login. D-027 membuat penerimaan berbasis parsing, artinya penyerang memilih seberapa banyak pekerjaan yang kita lakukan — dan satu-satunya hal yang membatasinya saat ini adalah batas ukuran per-request (NFR-SCALE.4), bukan batas laju. Batas ukuran menghentikan satu request besar; ia tidak menghentikan seribu request kecil.
+>
+> **Kenapa ditanggung dulu:** penyerangnya harus sudah punya akun, deployment masih internal (A-2, < 50 pengguna), dan mekanisme yang benar adalah pembatas umum per-principal yang juga akan dipakai endpoint LLM di Fase 5 — membangunnya sekarang untuk satu rute berarti merancangnya tanpa melihat pemanggil keduanya. **Ditagih di Gerbang 6**, bersama seluruh §13.9, dan berubah dari trade-off menjadi blocker begitu ada tenant eksternal (§19.1).
 
 ### NFR-PRIV · Privacy
 
@@ -2418,6 +2427,16 @@ Status: 🟡 Proposed · 🟢 Accepted · 🔴 Superseded
 
 ---
 
+**D-028 · Menulis data melewati gerbang otorisasi yang sama seperti membaca** 🟢 Accepted · 2026-07-29
+*Konteks:* Ditemukan saat menulis rute ingest. §13.3.1 L3 berbunyi *"`ObjectStore` dan engine analitik hanya menerima `DataHandle`"*, dan `DataHandle` hanya bisa lahir dari `open_dataset_version()`. Tapi **unggahan baru belum punya DatasetVersion untuk dibuka.** Rumusan L3 seluruhnya tentang membaca; ia tidak menyebut satu kata pun tentang menulis, sehingga jalur ingest tidak punya gerbang sama sekali.
+*Keputusan:* `IngestScope`, saudara kembar `DataHandle` untuk arah sebaliknya, dihasilkan hanya oleh `data_access.open_project_for_ingest(principal, project_id, …)` dengan `editor` sebagai peran minimum. Setiap URI yang dipakai ingest **dicetak oleh scope itu dari `workspace_id`-nya sendiri**; scope juga menolak URI yang menyebut workspace lain, sehingga pemanggil tidak bisa memilih tujuan secara bebas bahkan bila ia mau.
+*Alternatif:* **(a)** menambahkan `app/ingest/` ke daftar paket yang boleh meng-import object store — satu baris, dan justru memasukkan **paket yang seluruh pekerjaannya menangani unggahan tak tepercaya** ke daftar yang ada supaya tetap pendek; **(b)** meneruskan `ObjectStore` ke `IngestService` dan mengandalkan servicenya berperilaku benar — persis kedisiplinan yang §13.3 tolak untuk membaca, tanpa alasan standarnya lebih rendah untuk menulis; **(c)** memperluas `DataHandle` agar bisa mewakili versi yang "belum ada" — membuat satu tipe berarti dua hal, dan tipe yang berarti dua hal berhenti membuktikan salah satunya.
+*Trade-off:* Satu tipe otorisasi lagi, dan `app/storage/` kini di-import dari `app/authz/` di dua arah alih-alih satu. Diterima: alternatifnya menambah **jalan kedua menuju data pengguna**, sementara §13.3 menyatakan jumlah jalan itu harus tepat satu.
+*Konsekuensi:* Jalur ingest secara struktural tidak bisa menulis lintas-tenant. `discard_version` dan `discard_dataset` juga hidup di scope, sehingga kompensasi kegagalan dan penghapusan FR-B.6 tunduk pada batas workspace yang sama. Ditegakkan `tests/unit/test_authz_boundaries.py`.
+*Ditinjau ulang bila:* Step executor Fase 3 mulai menulis artefak (§9.2 `Artifact`) — ia butuh gerbang menulisnya sendiri atau perluasan yang ini, dan pertanyaannya sama persis dengan yang sudah dicatat untuk D-022.
+
+---
+
 **D-027 · Format unggahan ditentukan dengan mem-parse isinya, bukan oleh magic bytes maupun ekstensi** 🟢 Accepted · 2026-07-29
 *Konteks:* NFR-SEC.4 dan §13.6 memerintahkan *"deteksi magic bytes, bukan ekstensi"*. Saat hendak diimplementasikan: **tiga dari lima format yang FR-B.1 wajibkan — CSV, TSV, JSON — sama sekali tidak punya magic bytes.** Aturan itu hanya bisa dipenuhi untuk Parquet (`PAR1`) dan XLSX (`PK\x03\x04`).
 *Keputusan:* Sebuah unggahan diterima sebagai format F **bila dan hanya bila ia berhasil di-parse sebagai F** di bawah batas ukuran, batas dekompresi, dan timeout yang berlaku. Magic bytes dipakai bila ada — sebagai jalan pintas yang murah dan sebagai penentu urutan percobaan — tapi bukan sebagai syarat. Ekstensi hanya mengurutkan percobaan, tidak pernah menentukan hasil.
@@ -2445,6 +2464,22 @@ Status: 🟡 Proposed · 🟢 Accepted · 🔴 Superseded
 *Trade-off:* Klien mengirim data dua kali — ± 1 MB, lalu file penuh. Itu biaya sungguhan dan diterima secara sadar: untuk file 500 MB tambahannya 0,2%, dan yang ditukar dengannya adalah nol tabel baru, nol job GC, dan **nol permukaan otorisasi baru**. Yang paling menentukan bukan penghematannya, melainkan bahwa alternatif (a) menuntut kita membangun jalan kedua menuju data pengguna — dan §13.3 sudah menyatakan bahwa jumlah jalan menuju data harus tepat satu.
 *Konsekuensi:* Pratinjau tidak dapat melaporkan tipe logis, hanya dialect dan baris contoh. Itu **sudah** benar sebelumnya: diagram §10.4 menjalankan inferensi tipe setelah commit sejak awal, dan FR-B.3 mewajibkan inferensi memindai seluruh file — yang menurut definisi mustahil dari sebuah potongan. Ketidaknyamanan yang perlu dijaga di UI: dialect yang benar untuk 1 MB pertama bisa saja salah untuk file selebihnya (baris yang lebih pendek, delimiter yang muncul belakangan). Kegagalan parsing di langkah commit karena itu **wajib** dilaporkan sebagai kegagalan jujur yang bisa ditindaklanjuti (P6, D-015), bukan sebagai crash.
 *Ditinjau ulang bila:* ingest lewat koneksi DB atau URL datang (NFR-EXT.4) — sumber yang tidak dikirim klien tidak punya "potongan awal" untuk dikirim dua kali, dan modelnya perlu diperiksa lagi.
+
+**Amandemen 2026-07-29 — "tidak menyimpan apa pun" perlu diperhalus, dan ini ditemukan saat hendak menulis rutenya.**
+
+Klaim di atas benar tentang **kita** dan tidak sepenuhnya benar tentang **prosesnya**. Starlette menyangga `UploadFile` di `SpooledTemporaryFile`: di bawah ambangnya isinya di memori, di atas ambangnya ia **tumpah ke direktori temp OS**. Untuk unggahan 500 MB, byte pengguna memang mendarat di disk — di luar path yang di-namespace per workspace yang §10.5 sebut sebagai lapisan pertahanan kedua.
+
+Ini tidak membatalkan keputusannya, dan penting untuk menyebut alasannya secara tepat. Yang membuat alternatif (a) ditolak bukan "byte tidak pernah menyentuh disk", melainkan **tidak ada jalur akses kedua menuju data pengguna**: tumpahan Starlette tidak punya nama yang bisa dialamatkan, tidak punya baris di basis data, tidak bisa ditebus di request berikutnya, dan terhapus saat request selesai. Ia buffer, bukan penyimpanan. Staging area punya keempat sifat sebaliknya — dan justru itulah yang menuntut penjaga otorisasinya sendiri.
+
+Yang berubah karena amandemen ini:
+
+| | |
+|---|---|
+| Rumusan klaim | Dari *"tidak menyimpan apa pun"* menjadi **"tidak ada yang bertahan melewati request, dan tidak ada yang bisa dialamatkan"** |
+| Ambang spool | **Di-pin secara eksplisit**, tidak diwariskan dari default framework — ambang yang berubah diam-diam mengubah apakah data pengguna menyentuh disk |
+| Batas yang diakui | Selama tumpahan itu ada, ia berada di direktori temp OS, bukan di bawah `workspaces/{id}/`. Untuk deployment single-tenant yang kita operasikan sendiri (A-10) itu diterima; ia **wajib ditinjau ulang** bersama seluruh §13.9 begitu ada tenant eksternal (§19.1) |
+
+*Pelajaran yang lebih umum, dan alasan amandemen ini ditulis alih-alih diabaikan:* sebuah keputusan dapat benar sementara **kalimat yang merangkumnya** tidak. Kalimat itu yang akan dikutip orang enam bulan lagi — termasuk saat audit keamanan Fase 6 — jadi kalimatnya yang harus akurat, bukan hanya kesimpulannya.
 
 ---
 

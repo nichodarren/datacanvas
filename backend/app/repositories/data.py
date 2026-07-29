@@ -1,9 +1,9 @@
 """Dataset repositories.
 
-Phase 1 only needs enough of these for ``data_access.open()`` to have something
-to open and to answer one question: *which workspace does this
-DatasetVersion belong to?* Ingestion arrives in Phase 2 and will extend, not
-reshape, what is here.
+Phase 1 needed only enough of these for ``data_access.open()`` to have something
+to open and to answer one question: *which workspace does this DatasetVersion
+belong to?* Phase 2 adds ingestion, which — as predicted — extended this module
+rather than reshaping it.
 """
 
 from __future__ import annotations
@@ -15,9 +15,16 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.domain.data import Dataset, DatasetVersion
-from app.domain.ids import DatasetId, DatasetVersionId, ProjectId, UserId, WorkspaceId
-from app.repositories.tables import dataset, dataset_version, project
+from app.domain.data import Dataset, DatasetVersion, SourceFile
+from app.domain.ids import (
+    DatasetId,
+    DatasetVersionId,
+    ProjectId,
+    SourceFileId,
+    UserId,
+    WorkspaceId,
+)
+from app.repositories.tables import dataset, dataset_version, project, source_file
 
 
 def _to_dataset(row: Row[tuple[object, ...]]) -> Dataset:
@@ -68,6 +75,43 @@ class DatasetRepository:
             await self._c.execute(sa.select(dataset).where(dataset.c.id == dataset_id))
         ).one_or_none()
         return _to_dataset(row) if row else None
+
+    async def locate(self, dataset_id: DatasetId) -> tuple[Dataset, WorkspaceId] | None:
+        """The dataset and its owning workspace, in one query.
+
+        Same reasoning as :meth:`DatasetVersionRepository.locate`: two queries
+        leave a window where the row is found and the ownership check is
+        forgotten. A dataset has no ``DataHandle`` of its own — it holds no
+        bytes — so this is what routes that address one by id must go through.
+        """
+        row = (
+            await self._c.execute(
+                sa.select(dataset, project.c.workspace_id)
+                .join(project, project.c.id == dataset.c.project_id)
+                .where(dataset.c.id == dataset_id)
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        return _to_dataset(row), WorkspaceId(row.workspace_id)
+
+    async def list_for_project(self, project_id: ProjectId) -> list[Dataset]:
+        rows = await self._c.execute(
+            sa.select(dataset)
+            .where(dataset.c.project_id == project_id)
+            .order_by(dataset.c.created_at, dataset.c.id)
+        )
+        return [_to_dataset(row) for row in rows]
+
+    async def delete(self, dataset_id: DatasetId) -> int:
+        """Really delete it (FR-B.6).
+
+        Versions and source files go with it by ``ON DELETE CASCADE``. The
+        audit trail survives, because it deliberately holds no foreign keys
+        (D-023) — deletion of data is not deletion of the record that it existed.
+        """
+        result = await self._c.execute(sa.delete(dataset).where(dataset.c.id == dataset_id))
+        return result.rowcount
 
 
 class DatasetVersionRepository:
@@ -128,5 +172,68 @@ class DatasetVersionRepository:
             return None
         return _to_version(row), WorkspaceId(row.workspace_id)
 
+    async def next_version_no(self, dataset_id: DatasetId) -> int:
+        """The number the next upload to this dataset gets (FR-B.2).
 
-__all__ = ["DatasetRepository", "DatasetVersionRepository"]
+        Racy on its own, and intentionally left that way: the real guarantee is
+        the ``(dataset_id, version_no)`` unique constraint. Two simultaneous
+        uploads make one of them fail on that constraint, which is correct —
+        far better than a serialisable transaction that costs every upload, or
+        a lock held across a multi-second file write.
+        """
+        current = (
+            await self._c.execute(
+                sa.select(sa.func.max(dataset_version.c.version_no)).where(
+                    dataset_version.c.dataset_id == dataset_id
+                )
+            )
+        ).scalar()
+        return int(current or 0) + 1
+
+    async def list_for_dataset(self, dataset_id: DatasetId) -> list[DatasetVersion]:
+        rows = await self._c.execute(
+            sa.select(dataset_version)
+            .where(dataset_version.c.dataset_id == dataset_id)
+            .order_by(dataset_version.c.version_no)
+        )
+        return [_to_version(row) for row in rows]
+
+
+class SourceFileRepository:
+    """The uploaded file, kept verbatim for audit and re-parse (§9.2)."""
+
+    def __init__(self, connection: AsyncConnection) -> None:
+        self._c = connection
+
+    async def create(self, file: SourceFile) -> SourceFile:
+        await self._c.execute(
+            sa.insert(source_file).values(
+                id=file.id,
+                dataset_version_id=file.dataset_version_id,
+                original_filename=file.original_filename,
+                mime_detected=file.mime_detected,
+                byte_size=file.byte_size,
+                storage_uri=file.storage_uri,
+            )
+        )
+        return file
+
+    async def for_version(self, version_id: DatasetVersionId) -> SourceFile | None:
+        row = (
+            await self._c.execute(
+                sa.select(source_file).where(source_file.c.dataset_version_id == version_id)
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        return SourceFile(
+            id=SourceFileId(row.id),
+            dataset_version_id=DatasetVersionId(row.dataset_version_id),
+            original_filename=row.original_filename,
+            mime_detected=row.mime_detected,
+            byte_size=row.byte_size,
+            storage_uri=row.storage_uri,
+        )
+
+
+__all__ = ["DatasetRepository", "DatasetVersionRepository", "SourceFileRepository"]

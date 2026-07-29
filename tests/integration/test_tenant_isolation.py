@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -36,12 +37,14 @@ class Tenant:
     user_id: str
     workspace_id: str
     project_id: str
+    dataset_id: str
     dataset_version_id: str
 
     def resource(self, kind: str) -> str:
         return {
             "workspace": self.workspace_id,
             "project": self.project_id,
+            "dataset": self.dataset_id,
             "dataset_version": self.dataset_version_id,
         }[kind]
 
@@ -100,6 +103,7 @@ async def _register(client: AsyncClient, database: Database, email: str) -> Tena
         user_id=body["user"]["id"],
         workspace_id=workspace_id,
         project_id=project_id,
+        dataset_id=str(dataset_id),
         dataset_version_id=str(version_id),
     )
 
@@ -120,9 +124,25 @@ def _url(spec: RouteSpec, owner: Tenant, member_user_id: str | None = None) -> s
     return spec.path.format(
         workspace_id=owner.workspace_id,
         project_id=owner.project_id,
+        dataset_id=owner.dataset_id,
         version_id=owner.dataset_version_id,
         member_user_id=member_user_id or owner.user_id,
     )
+
+
+def _payload(spec: RouteSpec) -> dict[str, Any]:
+    """Send what the route actually accepts.
+
+    Upload routes are multipart. Handing them a JSON body fails validation with
+    422 **before** the request ever reaches the authorization layer — so the
+    sweep would report "not 200" and prove nothing about tenant isolation while
+    looking perfectly green. That is the exact failure mode §13.3.1 warns about
+    for this class of test, arriving through the request body instead of through
+    a forgotten route.
+    """
+    if spec.sample_files is None:
+        return {"json": spec.sample_body}
+    return {"files": spec.sample_files, "data": spec.sample_form or {}}
 
 
 @pytest.fixture(scope="module")
@@ -154,7 +174,7 @@ async def test_cross_tenant_access_returns_404(
         spec.method,
         _url(spec, owner=alice),
         headers=_as(bob),
-        json=spec.sample_body,
+        **_payload(spec),
     )
 
     assert response.status_code == 404, (
@@ -172,7 +192,7 @@ async def test_tenant_scoped_routes_reject_anonymous_callers(
     """No cookie at all must not be treated as "no membership required"."""
     alice = await _register(api, database, "alice@example.com")
 
-    response = await api.request(spec.method, _url(spec, owner=alice), json=spec.sample_body)
+    response = await api.request(spec.method, _url(spec, owner=alice), **_payload(spec))
     assert response.status_code in {401, 404}
 
 
@@ -206,7 +226,7 @@ async def test_owner_is_never_refused_on_their_own_resources(
             spec.method,
             _url(spec, owner=alice, member_user_id=guest.user_id),
             headers=_as(alice),
-            json=spec.sample_body,
+            **_payload(spec),
         )
         assert response.status_code != 404, (
             f"{spec.method} {spec.path} returned 404 to its own owner — "

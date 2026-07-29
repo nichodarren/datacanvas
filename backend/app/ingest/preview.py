@@ -78,7 +78,12 @@ def build(
     warnings: list[str] = []
 
     if fmt.is_delimited_text:
-        dialect = detect(sample, is_prefix=True)
+        # `partial`, not a hard `True`. Treating a complete file as a prefix
+        # throws away its last line — and a small file whose final line has no
+        # trailing newline is *entirely* last line, so the whole thing vanished
+        # and the error blamed the wrong thing ("no readable rows" instead of
+        # "no separator found"). Found by a test asserting the message.
+        dialect = detect(sample, is_prefix=partial)
         if dialect.confidence < 0.9:
             warnings.append(
                 f"rows do not all split into the same number of fields using "
@@ -89,7 +94,7 @@ def build(
     else:
         dialect = None
 
-    frame, tolerated = _sample_frame(sample, fmt, dialect)
+    frame, tolerated = _sample_frame(sample, fmt, dialect, partial=partial)
     warnings.extend(tolerated)
     return IngestPreview(
         format=fmt,
@@ -104,19 +109,23 @@ def build(
 
 
 def _sample_frame(
-    sample: bytes, fmt: SourceFormat, dialect: Dialect | None
+    sample: bytes, fmt: SourceFormat, dialect: Dialect | None, *, partial: bool
 ) -> tuple[pl.DataFrame, tuple[str, ...]]:
-    """Parse the prefix, tolerating the fact that it ends mid-file.
+    """Parse what we have, tolerating a prefix that ends mid-file.
 
-    A truncated final row is normal here and must not be reported as a broken
-    file — that would turn every large upload into a scary preview. The last
-    line is dropped before parsing rather than after a failed attempt, because
-    a half row is not an error condition, it is what a prefix looks like.
+    A truncated final row is normal for a prefix and must not be reported as a
+    broken file — that would make every large upload look broken. The last line
+    is dropped before parsing rather than after a failed attempt, because a half
+    row is not an error condition, it is what a prefix looks like.
+
+    **Only for a prefix.** When the whole file is in hand its last line is real
+    data, and discarding it silently loses a row — the entire file, for a
+    one-line file with no trailing newline.
 
     Anything :func:`normalize.read_sample` had to tolerate beyond that comes
     back as a note, so leniency is always visible.
     """
-    if fmt.is_delimited_text:
+    if partial and fmt.is_delimited_text:
         head, separator, _ = sample.rpartition(b"\n")
         if separator:
             sample = head + separator

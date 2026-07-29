@@ -239,7 +239,10 @@ dataset_version = sa.Table(
         "row_count >= 0 AND column_count >= 0 AND byte_size >= 0",
         name="counts_non_negative",
     ),
-    # Same file uploaded twice = same hash = storage dedup (§9.2).
+    # Indexed to answer "has this exact table been ingested before?" — a
+    # question worth answering in the UI. **Not** a dedup key: D-026 withdrew
+    # that claim, because the hash is a property of the Parquet writer as much
+    # as of the data, and FR-B.2 makes every re-upload a new version regardless.
     sa.Index("ix_dataset_version_content_hash", "content_hash"),
 )
 

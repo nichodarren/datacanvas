@@ -28,6 +28,13 @@ class RouteSpec:
     resource: str | None = None
     #: Body to send for methods that need one, again for the sweep only.
     sample_body: dict[str, object] | None = None
+    #: Multipart payload for upload routes. Present because the sweep has to
+    #: send what the route actually accepts: a JSON body to a multipart endpoint
+    #: is rejected at validation, which answers 422 and never reaches the
+    #: authorization check — a sweep that proves nothing while looking green.
+    sample_files: dict[str, tuple[str, bytes, str]] | None = None
+    #: Form fields accompanying ``sample_files``.
+    sample_form: dict[str, str] | None = None
 
     @property
     def key(self) -> tuple[str, str]:
@@ -49,6 +56,11 @@ ROUTES: tuple[RouteSpec, ...] = (
     # Lists only the caller's own workspaces, so it is authenticated rather
     # than tenant-scoped: there is no id in the path to point elsewhere.
     RouteSpec("GET", "/workspaces", RouteClass.AUTHENTICATED),
+    # D-025: reads a prefix, answers, keeps nothing. There is no stored resource
+    # for it to belong to, so there is nothing to scope. The classification is
+    # the decision — if this route ever starts retaining an upload, it becomes
+    # tenant-scoped on the same day.
+    RouteSpec("POST", "/uploads/preview", RouteClass.AUTHENTICATED),
     # --- tenant-scoped ---------------------------------------------------
     RouteSpec("GET", "/workspaces/{workspace_id}", RouteClass.TENANT_SCOPED, resource="workspace"),
     RouteSpec(
@@ -101,6 +113,33 @@ ROUTES: tuple[RouteSpec, ...] = (
         "/workspaces/{workspace_id}/dataset-versions/{version_id}",
         RouteClass.TENANT_SCOPED,
         resource="dataset_version",
+    ),
+    RouteSpec(
+        "GET",
+        "/workspaces/{workspace_id}/projects/{project_id}/datasets",
+        RouteClass.TENANT_SCOPED,
+        resource="project",
+    ),
+    RouteSpec(
+        "POST",
+        "/workspaces/{workspace_id}/projects/{project_id}/datasets",
+        RouteClass.TENANT_SCOPED,
+        resource="project",
+        sample_files={"file": ("swept.csv", b"a,b\n1,2\n", "text/csv")},
+        sample_form={"name": "swept"},
+    ),
+    RouteSpec(
+        "POST",
+        "/workspaces/{workspace_id}/projects/{project_id}/datasets/{dataset_id}/versions",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
+        sample_files={"file": ("swept.csv", b"a,b\n1,2\n", "text/csv")},
+    ),
+    RouteSpec(
+        "DELETE",
+        "/workspaces/{workspace_id}/projects/{project_id}/datasets/{dataset_id}",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
     ),
 )
 

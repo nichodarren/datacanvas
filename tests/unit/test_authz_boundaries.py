@@ -16,16 +16,25 @@ Two claims are tested here.
 from __future__ import annotations
 
 import ast
+import io
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from app.authz.data_access import DataHandle
+from app.authz import data_access
+from app.authz.data_access import DataAccessDenied, DataHandle, IngestScope
 from app.domain.data import DatasetVersion
 from app.domain.errors import AuthorizationError
-from app.domain.ids import DatasetId, DatasetVersionId, SessionId, UserId, WorkspaceId
+from app.domain.ids import (
+    DatasetId,
+    DatasetVersionId,
+    ProjectId,
+    SessionId,
+    UserId,
+    WorkspaceId,
+)
 from app.domain.principal import Principal
 from app.storage.object_store import FilesystemObjectStore
 from app.storage.uri import dataset_version_data_uri
@@ -75,6 +84,59 @@ def test_data_handle_cannot_be_constructed_directly(tmp_path: Path) -> None:
             _store=FilesystemObjectStore(tmp_path),
             _grant=object(),  # anything but the real token
         )
+
+
+@pytest.mark.invariant
+def test_ingest_scope_cannot_be_constructed_directly(tmp_path: Path) -> None:
+    """Writing gets the same gate as reading (D-028).
+
+    ``DataHandle`` guards reads. ``IngestScope`` guards writes, and it needs to:
+    a bug that writes into another workspace's namespace is a tenant breach in
+    the same way a bad read is, and §10.5 leans on the path layout as a second
+    line of defence — which only holds if nothing may choose a path freely.
+    """
+    principal = Principal(
+        user_id=UserId(uuid.uuid4()), session_id=SessionId(uuid.uuid4()), memberships={}
+    )
+    with pytest.raises(AuthorizationError):
+        IngestScope(
+            principal=principal,
+            workspace_id=WS,
+            project_id=ProjectId(uuid.uuid4()),
+            _store=FilesystemObjectStore(tmp_path),
+            _grant=object(),
+        )
+
+
+@pytest.mark.invariant
+def test_a_scope_refuses_to_write_outside_its_own_workspace(tmp_path: Path) -> None:
+    """Authorizing the caller is not the same as authorizing the destination.
+
+    Without this check the scope would verify who is asking and then write
+    wherever the URI pointed — the same omission it exists to prevent, moved one
+    function further along.
+    """
+    principal = Principal(
+        user_id=UserId(uuid.uuid4()), session_id=SessionId(uuid.uuid4()), memberships={}
+    )
+    scope = IngestScope(
+        principal=principal,
+        workspace_id=WS,
+        project_id=ProjectId(uuid.uuid4()),
+        _store=FilesystemObjectStore(tmp_path),
+        _grant=data_access._GRANT,
+    )
+    somebody_else = WorkspaceId(uuid.UUID("00000000-0000-4000-8000-0000000000ff"))
+
+    # Its own workspace is fine...
+    assert scope.writable_path(scope.data_uri(DS, DV)).parent.exists()
+
+    # ...and a URI naming another one is refused, not written.
+    foreign = dataset_version_data_uri(somebody_else, DS, DV)
+    with pytest.raises(DataAccessDenied):
+        scope.writable_path(foreign)
+    with pytest.raises(DataAccessDenied):
+        scope.write_stream(foreign, io.BytesIO(b"x"))
 
 
 @pytest.mark.invariant

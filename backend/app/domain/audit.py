@@ -38,6 +38,13 @@ class AuditAction(StrEnum):
     PASSWORD_RESET_COMPLETED = "auth.password_reset_completed"  # noqa: S105
     WORKSPACE_CREATED = "workspace.created"
     PROJECT_CREATED = "project.created"
+    # §13.7 requires dataset creation and deletion. Note what is *not* here and
+    # cannot be: the filename, the column names, or anything read from the file.
+    # §13.7.1 forbids data in `metadata`, and column names count as sensitive
+    # (K1, §13.5.1) — so these events carry ids, counts and a content hash.
+    DATASET_CREATED = "dataset.created"
+    DATASET_VERSION_CREATED = "dataset.version_created"
+    DATASET_DELETED = "dataset.deleted"
     MEMBERSHIP_GRANTED = "membership.granted"
     MEMBERSHIP_ROLE_CHANGED = "membership.role_changed"
     MEMBERSHIP_REVOKED = "membership.revoked"

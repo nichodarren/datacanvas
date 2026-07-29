@@ -18,18 +18,37 @@ for. ``tests/unit/test_normalize.py`` is where that is enforced.
 
 from __future__ import annotations
 
+import codecs
 import hashlib
 import io
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Final
+from pathlib import Path
+from typing import Final, Literal, TypedDict
 
 import polars as pl
 
 from app.domain.enums import SourceFormat
 from app.ingest.dialect import CANDIDATE_DELIMITERS, Dialect
 from app.ingest.limits import IngestRejected, check_row_count
+
+
+class ParquetWriteOptions(TypedDict):
+    """Typed so both writers are checked against the same options.
+
+    A bare ``dict[str, object]`` type-checks nothing at either call site, and
+    the entire value of pinning these is that the two paths — in-memory and
+    streaming — cannot drift apart. A typo would otherwise surface as different
+    bytes from different code paths, which is to say two ``content_hash`` values
+    for one table.
+    """
+
+    compression: Literal["zstd"]
+    compression_level: int
+    statistics: bool
+    row_group_size: int
+
 
 #: D-026. Pinned, not defaulted. Changing any of these changes the
 #: ``content_hash`` of everything written afterwards, so they change together
@@ -46,7 +65,7 @@ from app.ingest.limits import IngestRejected, check_row_count
 #: when FR-D.6 lands — not before, and not on intuition.
 #: ``row_group_size`` — fixed, because the default is derived from the frame
 #: and would make byte output depend on how the data happened to be chunked.
-PARQUET_WRITE_OPTIONS: Final[dict[str, object]] = {
+PARQUET_WRITE_OPTIONS: Final[ParquetWriteOptions] = {
     "compression": "zstd",
     "compression_level": 3,
     "statistics": False,
@@ -57,6 +76,10 @@ PARQUET_WRITE_OPTIONS: Final[dict[str, object]] = {
 #: case — rows that were never split because the delimiter was wrong — is
 #: :func:`_reject_unsplit_rows`, not this.
 _MIN_COLUMNS: Final = 1
+
+#: Read size when transcoding or hashing a file. Bounded work per iteration is
+#: the entire point of the file-based path.
+TRANSCODE_CHUNK_BYTES: Final = 1024 * 1024
 
 #: A reader turns bytes plus an optional dialect into a frame, or raises.
 Reader = Callable[[bytes, Dialect | None], pl.DataFrame]
@@ -89,6 +112,47 @@ def _require_dialect(dialect: Dialect | None, fmt: SourceFormat) -> Dialect:
     return dialect
 
 
+def is_utf8(encoding: str) -> bool:
+    """Only plain UTF-8 goes to polars untouched — a BOM counts as *not* plain."""
+    return encoding.lower() == "utf-8"
+
+
+def to_utf8(data: bytes, encoding: str) -> bytes:
+    """Re-encode to UTF-8 using the encoding the detector actually reported.
+
+    **This exists because of a data-loss bug, and the bug is worth stating.**
+    polars speaks two encodings: ``utf8`` and ``utf8-lossy``. An earlier version
+    of this module handed non-UTF-8 files to ``utf8-lossy`` — which does not
+    convert anything, it *replaces every byte it cannot read* with U+FFFD. A
+    cp1252 file saying ``café dekat alun-alun`` came back as ``caf? dekat
+    alun-alun``. Nothing raised. The dialect detector had reported ``cp1252``
+    correctly the whole time; the reader simply ignored it.
+
+    That is the worst shape a defect can take here: silent, total for every
+    non-ASCII character, and aimed squarely at the files our persona receives —
+    Indonesian text out of Excel on a Windows machine.
+    """
+    if is_utf8(encoding):
+        return data
+    return data.decode(encoding).encode("utf-8")
+
+
+def transcode_to_utf8(source: Path, destination: Path, encoding: str) -> None:
+    """The same conversion for a file too large to hold in memory.
+
+    Chunked through an *incremental* decoder, which is the whole difficulty: a
+    fixed-size read almost always lands inside a multi-byte character, and a
+    plain ``decode`` per chunk would corrupt one character per chunk boundary —
+    a defect that scales with file size and vanishes on the small files anyone
+    would test with.
+    """
+    decoder = codecs.getincrementaldecoder(encoding)()
+    with source.open("rb") as reader, destination.open("wb") as writer:
+        while chunk := reader.read(TRANSCODE_CHUNK_BYTES):
+            writer.write(decoder.decode(chunk).encode("utf-8"))
+        writer.write(decoder.decode(b"", True).encode("utf-8"))
+
+
 def read_delimited(data: bytes, dialect: Dialect | None) -> pl.DataFrame:
     """CSV and TSV.
 
@@ -114,10 +178,10 @@ def read_delimited(data: bytes, dialect: Dialect | None) -> pl.DataFrame:
     chosen = _require_dialect(dialect, SourceFormat.CSV)
     try:
         frame = pl.read_csv(
-            io.BytesIO(data),
+            io.BytesIO(to_utf8(data, chosen.encoding)),
             separator=chosen.delimiter,
             has_header=chosen.has_header,
-            encoding="utf8" if chosen.encoding.startswith("utf-8") else "utf8-lossy",
+            encoding="utf8",
             infer_schema=False,
             null_values=None,
             truncate_ragged_lines=False,
@@ -267,8 +331,11 @@ def _reject_duplicate_columns(frame: pl.DataFrame) -> None:
     Caught here rather than at contract construction so the message names the
     file, not an invariant the user has never heard of.
     """
-    counts = Counter(frame.columns)
-    duplicates = sorted(name for name, n in counts.items() if n > 1)
+    _reject_duplicate_names(frame.columns)
+
+
+def _reject_duplicate_names(names: list[str]) -> None:
+    duplicates = sorted(name for name, n in Counter(names).items() if n > 1)
     if duplicates:
         raise IngestRejected(
             f"column names must be unique; these repeat: {', '.join(duplicates)}. "
@@ -279,7 +346,7 @@ def _reject_duplicate_columns(frame: pl.DataFrame) -> None:
 def to_parquet(frame: pl.DataFrame) -> bytes:
     """Serialise with every option pinned (D-026)."""
     buffer = io.BytesIO()
-    frame.write_parquet(buffer, **PARQUET_WRITE_OPTIONS)  # type: ignore[arg-type]
+    frame.write_parquet(buffer, **PARQUET_WRITE_OPTIONS)
     return buffer.getvalue()
 
 
@@ -294,22 +361,171 @@ def content_hash(parquet: bytes) -> str:
 
 
 def normalize(data: bytes, fmt: SourceFormat, dialect: Dialect | None = None) -> NormalizedTable:
-    """The whole path from uploaded bytes to something ready to be committed."""
+    """The whole path from uploaded bytes to something ready to be committed.
+
+    In-memory, so it is for previews, fixtures and tests. A real upload goes
+    through :func:`normalize_file`, which never holds the table at all.
+    """
     frame = read(data, fmt, dialect)
     parquet = to_parquet(frame)
     return NormalizedTable(frame=frame, parquet=parquet, content_hash=content_hash(parquet))
 
 
+# ------------------------------------------------------- the file-based path --
+
+
+@dataclass(frozen=True, slots=True)
+class IngestedFile:
+    """The facts a DatasetVersion needs, gathered without holding the table.
+
+    Everything here is read back from the Parquet footer or from the file on
+    disk, which is why none of it requires the frame to still exist.
+    """
+
+    content_hash: str
+    row_count: int
+    column_count: int
+    byte_size: int
+    columns: tuple[str, ...]
+
+
+def hash_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(TRANSCODE_CHUNK_BYTES):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _scan(source: Path, fmt: SourceFormat, dialect: Dialect | None) -> pl.LazyFrame:
+    if fmt is SourceFormat.PARQUET:
+        return pl.scan_parquet(source)
+    if not fmt.is_delimited_text:
+        raise IngestRejected(
+            f"{fmt.value} uploads are not supported yet. "
+            f"Supported now: {', '.join(sorted(f.value for f in READERS))}."
+        )
+
+    chosen = _require_dialect(dialect, fmt)
+    frame = pl.scan_csv(
+        source,
+        separator=chosen.delimiter,
+        has_header=chosen.has_header,
+        encoding="utf8",
+        infer_schema=False,
+        truncate_ragged_lines=False,
+    )
+    if not chosen.has_header:
+        names = frame.collect_schema().names()
+        frame = frame.rename({name: f"column_{i + 1}" for i, name in enumerate(names)})
+    return frame
+
+
+def normalize_file(
+    source: Path,
+    fmt: SourceFormat,
+    destination: Path,
+    dialect: Dialect | None = None,
+) -> IngestedFile:
+    """Stream ``source`` into normalized Parquet at ``destination``.
+
+    The table is never materialised: polars scans the input and sinks Parquet,
+    and every fact afterwards comes from the written file's footer. That is what
+    makes a 500 MB upload (NFR-SCALE.4) bounded work rather than a bet on how
+    much memory the box has.
+
+    Verified before this was relied on: **streaming and in-memory writes produce
+    byte-identical Parquet** for the same input. Without that, one CSV could end
+    up with two different ``content_hash`` values depending on which path
+    ingested it, and D-026 would mean nothing.
+
+    Any temporary file this needs is created **beside the destination**, inside
+    the workspace-namespaced tree (§10.5), never in the OS temp directory.
+    """
+    working = source
+    scratch: Path | None = None
+    # Before anything is written, including the scratch file — which also lives
+    # here. Doing it later worked only because the caller happened to have
+    # created the directory already, and a function that depends on that is a
+    # function that breaks the first time someone calls it differently.
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if fmt.is_delimited_text:
+            chosen = _require_dialect(dialect, fmt)
+            if not is_utf8(chosen.encoding):
+                scratch = destination.with_name(f"{destination.name}.utf8")
+                transcode_to_utf8(source, scratch, chosen.encoding)
+                working = scratch
+
+        lazy = _scan(working, fmt, dialect)
+        _reject_unsplit_lazy(lazy, fmt, dialect)
+
+        try:
+            lazy.sink_parquet(destination, **PARQUET_WRITE_OPTIONS)
+        except (pl.exceptions.PolarsError, ValueError, OSError) as exc:
+            destination.unlink(missing_ok=True)
+            if fmt.is_delimited_text and dialect is not None:
+                raise IngestRejected(_explain_csv_failure(exc, dialect)) from exc
+            raise IngestRejected(f"could not read this as {fmt.value}: {exc}") from exc
+    finally:
+        if scratch is not None:
+            scratch.unlink(missing_ok=True)
+
+    metadata = pl.read_parquet_schema(destination)
+    row_count = pl.scan_parquet(destination).select(pl.len()).collect().item()
+
+    # Checked after writing rather than before. Counting rows in a CSV means
+    # scanning it, so checking first would cost a full extra pass on every
+    # successful upload to catch a case the 500 MB limit already makes rare.
+    # The file is removed, so nothing over the limit ever becomes a version.
+    try:
+        check_row_count(row_count)
+    except IngestRejected:
+        destination.unlink(missing_ok=True)
+        raise
+
+    return IngestedFile(
+        content_hash=hash_file(destination),
+        row_count=row_count,
+        column_count=len(metadata),
+        byte_size=destination.stat().st_size,
+        columns=tuple(metadata),
+    )
+
+
+def _reject_unsplit_lazy(lazy: pl.LazyFrame, fmt: SourceFormat, dialect: Dialect | None) -> None:
+    """The wrong-delimiter guard, without reading the whole file.
+
+    ``collect_schema`` costs nothing and answers the only question that matters
+    first: how many columns came out. Rows are only pulled when the answer is
+    one, which is when the guard actually has work to do.
+    """
+    names = lazy.collect_schema().names()
+    if len(names) < _MIN_COLUMNS:
+        raise IngestRejected("the file produced no columns")
+    _reject_duplicate_names(names)
+    if len(names) != 1 or not fmt.is_delimited_text or dialect is None:
+        return
+    _reject_unsplit_rows(lazy.head(20).collect(), dialect)
+
+
 __all__ = [
     "PARQUET_WRITE_OPTIONS",
     "READERS",
+    "TRANSCODE_CHUNK_BYTES",
+    "IngestedFile",
     "NormalizedTable",
     "Reader",
     "content_hash",
+    "hash_file",
+    "is_utf8",
     "normalize",
+    "normalize_file",
     "read",
     "read_delimited",
     "read_parquet",
     "read_sample",
     "to_parquet",
+    "to_utf8",
+    "transcode_to_utf8",
 ]

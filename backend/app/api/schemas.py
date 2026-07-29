@@ -124,6 +124,51 @@ class DatasetVersionResponse(BaseModel):
     data_present: bool
 
 
+class DialectResponse(BaseModel):
+    """How a delimited file will be read (FR-B.3), for the user to correct."""
+
+    delimiter: str
+    encoding: str
+    has_header: bool
+    confidence: float
+
+
+class IngestPreviewResponse(BaseModel):
+    """What the pre-commit preview returns (D-025).
+
+    Deliberately has **no identifier**. Nothing was kept, so there is nothing to
+    redeem later — and a field here implying otherwise would be the first step
+    back toward the staging area D-025 rejected.
+
+    Also no logical types: FR-B.3 requires inference to scan the whole file, and
+    a prefix is not the whole file. Types arrive with the SchemaContract, after
+    commit.
+    """
+
+    format: str
+    dialect: DialectResponse | None
+    columns: list[str]
+    sample_rows: list[list[str]]
+    partial: bool
+    warnings: list[str]
+
+
+class DatasetResponse(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    created_at: datetime
+
+
+class DatasetWithVersionResponse(BaseModel):
+    """The result of a committed upload."""
+
+    dataset: DatasetResponse
+    version: DatasetVersionResponse
+    columns: list[str]
+    original_filename: str
+
+
 class LogoutAllResponse(BaseModel):
     revoked_sessions: int
 

@@ -41,6 +41,16 @@ ALLOWED_METADATA_KEYS = frozenset(
         "target_user_id",
         "revoked_count",
         "user_agent",
+        # --- Phase 2, ingest ------------------------------------------------
+        # Added when the first ingest event was refused by the check above,
+        # which is the allowlist doing its job. Each one is an id, a count, a
+        # hash, or a value from a closed vocabulary — never a filename, never a
+        # column name (K1, §13.5.1), never anything read out of the file.
+        "dataset_id",
+        "version_no",
+        "column_count",
+        "content_hash",
+        "format",
     }
 )
 

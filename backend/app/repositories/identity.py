@@ -567,6 +567,19 @@ class ProjectRepository:
         ).one_or_none()
         return _to_project(row) if row else None
 
+    async def locate(self, project_id: ProjectId) -> tuple[Project, WorkspaceId] | None:
+        """The project and its workspace together, for the authorization layer.
+
+        ``Project`` already carries ``workspace_id``, so this looks redundant —
+        it is not. Returning the pair makes the shape identical to
+        ``DatasetVersionRepository.locate`` and to ``DatasetRepository.locate``,
+        which is what lets every authorization entry point read the same way.
+        A caller that has to remember *which* of three lookups also gives them
+        the workspace is a caller who will eventually remember wrong.
+        """
+        found = await self.get(project_id)
+        return None if found is None else (found, found.workspace_id)
+
     async def list_for_workspace(self, workspace_id: WorkspaceId) -> list[Project]:
         rows = await self._c.execute(
             sa.select(project)
