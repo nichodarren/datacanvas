@@ -3,6 +3,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { AccountMenu } from "@/components/AccountMenu";
+import type { Me } from "@/lib/api";
+
 /**
  * The workspace layout from §14.2.
  *
@@ -26,12 +29,18 @@ export function Shell({
   headerExtras,
   versionBadge,
   active,
+  me,
+  workspaceId,
 }: {
   children: ReactNode;
   /** The `Project ▾` control §14.2 places next to the brand. */
   headerExtras?: ReactNode;
   versionBadge?: ReactNode;
   active?: "preview" | "schema";
+  /** Absent only while the page is still finding out who is signed in. */
+  me?: Me | null;
+  /** Which workspace the page is actually working in, when it knows. */
+  workspaceId?: string;
 }) {
   return (
     <div className="shell">
@@ -49,6 +58,7 @@ export function Shell({
         <span className="pill" title="Workspace privacy mode (§13.5). The copilot arrives in Phase 5.">
           🔒 balanced
         </span>
+        {me ? <AccountMenu me={me} workspaceId={workspaceId} /> : null}
       </header>
 
       <div className="body">

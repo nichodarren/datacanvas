@@ -511,6 +511,38 @@ div.card.dataset {
   border-color: var(--line);
 }
 
+/* -------------------------------------------------------- account menu ---- */
+
+/* The email is on the button, not only inside the menu (FR-A.2 rationale in
+   AccountMenu.tsx). It is truncated rather than wrapped so the header keeps its
+   height, and the full value stays in the `title` — the same bargain the grid
+   cells make. */
+.account {
+  font-weight: 400;
+  color: var(--ink-dim);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+}
+.account:hover {
+  color: var(--ink);
+}
+.account-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -522,6 +554,12 @@ div.card.dataset {
   border-radius: 8px;
   padding: 6px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+/* The account menu hangs off the right edge of the header; anchoring it left
+   would push it off screen. */
+.menu.right {
+  left: auto;
+  right: 0;
 }
 .menu-item {
   display: block;

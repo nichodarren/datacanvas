@@ -207,6 +207,10 @@ export const api = {
 
   logout: () => request<void>("/auth/logout", { method: "POST" }),
 
+  /** FR-A.2, the "all devices" half. Revokes this session too. */
+  logoutAll: () =>
+    request<{ revoked_sessions: number }>("/auth/logout-all", { method: "POST" }),
+
   projects: (workspaceId: string) =>
     request<Project[]>(`/workspaces/${workspaceId}/projects`),
 

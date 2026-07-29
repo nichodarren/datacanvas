@@ -136,7 +136,7 @@ export default function HomePage() {
   const empty = datasets.length === 0;
 
   return (
-    <Shell active="preview" headerExtras={picker}>
+    <Shell active="preview" headerExtras={picker} me={me} workspaceId={workspace?.id}>
       {error ? (
         <div className="banner error" role="alert">
           {error}
@@ -199,9 +199,11 @@ export default function HomePage() {
       ) : (
         <>
           <h1>{project?.name ?? "Datasets"}</h1>
+          {/* This line used to repeat the email and workspace. Both now live in
+              the account menu, where they are reachable from every screen
+              rather than only this one, so the space says something new. */}
           <p className="muted" style={{ marginTop: 0 }}>
-            {me?.user.email}
-            {workspace ? ` · ${workspace.name}` : ""}
+            {datasets.length} dataset{datasets.length === 1 ? "" : "s"}
           </p>
 
           <div className="cards" style={{ marginTop: 18 }}>

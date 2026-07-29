@@ -8,6 +8,7 @@ import { Shell } from "@/components/Shell";
 import {
   ApiError,
   type DatasetVersion,
+  type Me,
   type SchemaContract,
   api,
 } from "@/lib/api";
@@ -25,6 +26,7 @@ export default function VersionPage() {
   const params = useParams<{ versionId: string }>();
   const versionId = params.versionId;
 
+  const [me, setMe] = useState<Me | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [version, setVersion] = useState<DatasetVersion | null>(null);
   const [contract, setContract] = useState<SchemaContract | null>(null);
@@ -35,6 +37,7 @@ export default function VersionPage() {
   const load = useCallback(async () => {
     try {
       const identity = await api.me();
+      setMe(identity);
       // Every workspace is tried rather than assuming the first. A version id
       // belongs to exactly one workspace, and the API answers 404 for the
       // others — which is deliberate (§13.3.1 L2) and means "not yours" and
@@ -83,8 +86,10 @@ export default function VersionPage() {
   }
 
   if (error || !version || !contract || !workspaceId) {
+    // `me` is passed here too: a page that failed to load is exactly where
+    // someone might want to sign out, and stranding them would be worse.
     return (
-      <Shell active="preview">
+      <Shell active="preview" me={me}>
         <div className="banner error" role="alert">
           {error ?? "Not available."}
         </div>
@@ -97,7 +102,7 @@ export default function VersionPage() {
   );
 
   return (
-    <Shell versionBadge={badge} active={tab}>
+    <Shell versionBadge={badge} active={tab} me={me} workspaceId={workspaceId}>
       <h1>Dataset version {version.version_no}</h1>
       <p className="muted">
         {version.row_count.toLocaleString()} rows · {version.column_count} columns ·{" "}
