@@ -40,6 +40,9 @@ build/
 # SHA-256 tercatat di docs/golden_queries.md §3.
 !eval/datasets/
 !eval/datasets/*.csv
+# ...kecuali yang besar. `wide_orders` ± 250 MB; skrip pembangkitnya yang
+# di-commit, dan SHA-256-nya tetap menjadi kontrak di golden_queries.md §3.
+eval/datasets/wide_orders.csv
 
 # --- IDE / OS ---
 .vscode/

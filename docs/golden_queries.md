@@ -82,6 +82,7 @@ Semuanya sudah **dibundel** di `eval/datasets/` dan **diverifikasi** (§6). Sidi
 | `titanic` | 891 × 12 | 60.302 B | `4a437fde05fe5264…af5af4bd7` | Campuran tipe, null nyata, kategori kecil |
 | `hotel_bookings` | 119.390 × 32 | 16.855.599 B | `7c2ae42a7353905e…c7b1fc06` | Skala, kardinalitas tinggi, null ekstrem |
 | `tips` | 244 × 7 | 9.729 B | `e54cc4d2ce1bff65…70e863b0` | Kecil & bersih, grup kecil untuk uji PG-1 |
+| `wide_orders` | 5.000.000 × 12 | 503.316.480 B | `ff75abc99c809b17…0070fd460a` | **Tidak di-commit** — bangun dengan `python eval/fixtures/build_wide_orders.py`. Bersih tapi besar; dataset Gerbang 2 untuk NFR-PERF.1 |
 | `messy_sales` | 5.000 × 12 | 482.834 B | `2b7dd28a9f12ca1e…6d9f917d` | Data kotor terkendali; fixture PQ-1…PQ-14 |
 
 **Sumber:**

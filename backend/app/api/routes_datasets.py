@@ -29,6 +29,7 @@ from app.api.schemas import (
     DialectResponse,
     IngestPreviewResponse,
     SchemaContractResponse,
+    SchemaOverrideRequest,
 )
 from app.authz.data_access import (
     DataAccessDenied,
@@ -37,16 +38,20 @@ from app.authz.data_access import (
     open_project_for_ingest,
 )
 from app.clock import system_clock
+from app.domain.audit import AuditAction
 from app.domain.data import Dataset, DatasetVersion, SchemaContract
-from app.domain.enums import SourceFormat
+from app.domain.enums import ColumnRole, LogicalType, Role, SourceFormat
 from app.domain.ids import DatasetId, DatasetVersionId, ProjectId, WorkspaceId
 from app.domain.principal import Principal
 from app.ingest import formats, preview
 from app.ingest.dialect import Dialect, detect
 from app.ingest.limits import PREVIEW_BYTES, IngestRejected
 from app.ingest.service import IngestService
+from app.repositories.audit import AuditRepository
 from app.repositories.data import DatasetRepository
 from app.repositories.schema import SchemaContractRepository
+from app.schema import override
+from app.schema.override import SchemaOverrideRejected
 from app.storage.engine import TableEngine
 from app.storage.object_store import ObjectStore
 
@@ -330,6 +335,110 @@ async def get_schema_contract(
     if contract is None:
         raise NOT_FOUND
     return _contract_response(contract)
+
+
+@router.post(
+    "/workspaces/{workspace_id}/dataset-versions/{version_id}/schema",
+    status_code=status.HTTP_201_CREATED,
+)
+async def override_schema(
+    workspace_id: uuid.UUID,
+    version_id: uuid.UUID,
+    payload: SchemaOverrideRequest,
+    connection: Connection,
+    principal: CurrentPrincipal,
+    store: Store,
+    engine: Engine,
+) -> SchemaContractResponse:
+    """Correct a schema, producing the **next** contract version (FR-C.2, FR-C.3).
+
+    Never an edit — INV-3, and the database refuses an UPDATE independently of
+    anything written here. The response is the new version, so a client that
+    ignores it still cannot end up thinking it changed the old one.
+
+    ``editor`` is required. §13.3 gives a ``viewer`` read access and read-only
+    tools; an interpretation that every later number depends on is not that.
+
+    **An override that would discard values is accepted and recorded.** The user
+    knows what the column means and we do not (§10.2), but D-029 exists because
+    losing values silently is the failure this whole design avoids — so the new
+    contract states how many values do not conform, in words.
+    """
+    try:
+        handle = await open_dataset_version(
+            principal,
+            DatasetVersionId(version_id),
+            connection=connection,
+            store=store,
+            required_role=Role.EDITOR,
+        )
+    except DataAccessDenied as exc:
+        raise NOT_FOUND from exc
+    if handle.workspace_id != WorkspaceId(workspace_id):
+        raise NOT_FOUND
+
+    repository = SchemaContractRepository(connection)
+    current = await repository.latest_for_version(DatasetVersionId(version_id))
+    if current is None:
+        raise NOT_FOUND
+
+    try:
+        updated = override.apply(
+            current,
+            [
+                override.ColumnOverride(
+                    name=column.name,
+                    logical_type=(
+                        None if column.logical_type is None else LogicalType(column.logical_type)
+                    ),
+                    role=None if column.role is None else ColumnRole(column.role),
+                    null_markers=(
+                        None if column.null_markers is None else tuple(column.null_markers)
+                    ),
+                    format_hint=column.format_hint,
+                )
+                for column in payload.columns
+            ],
+            actor=principal.user_id,
+            now=system_clock(),
+            # Measured, not assumed: the cost of an override is only knowable by
+            # looking at the data it applies to.
+            #
+            # **Unless the data is gone.** A row can outlive its bytes — that is
+            # what ``data_present: false`` means, and it is why the field
+            # exists. Refusing to let someone fix a type because the file is
+            # missing would hold the metadata hostage to a storage problem it
+            # has nothing to do with, so the correction still goes through and
+            # simply records no conformance count.
+            statistics=(
+                {s.name: s for s in engine.column_statistics(handle)} if handle.exists() else None
+            ),
+        )
+    except SchemaOverrideRejected as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+    await repository.create(updated)
+    await AuditRepository(connection).record(
+        action=AuditAction.SCHEMA_CONTRACT_CREATED,
+        now=updated.created_at,
+        workspace_id=handle.workspace_id,
+        actor_user_id=principal.user_id,
+        target_type="schema_contract",
+        target_id=updated.id,
+        # Ordinals, not names: a column name is sensitive (K1, §13.5.1) and
+        # this table can never be deleted from (§13.7.1).
+        metadata={
+            "dataset_version_id": str(version_id),
+            "version_no": updated.version_no,
+            "derived_from": str(current.id),
+            "changed_ordinals": sorted(
+                column.ordinal for column in updated.columns if column.is_user_overridden
+            ),
+        },
+    )
+    return _contract_response(updated)
 
 
 @router.delete(

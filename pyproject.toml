@@ -6,7 +6,7 @@ requires-python = ">=3.13"
 
 # Dependensi ditambahkan PER FASE, bukan di muka (P9 — small surface).
 # Fase 1 (fondasi & identitas) sudah tercakup di bawah.
-# Fase 2 (ingest)      -> openpyxl (XLSX) masih menyusul. BUKAN python-magic:
+# Fase 2 (ingest)      -> selesai. BUKAN python-magic:
 #                         D-027 menetapkan penerimaan berbasis parsing, dan hanya
 #                         dua dari lima format kita punya magic bytes sama sekali
 #                         — keduanya delapan byte yang ditulis langsung.
@@ -23,6 +23,9 @@ dependencies = [
     # a missing entry here is a server that will not start rather than a route
     # that misbehaves — which is the better failure of the two.
     "python-multipart>=0.0.20",
+    # XLSX (FR-B.1). polars defaults to `fastexcel`; openpyxl is used directly
+    # so every format arrives as text and there is one inference path, not two.
+    "openpyxl>=3.1",
     "polars>=1.32",
     "duckdb>=1.5",
     "pyarrow>=21",
@@ -99,7 +102,7 @@ disallow_untyped_defs = false
 # Parquet metadata and assert what D-026's pinned write options put there — so
 # the untyped surface is one assertion wide.
 [[tool.mypy.overrides]]
-module = ["pyarrow.*"]
+module = ["pyarrow.*", "openpyxl.*"]
 ignore_missing_imports = true
 
 # -------------------------------------------------------------- pytest ------

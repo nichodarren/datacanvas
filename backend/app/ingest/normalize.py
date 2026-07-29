@@ -21,17 +21,20 @@ from __future__ import annotations
 import codecs
 import hashlib
 import io
+import json
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 from typing import Final, Literal, TypedDict
 
+import openpyxl
 import polars as pl
 
 from app.domain.enums import SourceFormat
 from app.ingest.dialect import CANDIDATE_DELIMITERS, Dialect
-from app.ingest.limits import IngestRejected, check_row_count
+from app.ingest.limits import MAX_ROWS, IngestRejected, check_row_count
 
 
 class ParquetWriteOptions(TypedDict):
@@ -298,11 +301,147 @@ def read_parquet(data: bytes, dialect: Dialect | None) -> pl.DataFrame:
         raise IngestRejected(f"could not read this as Parquet: {exc}") from exc
 
 
-#: One entry per format. Adding XLSX and JSON is one reader and one line here.
+def _cell_text(value: object) -> str | None:
+    """One spreadsheet or JSON value, as the text every other format arrives as.
+
+    **Everything becomes text, deliberately.** CSV has no choice; XLSX and JSON
+    do, and taking it would mean two inference paths — one over strings and one
+    over whatever the source claimed. D-029's rules are written for the first,
+    and a second path is a second set of bugs.
+
+    Discarding Excel's own typing costs less than it sounds. Excel is famously
+    unreliable about it — it is the program that turns gene names into dates —
+    so re-deriving the type from the value is not a loss of authority, only of
+    a guess. What *is* preserved carefully is the shape: dates are written ISO
+    so the date rule recognises them, and floats keep full repr so nothing is
+    rounded on the way through.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, datetime):
+        # Midnight means "a date" in every spreadsheet ever exported.
+        if value.hour == value.minute == value.second == 0 and value.microsecond == 0:
+            return value.date().isoformat()
+        return value.isoformat(sep=" ")
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, float) and value.is_integer():
+        # Excel stores every number as a float. Writing 3 as "3.0" would make an
+        # integer column decimal for a reason that has nothing to do with the
+        # data (D-029: the shape rules read exactly this text).
+        return str(int(value))
+    return str(value)
+
+
+def read_xlsx(data: bytes, dialect: Dialect | None) -> pl.DataFrame:
+    """The first worksheet of an Excel workbook (FR-B.1).
+
+    **One sheet**, as FR-B.1 says. A workbook with several is not one table, and
+    silently picking the first *and not saying so* would be the wrong kind of
+    convenient — so the sheet name comes back in ``ingest_options``.
+
+    Read in openpyxl's read-only mode, which streams rather than building the
+    whole workbook in memory. The decompression ratio was already checked at
+    sniff time (§13.6); the row bound here is the other half, because a zip
+    bomb that passes the ratio check can still be very tall.
+    """
+    del dialect
+    try:
+        workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception as exc:  # openpyxl raises a wide family of its own errors
+        raise IngestRejected(f"could not read this as an Excel workbook: {exc}") from exc
+
+    try:
+        sheet = workbook.worksheets[0]
+        rows = sheet.iter_rows(values_only=True)
+        try:
+            header = next(rows)
+        except StopIteration as exc:
+            raise IngestRejected("the worksheet is empty") from exc
+
+        names = [
+            (_cell_text(cell) or f"column_{i + 1}").strip() or f"column_{i + 1}"
+            for i, cell in enumerate(header)
+        ]
+        _reject_duplicate_names(names)
+
+        records: list[list[str | None]] = []
+        for row in rows:
+            if all(cell is None for cell in row):
+                # Trailing blank rows are what a spreadsheet looks like, not a
+                # data row full of nulls.
+                continue
+            values = [_cell_text(cell) for cell in row[: len(names)]]
+            values.extend([None] * (len(names) - len(values)))
+            records.append(values)
+            if len(records) > MAX_ROWS:
+                raise IngestRejected(f"worksheet has more than {MAX_ROWS:,} rows (NFR-SCALE.1)")
+    finally:
+        workbook.close()
+
+    if not records:
+        raise IngestRejected("the worksheet has a header but no data rows")
+    return pl.DataFrame(
+        {name: [row[i] for row in records] for i, name in enumerate(names)},
+        schema={name: pl.String for name in names},
+    )
+
+
+def read_json_records(data: bytes, dialect: Dialect | None) -> pl.DataFrame:
+    """A JSON array of objects (FR-B.1), and nothing else.
+
+    Not "any JSON". A nested document is not a table, and flattening one into
+    column names like ``a.b.c`` invents a structure the user did not write —
+    §9.6 is single-table, and P6 prefers saying so to guessing.
+    """
+    del dialect
+    try:
+        parsed = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise IngestRejected(f"could not read this as JSON: {exc}") from exc
+
+    if not isinstance(parsed, list):
+        raise IngestRejected(
+            "JSON uploads must be an array of objects, and this is a "
+            f"{type(parsed).__name__}. Wrap the rows in a list."
+        )
+    if not parsed:
+        raise IngestRejected("the JSON array is empty")
+
+    names: list[str] = []
+    for index, record in enumerate(parsed):
+        if not isinstance(record, dict):
+            raise IngestRejected(
+                f"element {index} of the array is a {type(record).__name__}, not an object"
+            )
+        for key in record:
+            if key not in names:
+                names.append(key)
+
+    for name in names:
+        values = [record.get(name) for record in parsed]
+        if any(isinstance(value, dict | list) for value in values):
+            raise IngestRejected(
+                f"column {name!r} contains nested objects or arrays. "
+                "The MVP works on flat tables (§9.6); flatten it before uploading."
+            )
+
+    return pl.DataFrame(
+        {name: [_cell_text(record.get(name)) for record in parsed] for name in names},
+        schema={name: pl.String for name in names},
+    )
+
+
+#: One entry per format. Adding one is a reader and a line here, and nothing
+#: else — the shape NFR-MAINT.1 asks of tools, applied to formats.
 READERS: Final[dict[SourceFormat, Reader]] = {
     SourceFormat.CSV: read_delimited,
     SourceFormat.TSV: read_delimited,
     SourceFormat.PARQUET: read_parquet,
+    SourceFormat.XLSX: read_xlsx,
+    SourceFormat.JSON: read_json_records,
 }
 
 
@@ -398,13 +537,24 @@ def hash_file(path: Path) -> str:
 
 
 def _scan(source: Path, fmt: SourceFormat, dialect: Dialect | None) -> pl.LazyFrame:
+    """A lazy view of the source, streamed where the format allows it.
+
+    Only CSV, TSV and Parquet can genuinely be scanned. XLSX and JSON are read
+    whole and then made lazy — which is honest rather than lazy-in-name: a
+    worksheet caps at about a million rows and a JSON array has to be parsed
+    entirely before its first row is known, so there is no streaming to be had.
+    The 500 MB upload cap (NFR-SCALE.4) is what bounds them.
+    """
     if fmt is SourceFormat.PARQUET:
         return pl.scan_parquet(source)
     if not fmt.is_delimited_text:
-        raise IngestRejected(
-            f"{fmt.value} uploads are not supported yet. "
-            f"Supported now: {', '.join(sorted(f.value for f in READERS))}."
-        )
+        reader = READERS.get(fmt)
+        if reader is None:
+            raise IngestRejected(
+                f"{fmt.value} uploads are not supported yet. "
+                f"Supported now: {', '.join(sorted(f.value for f in READERS))}."
+            )
+        return reader(source.read_bytes(), dialect).lazy()
 
     chosen = _require_dialect(dialect, fmt)
     frame = pl.scan_csv(
@@ -513,6 +663,7 @@ __all__ = [
     "PARQUET_WRITE_OPTIONS",
     "READERS",
     "TRANSCODE_CHUNK_BYTES",
+    "Dialect",
     "IngestedFile",
     "NormalizedTable",
     "Reader",
@@ -523,8 +674,10 @@ __all__ = [
     "normalize_file",
     "read",
     "read_delimited",
+    "read_json_records",
     "read_parquet",
     "read_sample",
+    "read_xlsx",
     "to_parquet",
     "to_utf8",
     "transcode_to_utf8",

@@ -195,9 +195,17 @@ def test_a_row_with_extra_fields_fails_with_something_to_act_on() -> None:
     assert "','" in message
 
 
-def test_an_unsupported_format_says_what_is_supported() -> None:
-    with pytest.raises(IngestRejected, match="csv"):
-        normalize.read(b'[{"a":1}]', SourceFormat.JSON)
+def test_every_upload_format_has_a_reader() -> None:
+    """FR-B.1 is complete, and this is what keeps it complete.
+
+    Replaces a pair of tests that asserted an "unsupported format" message.
+    Those became unreachable the moment XLSX and JSON landed — every member of
+    ``SourceFormat`` now has a reader, so nothing could produce the message any
+    more. Rather than delete the guard, the check moves to where the omission
+    would actually happen: adding a format to the enum without adding a reader
+    fails here, at the point of the omission, instead of at runtime for a user.
+    """
+    assert {fmt for fmt in SourceFormat} == set(normalize.READERS)
 
 
 def test_a_file_with_only_a_header_is_refused() -> None:

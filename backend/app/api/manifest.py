@@ -121,6 +121,13 @@ ROUTES: tuple[RouteSpec, ...] = (
         resource="dataset_version",
     ),
     RouteSpec(
+        "POST",
+        "/workspaces/{workspace_id}/dataset-versions/{version_id}/schema",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset_version",
+        sample_body={"columns": [{"name": "seeded", "logical_type": "categorical"}]},
+    ),
+    RouteSpec(
         "GET",
         "/workspaces/{workspace_id}/projects/{project_id}/datasets",
         RouteClass.TENANT_SCOPED,

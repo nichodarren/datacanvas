@@ -51,6 +51,9 @@ ALLOWED_METADATA_KEYS = frozenset(
         "column_count",
         "content_hash",
         "format",
+        "dataset_version_id",
+        "derived_from",
+        "changed_ordinals",
     }
 )
 

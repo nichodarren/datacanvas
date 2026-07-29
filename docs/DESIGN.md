@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.7.0 |
+| **Versi** | 0.8.0 |
 | **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-029 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-29 |
 | **Owner** | Nicholas Darren |
@@ -105,6 +105,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.5.1 | 2026-07-29 | **R-16 ditutup, R-17 turun Tinggi → Sedang — digerakkan bukti, bukan rencana (§0.3).** Remote privat dipasang dan seluruh riwayat ter-push; repo v1 di-rename `datacanvas-v1` dan dijadikan privat alih-alih dihapus (riwayatnya diperiksa lebih dulu: 104 commit, nol rahasia, `.env` tidak pernah di-commit — dan v1 adalah bahan bukti yang dikutip D-002, D-004 dan §10.3, jadi menghapusnya bertentangan dengan aturan "keputusan lama tidak dihapus"). **Run CI pertama project ini langsung menemukan cacat khusus Linux** — `asyncio.ProactorEventLoop` tidak ada di sana, mypy gagal sementara seluruh pemeriksaan lokal hijau. Itu persis arah yang kolom R-17 sebut tidak akan ketahuan sampai deploy. Diperbaiki, lalu dicegah secara struktural: mypy kini dijalankan dari **sudut pandang platform yang berlawanan** di CI maupun `scripts/check.sh`, sehingga arah yang tidak sedang ditempati tetap diperiksa. |
 | 0.6.0 | 2026-07-29 | **Rute ingest dibangun — dan sebuah lubang di §13.3.1 ditemukan dengan mencoba menulisnya** (§0.3 aturan 2 → minor version). **D-028:** L3 seluruhnya dirumuskan tentang *membaca* (`DataHandle` hanya lahir dari `open_dataset_version`), sehingga jalur ingest — yang belum punya DatasetVersion untuk dibuka — tidak punya gerbang otorisasi sama sekali. Ditutup dengan `IngestScope`, saudara kembarnya untuk arah menulis, yang mencetak setiap URI dari workspace-nya sendiri dan menolak URI yang menyebut workspace lain. **Amandemen D-025:** klaim "tidak menyimpan apa pun" diperhalus setelah ditemukan bahwa Starlette menyangga `UploadFile` ke direktori temp OS di atas ambang tertentu; ambangnya kini di-pin, dan batasnya dinyatakan alih-alih ditemukan saat audit Fase 6. **NFR-SEC.6 dinyatakan setengah terpenuhi** — auth dibatasi, upload belum; ditagih di Gerbang 6. Tiga cacat lagi ditemukan lewat test: `utf8-lossy` **merusak data secara senyap** untuk setiap file non-UTF-8 (setiap karakter non-ASCII menjadi U+FFFD, tanpa satu pun error, pada persis jenis file yang persona kita terima); pratinjau memperlakukan file utuh sebagai potongan sehingga baris terakhir file kecil hilang; dan `normalize_file` bergantung pada pemanggilnya sudah membuat direktori tujuan. Allowlist metadata audit §13.7.1 menolak event ingest pertama — allowlist bekerja sebagaimana mestinya, dan lima kunci Fase 2 ditambahkan secara eksplisit. |
 | 0.7.0 | 2026-07-29 | **P0-7 selesai — inferensi skema + SchemaContract v1** (§0.3 aturan 2 → minor version). **D-029** menetapkan dua hal yang keduanya tampak sudah jelas jawabannya. **(1) Cakupan harus 100%**, bukan 90 atau 95: `messy_sales.legacy_code` adalah 4.850 dari 5.000 digit murni, dan ambang berapa pun di bawah 100% menjadikannya `integer` — lalu 150 nilai nyata menjadi null secara senyap begitu ada yang meng-cast kolomnya. **(2) Kecocokan diperiksa aturan bentuk, bukan `TRY_CAST`** — diukur, dan hasilnya menutup pilihan itu: `1.5` → `2` (dibulatkan), `007` → `7` (kehilangan digit), `0x1F` → `31`, `inf` → `DATE 9999-12-31`, dan sebuah timestamp menjadi `DATE` dengan waktunya dibuang. Semuanya kesalahan `utf8-lossy` sekali lagi — fungsi konversi pemaaf dipakai untuk mengambil keputusan. Konsekuensi terpenting: **`detection_confidence` kini mengukur ambiguitas, bukan cakupan** — `qty` bisa 100% integer dan tetap 0,6 karena 5 nilai distinct pada 5.000 baris lebih mungkin kategori (PQ-4). Ditambahkan field `detection_reason` ke `columns[]` §9.2, karena FR-B.3 menuntut deteksi ditampilkan **untuk dikoreksi** dan angka 0,5 telanjang bukan sesuatu yang bisa dibantah seseorang. Satu batasan nyata juga diperbaiki: **CSV satu kolom sebelumnya ditolak** — daftar ID adalah CSV yang sah, dan "tidak ditemukan pemisah" adalah jawaban, bukan kegagalan. Tipe hasil inferensi untuk keempat dataset terbundel kini dipaku sebagai kontrak test. |
+| 0.8.0 | 2026-07-29 | **Fase 2 selesai di sisi backend; Gerbang 2 terlampaui dengan angka.** P0-15 (override tipe → SchemaContract v2, FR-C.2/FR-C.3) dan sisa FR-B.1 (pembaca XLSX & JSON) masuk. Keputusan yang layak dicatat pada override: **koreksi yang membuang nilai diterima dan dicatat, bukan ditolak dan bukan dituruti diam-diam.** §10.2 memberi keputusan kepada orang yang tahu arti kolomnya; D-029 ada karena kehilangan nilai secara senyap adalah kegagalan yang dihindari seluruh desain ini. Keduanya berlaku: koreksinya berhasil, dan kontraknya menyatakan berapa nilai yang tidak cocok. Pada pembaca baru: **XLSX dan JSON membuang tipe aslinya** dan tiba sebagai teks seperti CSV — dua jalur inferensi berarti dua set bug, dan Excel adalah program yang mengubah nama gen menjadi tanggal, jadi menurunkan opininya bukan kehilangan otoritas. Ditambahkan `eval/fixtures/build_wide_orders.py` (5 juta baris, 480 MB, ber-seed, tidak di-commit) karena tanpanya NFR-PERF.1 hanya diasumsikan. **NFR-PERF.4 diperbaiki rumusannya** — ia tidak menyebut inferensi, dan diambil harfiah angkanya menjadi 1,5 detik yang menyenangkan alih-alih 29 detik yang sebenarnya; mengukur separuh yang cepat adalah cara membuat gerbang lolos tanpa membuktikan apa pun. Hasil terukur: halaman pertama **56 ms** pada 5 juta baris terhadap anggaran 1 detik. Dinyatakan terbuka: **Gerbang 2 terlampaui untuk backend, belum untuk UI** — P0-14 belum ada, jadi "halaman pertama tampil" yang terukur adalah waktu server, bukan waktu browser. |
 
 ---
 
@@ -634,7 +635,7 @@ Setiap NFR harus **terukur**. NFR yang tidak bisa diukur adalah harapan, bukan r
 | NFR-PERF.1 | Preview grid halaman pertama tampil | < 1 detik (p95) | Untuk dataset ≤ 5 juta baris |
 | NFR-PERF.2 | Profil univariat satu kolom | < 2 detik (p95) | Cold, tanpa cache |
 | NFR-PERF.3 | Cache hit | < 150 ms (p95) | Harus terasa instan |
-| NFR-PERF.4 | Ingest + normalisasi ke Parquet, file 100 MB | < 30 detik | Dengan indikator progres |
+| NFR-PERF.4 | **Ingest + normalisasi + inferensi skema**, file 100 MB | < 30 detik | Dengan indikator progres. **Inferensi ditambahkan ke rumusan 2026-07-29:** §10.4 menempatkannya di dalam alur ingest, dan dari sisi pengguna unggahan belum selesai sampai skemanya ada. Rumusan lama mengukur separuh yang cepat — pada file 480 MB itu 1,5 detik versus 29 detik yang sebenarnya |
 | NFR-PERF.5 | Turn copilot sampai token pertama | < 3 detik (p95) | Streaming wajib; menunggu tanpa umpan balik = kegagalan UX |
 | NFR-PERF.6 | Turn copilot lengkap (2–3 tool call) | < 15 detik (p95) | |
 
@@ -2799,6 +2800,18 @@ Itu tetap gerbang yang benar. Alternatifnya adalah menunda gerbang keamanan samp
 - Editor skema + override (P0-15) — lihat batasnya di bawah
 
 **🚦 Gerbang 2:** Unggah 3 dataset dengan karakter berbeda (bersih / kotor / besar); tipe terdeteksi masuk akal; koreksi menghasilkan SchemaContract v2; NFR-PERF.1 terpenuhi.
+
+✅ **Gerbang 2 terlampaui di sisi backend (2026-07-29) — diukur, bukan diklaim.** `eval/gate2_evidence.py` menjalankan ketiga dataset lewat jalur kode yang sebenarnya dan mencetak angkanya:
+
+| Dataset | Karakter | Ukuran | Ingest + inferensi | Halaman pertama (p95) |
+|---|---|---|---|---|
+| `titanic` | bersih | 0,1 MB · 891 baris | 0,16 s | **16 ms** |
+| `messy_sales` | kotor | 0,5 MB · 5.000 baris | 0,26 s | **15 ms** |
+| `wide_orders` | besar | 480 MB · **5 juta baris** | 28,8 s (anggaran 144 s) | **56 ms** |
+
+NFR-PERF.1 memberi anggaran 1 detik; yang terukur 56 ms pada batas NFR-SCALE.1 penuh — **18× di bawah anggaran**. Koreksi → SchemaContract v2 dibuktikan `tests/integration/test_schema_override.py`. Aturan cakupan 100% (D-029) diverifikasi masih berlaku pada 5 juta baris, bukan hanya pada 5.000.
+
+> **Yang belum dibuktikan gerbang ini, dan harus dikatakan:** kriterianya berbunyi *"unggah"*, dan yang diukur adalah jalur backend-nya. **Preview grid (P0-14) belum ada** — tidak ada frontend sama sekali. NFR-PERF.1 mengukur "halaman pertama tampil", dan yang terukur adalah waktu server menyiapkan halaman itu, bukan waktu browser menggambarnya. Angka 56 ms adalah lantai, bukan keseluruhan. Gerbang 2 karena itu **terlampaui untuk backend dan terbuka untuk UI**.
 
 > Di titik ini produk sudah **berguna** meski belum ada satu tool pun. Ini disengaja: kalau Fase 2 tidak terasa berguna, ada yang salah dengan asumsi produk kita.
 

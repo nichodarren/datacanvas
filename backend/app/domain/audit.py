@@ -45,6 +45,10 @@ class AuditAction(StrEnum):
     DATASET_CREATED = "dataset.created"
     DATASET_VERSION_CREATED = "dataset.version_created"
     DATASET_DELETED = "dataset.deleted"
+    # §13.7 lists "perubahan skema" explicitly. The event records the contract
+    # ids and the column ordinals that moved — never a column *name*, which is
+    # sensitive (K1) and would be undeletable here (§13.7.1).
+    SCHEMA_CONTRACT_CREATED = "schema.contract_created"
     MEMBERSHIP_GRANTED = "membership.granted"
     MEMBERSHIP_ROLE_CHANGED = "membership.role_changed"
     MEMBERSHIP_REVOKED = "membership.revoked"

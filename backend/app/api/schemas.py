@@ -16,6 +16,23 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.auth.passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
 
+#: Spelled out rather than derived from the enum, for the same reason the role
+#: literals below are: the wire format must not shift because somebody renames
+#: a Python member. The obvious cost is drift, so it is not left to memory —
+#: ``test_api_schemas.py`` fails if these stop matching §9.2's vocabulary.
+LogicalTypeName = Literal[
+    "integer",
+    "decimal",
+    "boolean",
+    "categorical",
+    "text",
+    "date",
+    "datetime",
+    "duration",
+    "unsupported",
+]
+ColumnRoleName = Literal["identifier", "measure", "dimension", "timestamp", "ignored"]
+
 
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -188,6 +205,29 @@ class SchemaContractResponse(BaseModel):
     columns: list[ColumnSpecResponse]
     created_at: datetime
     derived_from: uuid.UUID | None
+
+
+class ColumnOverrideRequest(BaseModel):
+    """One column correction (FR-C.2).
+
+    Only interpretation is changeable. ``name``, ``ordinal`` and
+    ``physical_type`` are facts about the file rather than opinions about it,
+    so they are absent here by design.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    logical_type: LogicalTypeName | None = None
+    role: ColumnRoleName | None = None
+    null_markers: list[str] | None = None
+    format_hint: str | None = None
+
+
+class SchemaOverrideRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    columns: list[ColumnOverrideRequest] = Field(min_length=1)
 
 
 class DatasetWithVersionResponse(BaseModel):

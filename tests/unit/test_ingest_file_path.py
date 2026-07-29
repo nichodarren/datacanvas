@@ -203,8 +203,12 @@ def test_parquet_ingests_without_a_dialect(tmp_path: Path) -> None:
     assert result.row_count == 2
 
 
-def test_an_unsupported_format_says_what_is_supported(tmp_path: Path) -> None:
-    with pytest.raises(IngestRejected, match="csv"):
-        normalize.normalize_file(
-            _write(tmp_path, b'[{"a":1}]'), SourceFormat.JSON, tmp_path / "out.parquet"
-        )
+def test_json_ingests_through_the_file_path_too(tmp_path: Path) -> None:
+    """Formats that cannot be streamed still go through the same entry point."""
+    result = normalize.normalize_file(
+        _write(tmp_path, b'[{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]', name="in.json"),
+        SourceFormat.JSON,
+        tmp_path / "out.parquet",
+    )
+    assert result.columns == ("a", "b")
+    assert result.row_count == 2
