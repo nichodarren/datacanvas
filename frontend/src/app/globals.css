@@ -23,6 +23,13 @@
   --warn: #f2c14e;
   --danger: #f2777a;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* Tells the browser this page is dark, so every *native* widget follows:
+     scrollbars, checkboxes, select menus, autofill. Without it the grid's
+     horizontal scrollbar rendered as a white bar across a dark table — the
+     browser's default for a page it assumes is light. One line, and it fixes a
+     class of mismatch rather than one instance of it. */
+  color-scheme: dark;
 }
 
 * {
@@ -183,33 +190,35 @@ h2 {
   max-height: 60vh;
   overflow-y: auto;
 }
+.picker-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.picker-actions button {
+  padding: 3px 10px;
+  font-size: 12px;
+}
 .picker-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 3px 8px;
+  gap: 8px;
+  padding: 4px 8px;
   border-radius: 6px;
+  cursor: pointer;
 }
 .picker-row:hover {
   background: var(--panel);
 }
-.picker-row label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.picker-name {
+  flex: 1;
   min-width: 0;
-  cursor: pointer;
-}
-.picker-row label > span:nth-child(2) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.picker-row button {
-  padding: 1px 7px;
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 /* One form field. The card around it fills the page; the input keeps a
@@ -249,6 +258,34 @@ h2 {
 
 
 /* --------------------------------------------------------------- grid ---- */
+
+/* A scrollbar that belongs to this page rather than to the operating system.
+   `color-scheme: dark` already darkens the native one; this makes it thin and
+   quiet as well, because at the width Windows draws by default it competes with
+   the table it is attached to. Firefox honours the two `scrollbar-*` properties;
+   Chromium and Safari take the `::-webkit-` rules. */
+.grid-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.grid-wrap::-webkit-scrollbar {
+  height: 10px;
+}
+.grid-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+.grid-wrap::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+  /* Inset with a transparent border so the thumb reads as a slim pill rather
+     than a bar wedged against the table's bottom edge. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.grid-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  background-clip: padding-box;
+}
 
 /* Horizontal scrolling, and only when it earns its place.
    `table.grid` is `width: 100%` with a `min-width` of columns x MIN_COLUMN_WIDTH.

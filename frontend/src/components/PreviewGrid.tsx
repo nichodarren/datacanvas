@@ -113,18 +113,6 @@ export function PreviewGrid({
   const [editing, setEditing] = useState<string | null>(null);
 
   /**
-   * Display order, by column name.
-   *
-   * Names rather than indices: a schema correction produces a new contract, and
-   * an index would then point at whatever moved into that slot. The file's own
-   * order is the default, because it is the order the person who made the file
-   * chose.
-   */
-  const [order, setOrder] = useState<string[]>(() =>
-    [...contract.columns].sort((a, b) => a.ordinal - b.ordinal).map((column) => column.name),
-  );
-
-  /**
    * Columns the user has hidden — or that started hidden because the file is
    * wide. Storing the *hidden* set rather than the visible one means a column
    * added by a later contract shows up by default instead of vanishing.
@@ -141,10 +129,11 @@ export function PreviewGrid({
 
   const [picking, setPicking] = useState(false);
 
-  const byName = new Map(contract.columns.map((column) => [column.name, column]));
-  const ordered = order
-    .map((name) => byName.get(name))
-    .filter((column): column is ColumnSpec => column !== undefined);
+  // Always the file's own order. Reordering was built and then removed at the
+  // owner's direction: the arrows were two more controls on every row of a
+  // sixty-row list, and the order a file already has is the order the person
+  // who made it chose.
+  const ordered = [...contract.columns].sort((a, b) => a.ordinal - b.ordinal);
   const columns = ordered.filter((column) => !hidden.has(column.name));
 
   function toggle(name: string) {
@@ -152,21 +141,9 @@ export function PreviewGrid({
       const next = new Set(current);
       // Never hide the last one: an empty grid is not a view of anything, and
       // the way back would be a control the user can no longer see beside data.
-      if (!next.has(name) && current.size >= order.length - 1) return current;
+      if (!next.has(name) && current.size >= ordered.length - 1) return current;
       if (next.has(name)) next.delete(name);
       else next.add(name);
-      return next;
-    });
-  }
-
-  function move(name: string, by: -1 | 1) {
-    setOrder((current) => {
-      const from = current.indexOf(name);
-      const to = from + by;
-      if (from < 0 || to < 0 || to >= current.length) return current;
-      const next = [...current];
-      const [moved] = next.splice(from, 1);
-      if (moved !== undefined) next.splice(to, 0, moved);
       return next;
     });
   }
@@ -226,14 +203,17 @@ export function PreviewGrid({
         <span className="faint" style={{ fontSize: 12 }}>
           {hidden.size === 0
             ? `${columns.length} columns`
-            : `${columns.length} of ${order.length} columns`}
+            : `${columns.length} of ${ordered.length} columns`}
         </span>
         {picking ? (
           <ColumnPicker
             columns={ordered}
             hidden={hidden}
             onToggle={toggle}
-            onMove={move}
+            onShowAll={() => setHidden(new Set())}
+            onShowDefault={() =>
+              setHidden(new Set(ordered.slice(MAX_DEFAULT_COLUMNS).map((c) => c.name)))
+            }
             onClose={() => setPicking(false)}
           />
         ) : null}
@@ -312,13 +292,13 @@ export function PreviewGrid({
 }
 
 /**
- * Choose which columns are shown, and in what order (FR-D.3).
+ * Choose which columns are shown (FR-D.3, the `hide` half).
  *
- * Reordering is up/down buttons rather than drag-and-drop. Dragging reads
- * better in a demo and is worse in every other way here: it needs a library or
- * a pointer-event implementation, it is awkward on a list of sixty, and it is
- * unusable from a keyboard. Two buttons are operable by everyone and cost
- * nothing.
+ * Reordering was built here and taken out again at the owner's direction. It
+ * cost two buttons on every row — on a sixty-column file, a hundred and twenty
+ * controls in a list whose job is to let you tick five boxes — to rearrange
+ * something the file already ordered deliberately. FR-D.3 keeps `reorder` on
+ * the books; this surface does not carry it.
  *
  * The last visible column cannot be hidden. A grid of nothing is not a view,
  * and the control that would undo it sits above data that is no longer there.
@@ -327,13 +307,15 @@ function ColumnPicker({
   columns,
   hidden,
   onToggle,
-  onMove,
+  onShowAll,
+  onShowDefault,
   onClose,
 }: {
   columns: ColumnSpec[];
   hidden: Set<string>;
   onToggle: (name: string) => void;
-  onMove: (name: string, by: -1 | 1) => void;
+  onShowAll: () => void;
+  onShowDefault: () => void;
   onClose: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -357,41 +339,38 @@ function ColumnPicker({
 
   return (
     <div ref={box} className="menu column-picker">
-      {columns.map((column, index) => {
+      {/* Ticking forty boxes one at a time is not a feature. The counterpart is
+          not "select none" — that state is refused — but a way back to the
+          default, which is the one someone reaches for after seeing all forty. */}
+      <div className="picker-actions">
+        <button type="button" onClick={onShowAll} disabled={hidden.size === 0}>
+          Select all
+        </button>
+        {columns.length > MAX_DEFAULT_COLUMNS ? (
+          <button type="button" onClick={onShowDefault}>
+            First {MAX_DEFAULT_COLUMNS}
+          </button>
+        ) : null}
+        <span className="faint" style={{ fontSize: 12, marginLeft: "auto" }}>
+          {visible}/{columns.length}
+        </span>
+      </div>
+
+      {columns.map((column) => {
         const isHidden = hidden.has(column.name);
         return (
-          <div key={column.name} className="picker-row">
-            <label>
-              <input
-                type="checkbox"
-                checked={!isHidden}
-                disabled={!isHidden && visible <= 1}
-                onChange={() => onToggle(column.name)}
-              />
-              <span>{column.name}</span>
-              <span className="faint mono" style={{ fontSize: 11 }}>
-                {column.logical_type}
-              </span>
-            </label>
-            <span className="row" style={{ gap: 2 }}>
-              <button
-                type="button"
-                aria-label={`Move ${column.name} earlier`}
-                disabled={index === 0}
-                onClick={() => onMove(column.name, -1)}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                aria-label={`Move ${column.name} later`}
-                disabled={index === columns.length - 1}
-                onClick={() => onMove(column.name, 1)}
-              >
-                ↓
-              </button>
+          <label key={column.name} className="picker-row">
+            <input
+              type="checkbox"
+              checked={!isHidden}
+              disabled={!isHidden && visible <= 1}
+              onChange={() => onToggle(column.name)}
+            />
+            <span className="picker-name">{column.name}</span>
+            <span className="faint mono" style={{ fontSize: 11 }}>
+              {column.logical_type}
             </span>
-          </div>
+          </label>
         );
       })}
     </div>
