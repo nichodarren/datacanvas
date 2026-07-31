@@ -196,6 +196,12 @@ async def test_the_uploaded_data_is_readable_afterwards(api: AsyncClient) -> Non
     assert response.json()["data_present"] is True
     assert response.json()["row_count"] == 3
 
+    # The version page has nothing else on it that names the dataset. Its
+    # heading went with the version badge (§14.2, 2026-07-31) and took the
+    # dataset's identity along with it, so this field is now the only answer to
+    # "which dataset am I looking at" on that screen.
+    assert response.json()["dataset_name"] == body["dataset"]["name"]
+
 
 async def test_reuploading_adds_a_version_and_never_overwrites(
     api: AsyncClient, database: Database

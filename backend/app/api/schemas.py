@@ -130,6 +130,18 @@ class RegisterResponse(BaseModel):
 class DatasetVersionResponse(BaseModel):
     id: uuid.UUID
     dataset_id: uuid.UUID
+    #: The name of the Dataset this version belongs to.
+    #:
+    #: Sent because the version page had nothing on it that said *which dataset
+    #: am I looking at*. The heading there used to read "Dataset version N" and
+    #: was removed with the version badge (§14.2, 2026-07-31); the dataset's own
+    #: identity went with it as a side effect nobody intended, leaving a page
+    #: that was a grid and a brand link.
+    #:
+    #: This is **not** the version badge coming back. P4 — *always know which
+    #: version you are looking at* — stays unmet in the UI on purpose until
+    #: Phase 3, where it returns attached to results rather than to a header.
+    dataset_name: str
     version_no: int
     content_hash: str
     row_count: int

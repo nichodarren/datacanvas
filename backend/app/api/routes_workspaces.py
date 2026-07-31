@@ -29,6 +29,7 @@ from app.domain.enums import Role
 from app.domain.ids import DatasetVersionId, ProjectId, WorkspaceId
 from app.domain.principal import Principal
 from app.repositories.audit import AuditRepository
+from app.repositories.data import DatasetRepository
 from app.repositories.identity import ProjectRepository, WorkspaceRepository
 
 router = APIRouter(tags=["workspaces"])
@@ -195,9 +196,22 @@ async def get_dataset_version(
         raise NOT_FOUND
 
     version = handle.version
+
+    # Read after the handle, never before. The handle is what proves the caller
+    # may see anything about this version at all (INV-7); looking the dataset up
+    # first would answer "does this exist" to somebody who has no business
+    # asking, which is the leak the 404-not-403 rule above exists to prevent.
+    dataset = await DatasetRepository(connection).get(version.dataset_id)
+    if dataset is None:
+        # A version whose dataset is gone should be impossible: the foreign key
+        # says so and deletion removes versions with it. Saying so beats a
+        # `None` dressed up as a name (P6).
+        raise NOT_FOUND
+
     return DatasetVersionResponse(
         id=version.id,
         dataset_id=version.dataset_id,
+        dataset_name=dataset.name,
         version_no=version.version_no,
         content_hash=version.content_hash,
         row_count=version.row_count,

@@ -140,10 +140,13 @@ async def _inspect(upload: UploadFile) -> tuple[SourceFormat, Dialect | None]:
     return fmt, detected
 
 
-def _version_response(version: DatasetVersion, *, data_present: bool) -> DatasetVersionResponse:
+def _version_response(
+    version: DatasetVersion, *, dataset_name: str, data_present: bool
+) -> DatasetVersionResponse:
     return DatasetVersionResponse(
         id=version.id,
         dataset_id=version.dataset_id,
+        dataset_name=dataset_name,
         version_no=version.version_no,
         content_hash=version.content_hash,
         row_count=version.row_count,
@@ -317,7 +320,9 @@ async def load_sample(
 
     return DatasetWithVersionResponse(
         dataset=_dataset_response(committed.dataset),
-        version=_version_response(committed.version, data_present=True),
+        version=_version_response(
+            committed.version, dataset_name=committed.dataset.name, data_present=True
+        ),
         schema_contract=_contract_response(committed.contract),
         original_filename=committed.source_file.original_filename,
     )
@@ -650,7 +655,9 @@ async def _commit(
 
     return DatasetWithVersionResponse(
         dataset=_dataset_response(committed.dataset),
-        version=_version_response(committed.version, data_present=True),
+        version=_version_response(
+            committed.version, dataset_name=committed.dataset.name, data_present=True
+        ),
         schema_contract=_contract_response(committed.contract),
         original_filename=committed.source_file.original_filename,
     )
