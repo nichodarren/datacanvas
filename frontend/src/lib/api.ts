@@ -28,6 +28,32 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A failure, in words a person can act on.
+ *
+ * `request` surfaces the API's own `detail` because those are written to be read
+ * (P6, NFR-REL.2). Two cases have no such detail and fell through to the raw
+ * status line, which is how a screen came to greet someone with
+ * `500 Internal Server Error` and nothing else: a server error whose body is not
+ * our JSON, and a request that never arrived at all.
+ *
+ * §14.5 asks error states to be actionable. A status code is not an action, and
+ * to most people it is not even information — it is a number that suggests they
+ * broke something.
+ */
+export function describeFailure(cause: unknown): string {
+  if (cause instanceof ApiError) {
+    if (cause.status === 0) {
+      return "Could not reach the server. Check your connection, then try again.";
+    }
+    if (cause.status >= 500) {
+      return "The server could not answer that. This is a fault on our side, not something you did.";
+    }
+    return cause.message;
+  }
+  return "Something went wrong. Trying again may be enough.";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
     ...init,
@@ -57,6 +83,74 @@ function json<T>(path: string, method: string, body: unknown): Promise<T> {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+/**
+ * A POST whose *upload* can be watched (D-034).
+ *
+ * The one place this file does not use `fetch`, and the reason is a hard limit
+ * rather than a preference: `fetch` cannot report upload progress. A request
+ * body can only be observed by streaming it, which needs HTTP/2 and duplex
+ * support that is not reliably there, so `XMLHttpRequest` — which has had
+ * `upload.onprogress` for fifteen years — is the honest tool.
+ *
+ * It matters because Gate 2 measured a 480 MB upload at **28 seconds** end to
+ * end, against an NFR-UX.2 threshold of 500 ms for showing progress at all. The
+ * screen answered that with a button that said `Uploading…` and never changed.
+ *
+ * `fraction` covers **bytes leaving the browser and nothing else.** The server
+ * still has to normalise the file to Parquet and infer types across every row
+ * of it (FR-B.3), and that work is invisible from here. Callers are expected to
+ * say so rather than park a bar at 99% — an indicator that asserts a state it
+ * cannot observe is the class of lie this project keeps removing.
+ */
+function upload<T>(
+  path: string,
+  form: FormData,
+  onProgress?: (fraction: number) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/api${path}`);
+    // The `credentials: "include"` of the fetch path, by its other name.
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Accept", "application/json");
+
+    if (onProgress) {
+      xhr.upload.addEventListener("progress", (event) => {
+        // Absent for a body of unknown length. Reporting 0% forever would be
+        // worse than reporting nothing, so nothing is what is reported.
+        if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+      });
+    }
+
+    xhr.addEventListener("load", () => {
+      const raw = xhr.responseText;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve((xhr.status === 204 ? undefined : JSON.parse(raw)) as T);
+        return;
+      }
+      // Mirrors `request`: the API writes its failures to be read by a person
+      // (P6, NFR-REL.2), so the detail is surfaced rather than replaced.
+      let detail = `${xhr.status} ${xhr.statusText}`;
+      try {
+        const body = JSON.parse(raw) as { detail?: unknown };
+        if (typeof body.detail === "string") detail = body.detail;
+      } catch {
+        // A non-JSON error body is not worth a second failure.
+      }
+      reject(new ApiError(xhr.status, detail));
+    });
+
+    // Fires for a dropped connection or a refused one — cases where there is no
+    // status at all. 0 is not a real HTTP status and is never treated as one.
+    xhr.addEventListener("error", () =>
+      reject(new ApiError(0, "The upload could not reach the server.")),
+    );
+    xhr.addEventListener("abort", () => reject(new ApiError(0, "The upload was cancelled.")));
+
+    xhr.send(form);
   });
 }
 
@@ -135,6 +229,16 @@ export interface SampleDataset {
 export interface DatasetVersion {
   id: string;
   dataset_id: string;
+  /**
+   * Which dataset this version belongs to.
+   *
+   * The version page never said. The "Dataset version N" heading was removed
+   * with the version badge (§14.2), and the dataset's own name went with it as
+   * an unintended side effect — leaving a page that is a grid and a brand link.
+   *
+   * Not the version badge returning: P4 stays unmet in the UI until Phase 3.
+   */
+  dataset_name: string;
   version_no: number;
   content_hash: string;
   row_count: number;
@@ -268,11 +372,16 @@ export const api = {
     return request<IngestPreview>("/uploads/preview", { method: "POST", body: form });
   },
 
+  /**
+   * The only call that can take minutes, and so the only one that reports
+   * progress (NFR-UX.2). See `upload` for why it is not `fetch`, and for what
+   * `onProgress` does *not* cover.
+   */
   createDataset: (
     workspaceId: string,
     projectId: string,
     file: File,
-    options: { name?: string; dialect?: Dialect | null },
+    options: { name?: string; dialect?: Dialect | null; onProgress?: (fraction: number) => void },
   ) => {
     const form = new FormData();
     form.append("file", file);
@@ -282,9 +391,10 @@ export const api = {
       form.append("encoding", options.dialect.encoding);
       form.append("has_header", String(options.dialect.has_header));
     }
-    return request<DatasetWithVersion>(
+    return upload<DatasetWithVersion>(
       `/workspaces/${workspaceId}/projects/${projectId}/datasets`,
-      { method: "POST", body: form },
+      form,
+      options.onProgress,
     );
   },
 

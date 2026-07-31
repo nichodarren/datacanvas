@@ -38,6 +38,18 @@ export function Upload({
   const [busy, setBusy] = useState<"preview" | "commit" | null>(null);
   const [over, setOver] = useState(false);
 
+  /**
+   * Fraction of the file that has left the browser, or `null` before sending
+   * starts.
+   *
+   * Reaching 1 does not mean the upload is done — it means the bytes are gone
+   * and the server has begun the part nobody can see: normalising to Parquet
+   * and inferring a type for every column by reading every row (FR-B.3). On the
+   * 480 MB fixture that second half is most of the 28 seconds. So at 1 the bar
+   * stops claiming a number and says what is actually happening.
+   */
+  const [sent, setSent] = useState<number | null>(null);
+
   async function choose(chosen: File) {
     setFile(chosen);
     setName(chosen.name.replace(/\.[^.]+$/, ""));
@@ -58,15 +70,21 @@ export function Upload({
   async function commit() {
     if (!file) return;
     setBusy("commit");
+    setSent(0);
     setError(null);
     try {
-      const created = await api.createDataset(workspaceId, projectId, file, { name, dialect });
+      const created = await api.createDataset(workspaceId, projectId, file, {
+        name,
+        dialect,
+        onProgress: setSent,
+      });
       reset();
       onCommitted(created.version.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The upload failed.");
     } finally {
       setBusy(null);
+      setSent(null);
     }
   }
 
@@ -75,6 +93,7 @@ export function Upload({
     setPreview(null);
     setDialect(null);
     setError(null);
+    setSent(null);
     if (input.current) input.current.value = "";
   }
 
@@ -237,8 +256,56 @@ export function Upload({
               {busy === "commit" ? "Uploading…" : "Confirm and upload"}
             </button>
           </div>
+
+          {busy === "commit" ? <UploadProgress sent={sent} bytes={file.size} /> : null}
         </>
       ) : null}
+    </div>
+  );
+}
+
+function megabytes(bytes: number): string {
+  return (bytes / 1024 / 1024).toFixed(1);
+}
+
+/**
+ * What is happening during the one operation here that can run for half a
+ * minute (NFR-UX.2 asks for an indicator above 500 ms).
+ *
+ * **Two states, and the split is the whole point.** Sending the bytes is
+ * measurable, so it gets a real bar with real numbers. What follows — Parquet
+ * normalisation and a full-file type inference (FR-B.3) — is not observable
+ * from the browser at all, so the bar stops pretending: it goes indeterminate
+ * and the text says which of the two is running.
+ *
+ * The alternative, and the reason this is written down: let the bar creep to
+ * 99% and hold. That reads as "almost done" when the truth is "roughly half
+ * done, and the half you cannot see is the slow one" — on the 480 MB fixture,
+ * most of the 28 seconds sits after the last byte has left. A progress
+ * indicator that asserts a state it cannot observe belongs with the hardcoded
+ * privacy pill this project removed for the same reason.
+ */
+function UploadProgress({ sent, bytes }: { sent: number | null; bytes: number }) {
+  const transferring = sent !== null && sent < 1;
+
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <progress
+        className="upload-progress"
+        max={1}
+        // Omitting `value` is what makes a `<progress>` indeterminate, and
+        // indeterminate is the truthful rendering of "the server is working and
+        // will not tell us how far along it is".
+        value={transferring ? sent : undefined}
+        aria-label={transferring ? "Upload progress" : "Preparing the dataset"}
+      />
+      {/* Polite, not assertive: the change from one phase to the next is worth
+          announcing, but not worth interrupting whatever is being read. */}
+      <span className="faint" style={{ fontSize: 12 }} aria-live="polite">
+        {transferring
+          ? `Sending ${megabytes(bytes * (sent ?? 0))} of ${megabytes(bytes)} MB`
+          : "Sent. Reading every row to work out the column types — this is the slow part."}
+      </span>
     </div>
   );
 }
