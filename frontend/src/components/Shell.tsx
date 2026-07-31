@@ -48,13 +48,22 @@ export function Shell({
         {headerExtras}
         {versionBadge}
         <div className="spacer" />
-        {/* NFR-PRIV.2 / UX-6: the privacy mode is visible whenever the copilot
-            is. It is shown here already, reading from nothing, because the
-            header is where §14.2 puts it and moving it later would be a
-            second lesson for the user. */}
-        <span className="pill" title="Privacy mode for the copilot (§13.5). Arrives in Phase 5.">
-          🔒 balanced
-        </span>
+        {/* The privacy-mode pill (NFR-PRIV.2 / UX-6, §14.2) used to sit here,
+            reading `🔒 balanced` out of the JSX. It is gone until Phase 5.
+
+            The rest of this shell shows empty regions on purpose — see the
+            note above — but a security indicator is a different class of
+            thing. An empty panel that says "the executor is Phase 3" is
+            honest; a padlock next to a mode name *asserts a state*, and no
+            tooltip undoes that reading. It is harmless today because nothing
+            is sent to any LLM, and that is exactly the danger: the habit
+            survives to the day the copilot lands, and then the label is a lie
+            about a live system.
+
+            It comes back with the three things that make it mean anything: a
+            route that returns `workspace_policy.llm_privacy_mode` (the column
+            is real and defaults to `balanced`), the Privacy Gate that enforces
+            it (§13.5), and a control to change it. */}
         {me ? <AccountMenu me={me} /> : null}
       </header>
 
@@ -96,8 +105,8 @@ export function Shell({
       <div className="composer">
         <span aria-hidden>💬</span>
         <span>Ask about this data — the copilot arrives in Phase 5.</span>
-        <div className="spacer" style={{ flex: 1 }} />
-        <span className="pill">balanced</span>
+        {/* A second hardcoded `balanced` pill lived here. Same defect, and
+            easier to miss than the one in the header. */}
       </div>
     </div>
   );
