@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { LOGICAL_TYPES, type ColumnSpec, type SchemaContract, api } from "@/lib/api";
 
@@ -15,6 +15,34 @@ const INITIAL_ROWS = 10;
  * first screen stays a glance; asking for more should actually give you more.
  */
 const MORE_ROWS = 50;
+
+/**
+ * The narrowest a column may be before the table scrolls instead.
+ *
+ * Not a round number, and not a guess. At the 1280px NFR-UX.4 guarantees the
+ * workarea leaves 1230px inside the grid's border, and the row-number column
+ * takes 48 of it. Twelve columns — what both bundled datasets have, and what
+ * the owner signed off on looking at — therefore get 98px each before anything
+ * overflows.
+ *
+ * So the ceiling is 98, and 96 leaves a little slack. Choosing 110 because it
+ * sounded comfortable would have put a scrollbar under the exact file this
+ * design was approved on, which is the opposite of the promise.
+ *
+ * The floor is the longest word the header must hold on one line:
+ * `categorical` at 11px monospace is about 73px, and `.colhead` spends 20 on
+ * padding. 96 clears it.
+ */
+const MIN_COLUMN_WIDTH = 96;
+
+/**
+ * How many columns a wide file opens with.
+ *
+ * Fifteen at `MIN_COLUMN_WIDTH` is 1488px: a short scroll on a 1280px screen,
+ * none at all on a wide one, and readable either way. The rest are one click
+ * away in the picker rather than crushed into the same width.
+ */
+const MAX_DEFAULT_COLUMNS = 15;
 
 /**
  * The preview: the first rows of a dataset, every column on screen at once, and
@@ -39,12 +67,32 @@ const MORE_ROWS = 50;
  * rows accumulate in the DOM as you go. That is arithmetic, not polish, so
  * FR-D.1b now says so and waits for a UI that means it.
  *
- * ## The horizontal edge
+ * ## The horizontal edge, and how FR-D.3 answers it
  *
- * Twelve columns fit. Ingest accepts any number and there is no cap anywhere in
- * NFR-SCALE; past roughly fifteen the cells go too narrow to read, and no
- * styling fixes that. It needs a decision — scrolling back, or FR-D.3's hide and
- * reorder — not a workaround.
+ * Ingest accepts a file with any number of columns — there is no cap in
+ * NFR-SCALE or anywhere else — and the workarea is about 1230px at the 1280px
+ * NFR-UX.4 guarantees. Divided evenly that is 100px a column at twelve, 40px at
+ * thirty, and nonsense at sixty. Three things answer it together, and none of
+ * them alone:
+ *
+ * 1. **A column picker** (FR-D.3: hide, reorder). For a wide file, choosing the
+ *    five columns you care about beats scrolling past fifty-five you do not.
+ * 2. **A sane default.** Beyond `MAX_DEFAULT_COLUMNS` the extras start hidden,
+ *    so nobody meets the wall on first open and only then discovers the control.
+ * 3. **Horizontal scrolling, but only when it is earning its place.** Each
+ *    column gets `MIN_COLUMN_WIDTH`; while the total fits, the table is exactly
+ *    what it was before — no scrollbar at all. Past that it overflows and
+ *    scrolls, because the alternative is text too narrow to read.
+ *
+ * The third is a deliberate, partial reversal of "no scrollbars". What was
+ * objected to was a scrollbar on a twelve-column file whose content already
+ * fitted, and that still cannot happen. A conditional scrollbar is a different
+ * object from a permanent one.
+ *
+ * It also makes the rest of FR-D.3 honest. `pin` freezes a column *while you
+ * scroll* and `resize` needs somewhere for the extra pixels to go; with nothing
+ * scrolling, both are controls that do nothing — the exact defect this session
+ * spent its time removing.
  */
 export function PreviewGrid({
   workspaceId,
@@ -64,7 +112,64 @@ export function PreviewGrid({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
-  const columns = [...contract.columns].sort((a, b) => a.ordinal - b.ordinal);
+  /**
+   * Display order, by column name.
+   *
+   * Names rather than indices: a schema correction produces a new contract, and
+   * an index would then point at whatever moved into that slot. The file's own
+   * order is the default, because it is the order the person who made the file
+   * chose.
+   */
+  const [order, setOrder] = useState<string[]>(() =>
+    [...contract.columns].sort((a, b) => a.ordinal - b.ordinal).map((column) => column.name),
+  );
+
+  /**
+   * Columns the user has hidden — or that started hidden because the file is
+   * wide. Storing the *hidden* set rather than the visible one means a column
+   * added by a later contract shows up by default instead of vanishing.
+   */
+  const [hidden, setHidden] = useState<Set<string>>(
+    () =>
+      new Set(
+        [...contract.columns]
+          .sort((a, b) => a.ordinal - b.ordinal)
+          .slice(MAX_DEFAULT_COLUMNS)
+          .map((column) => column.name),
+      ),
+  );
+
+  const [picking, setPicking] = useState(false);
+
+  const byName = new Map(contract.columns.map((column) => [column.name, column]));
+  const ordered = order
+    .map((name) => byName.get(name))
+    .filter((column): column is ColumnSpec => column !== undefined);
+  const columns = ordered.filter((column) => !hidden.has(column.name));
+
+  function toggle(name: string) {
+    setHidden((current) => {
+      const next = new Set(current);
+      // Never hide the last one: an empty grid is not a view of anything, and
+      // the way back would be a control the user can no longer see beside data.
+      if (!next.has(name) && current.size >= order.length - 1) return current;
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  function move(name: string, by: -1 | 1) {
+    setOrder((current) => {
+      const from = current.indexOf(name);
+      const to = from + by;
+      if (from < 0 || to < 0 || to >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      if (moved !== undefined) next.splice(to, 0, moved);
+      return next;
+    });
+  }
 
   /**
    * Fetch one page and append it.
@@ -114,8 +219,35 @@ export function PreviewGrid({
         </div>
       ) : null}
 
+      <div className="row" style={{ position: "relative" }}>
+        <button type="button" onClick={() => setPicking(!picking)} aria-expanded={picking}>
+          Columns
+        </button>
+        <span className="faint" style={{ fontSize: 12 }}>
+          {hidden.size === 0
+            ? `${columns.length} columns`
+            : `${columns.length} of ${order.length} columns`}
+        </span>
+        {picking ? (
+          <ColumnPicker
+            columns={ordered}
+            hidden={hidden}
+            onToggle={toggle}
+            onMove={move}
+            onClose={() => setPicking(false)}
+          />
+        ) : null}
+      </div>
+
       <div className="grid-wrap">
-        <table className="grid">
+        {/* `width: 100%` while the columns fit, `min-width` once they do not.
+            That single pair is the whole conditional-scrollbar rule: a
+            twelve-column file looks exactly as it did with scrolling removed,
+            and a sixty-column one scrolls instead of becoming unreadable. */}
+        <table
+          className="grid"
+          style={{ minWidth: 48 + columns.length * MIN_COLUMN_WIDTH }}
+        >
           <thead>
             <tr>
               <th style={{ width: 48 }}>
@@ -175,6 +307,93 @@ export function PreviewGrid({
           {rows.length.toLocaleString()} of {totalRows.toLocaleString()} rows
         </span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Choose which columns are shown, and in what order (FR-D.3).
+ *
+ * Reordering is up/down buttons rather than drag-and-drop. Dragging reads
+ * better in a demo and is worse in every other way here: it needs a library or
+ * a pointer-event implementation, it is awkward on a list of sixty, and it is
+ * unusable from a keyboard. Two buttons are operable by everyone and cost
+ * nothing.
+ *
+ * The last visible column cannot be hidden. A grid of nothing is not a view,
+ * and the control that would undo it sits above data that is no longer there.
+ */
+function ColumnPicker({
+  columns,
+  hidden,
+  onToggle,
+  onMove,
+  onClose,
+}: {
+  columns: ColumnSpec[];
+  hidden: Set<string>;
+  onToggle: (name: string) => void;
+  onMove: (name: string, by: -1 | 1) => void;
+  onClose: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    const onDocument = (event: MouseEvent) => {
+      if (box.current && !box.current.contains(event.target as Node)) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDocument);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDocument);
+    };
+  }, [onClose]);
+
+  const visible = columns.length - hidden.size;
+
+  return (
+    <div ref={box} className="menu column-picker">
+      {columns.map((column, index) => {
+        const isHidden = hidden.has(column.name);
+        return (
+          <div key={column.name} className="picker-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={!isHidden}
+                disabled={!isHidden && visible <= 1}
+                onChange={() => onToggle(column.name)}
+              />
+              <span>{column.name}</span>
+              <span className="faint mono" style={{ fontSize: 11 }}>
+                {column.logical_type}
+              </span>
+            </label>
+            <span className="row" style={{ gap: 2 }}>
+              <button
+                type="button"
+                aria-label={`Move ${column.name} earlier`}
+                disabled={index === 0}
+                onClick={() => onMove(column.name, -1)}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${column.name} later`}
+                disabled={index === columns.length - 1}
+                onClick={() => onMove(column.name, 1)}
+              >
+                ↓
+              </button>
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
