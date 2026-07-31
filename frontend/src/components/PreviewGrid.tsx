@@ -44,6 +44,9 @@ const MIN_COLUMN_WIDTH = 96;
  */
 const MAX_DEFAULT_COLUMNS = 15;
 
+/** The row-number column. Fixed, and the origin every pin offset counts from. */
+const ROWNUM_WIDTH = 48;
+
 /**
  * The preview: the first rows of a dataset, every column on screen at once, and
  * a button that fetches the next page.
@@ -129,12 +132,53 @@ export function PreviewGrid({
 
   const [picking, setPicking] = useState(false);
 
+  /**
+   * Explicit widths, set by dragging a header edge — and only for columns that
+   * were actually dragged. The rest stay unset so `table-layout: fixed` keeps
+   * sharing the remaining space evenly, which is what makes a narrow file fill
+   * the page instead of huddling to the left.
+   */
+  const [widths, setWidths] = useState<Record<string, number>>({});
+
+  /**
+   * Columns frozen against the left edge while the rest scroll past.
+   *
+   * Only meaningful because scrolling came back — a pin with nothing to scroll
+   * under it is a control that does nothing. Pinning is *ordered by the file*,
+   * not by when you clicked: two pinned columns keep their original relative
+   * position, because a pin is a promise to keep something in view, not an
+   * instruction to rearrange the table.
+   */
+  const [pinned, setPinned] = useState<Set<string>>(new Set());
+
+  /** Header cells, so a column can be measured at the moment it is pinned. */
+  const headers = useRef(new Map<string, HTMLTableCellElement>());
+
   // Always the file's own order. Reordering was built and then removed at the
   // owner's direction: the arrows were two more controls on every row of a
   // sixty-row list, and the order a file already has is the order the person
   // who made it chose.
   const ordered = [...contract.columns].sort((a, b) => a.ordinal - b.ordinal);
   const columns = ordered.filter((column) => !hidden.has(column.name));
+
+  /**
+   * Where each pinned column comes to rest, in pixels from the left.
+   *
+   * A pinned column needs an explicit width or there is nothing to stack the
+   * next one against, which is why `pin` measures and stores one. The
+   * row-number column is always first and always 48.
+   */
+  const offsets = new Map<string, number>();
+  let running = ROWNUM_WIDTH;
+  for (const column of columns) {
+    if (!pinned.has(column.name)) continue;
+    offsets.set(column.name, running);
+    running += widths[column.name] ?? MIN_COLUMN_WIDTH;
+  }
+
+  const tableMinWidth =
+    ROWNUM_WIDTH +
+    columns.reduce((total, column) => total + (widths[column.name] ?? MIN_COLUMN_WIDTH), 0);
 
   function toggle(name: string) {
     setHidden((current) => {
@@ -146,6 +190,37 @@ export function PreviewGrid({
       else next.add(name);
       return next;
     });
+    // A pin on a column nobody can see is a promise about nothing, and it would
+    // leave a gap in the sticky offsets of the columns that are still shown.
+    setPinned((current) => {
+      if (!current.has(name)) return current;
+      const next = new Set(current);
+      next.delete(name);
+      return next;
+    });
+  }
+
+  function togglePin(name: string) {
+    setPinned((current) => {
+      const next = new Set(current);
+      if (next.has(name)) {
+        next.delete(name);
+        return next;
+      }
+      next.add(name);
+      // Freeze the width it has *right now*. Without this the column would jump
+      // to some default the instant it is pinned — the one moment a user is
+      // watching it closely.
+      const measured = headers.current.get(name)?.offsetWidth;
+      if (measured) {
+        setWidths((sizes) => (sizes[name] ? sizes : { ...sizes, [name]: measured }));
+      }
+      return next;
+    });
+  }
+
+  function resize(name: string, width: number) {
+    setWidths((current) => ({ ...current, [name]: Math.max(MIN_COLUMN_WIDTH, Math.round(width)) }));
   }
 
   /**
@@ -210,6 +285,8 @@ export function PreviewGrid({
             columns={ordered}
             hidden={hidden}
             onToggle={toggle}
+            pinned={pinned}
+            onTogglePin={togglePin}
             onShowAll={() => setHidden(new Set())}
             onClose={() => setPicking(false)}
           />
@@ -221,13 +298,10 @@ export function PreviewGrid({
             That single pair is the whole conditional-scrollbar rule: a
             twelve-column file looks exactly as it did with scrolling removed,
             and a sixty-column one scrolls instead of becoming unreadable. */}
-        <table
-          className="grid"
-          style={{ minWidth: 48 + columns.length * MIN_COLUMN_WIDTH }}
-        >
+        <table className="grid" style={{ minWidth: tableMinWidth }}>
           <thead>
             <tr>
-              <th style={{ width: 48 }}>
+              <th className="sticky-col" style={{ width: ROWNUM_WIDTH, left: 0 }}>
                 <span className="colhead" style={{ cursor: "default" }}>
                   <span className="name faint">#</span>
                 </span>
@@ -236,9 +310,16 @@ export function PreviewGrid({
                 <ColumnHeader
                   key={column.name}
                   column={column}
+                  width={widths[column.name]}
+                  pinnedAt={offsets.get(column.name)}
                   editing={editing === column.name}
+                  registerRef={(node) => {
+                    if (node) headers.current.set(column.name, node);
+                    else headers.current.delete(column.name);
+                  }}
                   onOpen={() => setEditing(editing === column.name ? null : column.name)}
                   onPick={(logicalType) => void changeType(column, logicalType)}
+                  onResize={(width) => resize(column.name, width)}
                 />
               ))}
             </tr>
@@ -250,17 +331,26 @@ export function PreviewGrid({
               // file, not a record — so the offset is the key.
               // eslint-disable-next-line react/no-array-index-key
               <tr key={index}>
-                <td className="rownum">{index + 1}</td>
+                <td className="rownum sticky-col" style={{ left: 0 }}>
+                  {index + 1}
+                </td>
                 {columns.map((column, columnIndex) => {
                   const cell = row[columnIndex];
+                  const at = offsets.get(column.name);
+                  // A sticky cell needs its own background, or the columns
+                  // scrolling underneath show straight through it.
+                  const sticky = at === undefined ? undefined : { left: at };
+                  const className = [at === undefined ? "" : "sticky-col", cell ? "" : "null"]
+                    .filter(Boolean)
+                    .join(" ");
                   return cell === null || cell === "" ? (
                     // An empty cell and a null cell are different facts, and a
                     // blank space says neither.
-                    <td key={column.name} className="null">
+                    <td key={column.name} className={className} style={sticky}>
                       null
                     </td>
                   ) : (
-                    <td key={column.name} title={cell}>
+                    <td key={column.name} className={className} style={sticky} title={cell}>
                       {cell}
                     </td>
                   );
@@ -304,12 +394,16 @@ function ColumnPicker({
   columns,
   hidden,
   onToggle,
+  pinned,
+  onTogglePin,
   onShowAll,
   onClose,
 }: {
   columns: ColumnSpec[];
   hidden: Set<string>;
   onToggle: (name: string) => void;
+  pinned: Set<string>;
+  onTogglePin: (name: string) => void;
   onShowAll: () => void;
   onClose: () => void;
 }) {
@@ -350,18 +444,35 @@ function ColumnPicker({
       {columns.map((column) => {
         const isHidden = hidden.has(column.name);
         return (
-          <label key={column.name} className="picker-row">
-            <input
-              type="checkbox"
-              checked={!isHidden}
-              disabled={!isHidden && visible <= 1}
-              onChange={() => onToggle(column.name)}
-            />
-            <span className="picker-name">{column.name}</span>
-            <span className="faint mono" style={{ fontSize: 11 }}>
-              {column.logical_type}
-            </span>
-          </label>
+          <div key={column.name} className="picker-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={!isHidden}
+                disabled={!isHidden && visible <= 1}
+                onChange={() => onToggle(column.name)}
+              />
+              <span className="picker-name">{column.name}</span>
+              <span className="faint mono" style={{ fontSize: 11 }}>
+                {column.logical_type}
+              </span>
+            </label>
+            {/* A toggle button, not a second checkbox. Two checkboxes on one
+                row would read as two halves of the same choice, and these are
+                unrelated: one decides whether a column is shown at all, the
+                other whether it stays put while the rest scroll past. */}
+            <button
+              type="button"
+              className={pinned.has(column.name) ? "pin on" : "pin"}
+              aria-pressed={pinned.has(column.name)}
+              aria-label={`${pinned.has(column.name) ? "Unpin" : "Pin"} ${column.name}`}
+              title="Keep this column in view while scrolling"
+              disabled={isHidden}
+              onClick={() => onTogglePin(column.name)}
+            >
+              📌
+            </button>
+          </div>
         );
       })}
     </div>
@@ -387,23 +498,79 @@ function ColumnPicker({
  */
 function ColumnHeader({
   column,
+  width,
+  pinnedAt,
   editing,
+  registerRef,
   onOpen,
   onPick,
+  onResize,
 }: {
   column: ColumnSpec;
+  width: number | undefined;
+  pinnedAt: number | undefined;
   editing: boolean;
+  registerRef: (node: HTMLTableCellElement | null) => void;
   onOpen: () => void;
   onPick: (logicalType: string) => void;
+  onResize: (width: number) => void;
 }) {
+  const cell = useRef<HTMLTableCellElement | null>(null);
+
+  /**
+   * Drag the right edge to set this column's width.
+   *
+   * Listeners go on `document`, not the handle: once dragging starts the
+   * pointer routinely leaves the four-pixel strip it began on, and a handler
+   * bound to the strip would drop the drag the moment it did.
+   */
+  function startResize(event: React.MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = cell.current?.offsetWidth ?? MIN_COLUMN_WIDTH;
+
+    const onMove = (moved: MouseEvent) => onResize(startWidth + moved.clientX - startX);
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.classList.remove("resizing");
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    // Holds the col-resize cursor across the whole page for the duration, so it
+    // does not flicker back to a text caret as the pointer crosses cells.
+    document.body.classList.add("resizing");
+  }
+
   return (
-    <th style={{ position: "relative", minWidth: 150 }}>
+    <th
+      ref={(node) => {
+        cell.current = node;
+        registerRef(node);
+      }}
+      className={pinnedAt === undefined ? undefined : "sticky-col"}
+      style={{
+        position: pinnedAt === undefined ? "relative" : "sticky",
+        left: pinnedAt,
+        width,
+        minWidth: MIN_COLUMN_WIDTH,
+      }}
+    >
       <button type="button" className="colhead" onClick={onOpen}>
         <span className="name">{column.name}</span>
         <span className="meta">
           <span className="type">{column.logical_type}</span>
         </span>
       </button>
+
+      <span
+        className="resize-handle"
+        role="presentation"
+        onMouseDown={startResize}
+        onDoubleClick={() => onResize(MIN_COLUMN_WIDTH)}
+        title="Drag to resize · double-click to reset"
+      />
 
       {editing ? (
         <div

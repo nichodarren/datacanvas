@@ -213,6 +213,34 @@ h2 {
 .picker-row:hover {
   background: var(--panel);
 }
+.picker-row > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* A toggle, not a checkbox. The row already has one, and two would read as two
+   halves of a single choice rather than two unrelated ones. */
+.picker-row .pin {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 12px;
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.picker-row .pin:hover:not(:disabled) {
+  opacity: 0.8;
+}
+.picker-row .pin.on {
+  filter: none;
+  opacity: 1;
+  border-color: var(--accent);
+}
 .picker-name {
   flex: 1;
   min-width: 0;
@@ -401,6 +429,59 @@ table.grid td.null {
 }
 table.grid tbody tr:hover td {
   background: var(--panel-2);
+}
+
+/* A pinned column, and the row-number column, stop at the left edge while the
+   rest scroll past. Sticky cells need their own opaque background or the
+   columns sliding underneath show straight through them — which is why the
+   hover rule is repeated here rather than inherited. */
+.sticky-col {
+  position: sticky;
+  z-index: 1;
+  background: var(--panel);
+}
+table.grid thead th.sticky-col {
+  z-index: 3;
+  background: var(--panel-2);
+}
+table.grid tbody tr:hover td.sticky-col {
+  background: var(--panel-2);
+}
+/* The seam. Without it a pinned column and the one scrolling under it read as
+   one continuous surface. */
+.sticky-col::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -1px;
+  bottom: 0;
+  width: 1px;
+  background: var(--line);
+}
+
+/* Four pixels of drag target on the right edge of a header. Invisible until
+   hovered, because a visible handle on every column is twelve more marks on a
+   surface that just had its badges removed. */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  user-select: none;
+}
+.resize-handle:hover {
+  background: var(--accent);
+}
+/* Held on <body> for the length of a drag so the cursor does not flicker back
+   to a text caret as the pointer crosses cells. */
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.resizing .resize-handle {
+  background: var(--accent);
 }
 
 .rownum {
