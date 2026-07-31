@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useState } from "react";
 
+import { useDisclosure } from "@/hooks/useDisclosure";
 import { type Me, api } from "@/lib/api";
 
 /**
@@ -52,45 +53,13 @@ import { type Me, api } from "@/lib/api";
  */
 export function AccountMenu({ me }: { me: Me }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const box = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const panelId = useId();
 
-  /** Close and put focus back where it came from. */
-  const close = useCallback((restoreFocus: boolean) => {
-    setOpen(false);
-    if (restoreFocus) trigger.current?.focus();
-  }, []);
-
-  // Escape, and an outside click. Escape restores focus to the trigger; a click
-  // elsewhere does not, because the user has already chosen where to go and
-  // yanking focus back would fight them.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") close(true);
-    };
-    const onDocument = (event: MouseEvent) => {
-      if (box.current && !box.current.contains(event.target as Node)) close(false);
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDocument);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDocument);
-    };
-  }, [open, close]);
-
-  // Focus the first control when the panel opens, so the next Tab continues
-  // inside it rather than behind it.
-  useEffect(() => {
-    if (!open) return;
-    panel.current?.querySelector<HTMLElement>("a, button")?.focus();
-  }, [open]);
+  // Escape, outside clicks and focus management all live in the hook now. They
+  // were written here first, then found missing from the column picker and the
+  // type picker — the same widget, the same gap, a few hundred lines away.
+  const { open, close, toggle, container, trigger, panel, panelId } = useDisclosure();
 
   async function signOut() {
     setBusy(true);
@@ -107,12 +76,12 @@ export function AccountMenu({ me }: { me: Me }) {
   }
 
   return (
-    <div ref={box} style={{ position: "relative" }}>
+    <div ref={container} style={{ position: "relative" }}>
       <button
         ref={trigger}
         type="button"
         className="picker account"
-        onClick={() => (open ? close(true) : setOpen(true))}
+        onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
         title={me.user.email}
