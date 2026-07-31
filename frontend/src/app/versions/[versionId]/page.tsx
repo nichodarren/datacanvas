@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { LoadFailure } from "@/components/LoadFailure";
 import { PreviewGrid } from "@/components/PreviewGrid";
 import { Shell } from "@/components/Shell";
 import {
@@ -11,6 +12,7 @@ import {
   type Me,
   type SchemaContract,
   api,
+  describeFailure,
 } from "@/lib/api";
 
 /**
@@ -58,6 +60,8 @@ export default function VersionPage() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const identity = await api.me();
       setMe(identity);
@@ -83,7 +87,7 @@ export default function VersionPage() {
         router.replace("/login");
         return;
       }
-      setError(cause instanceof Error ? cause.message : "Could not load this version.");
+      setError(describeFailure(cause));
     } finally {
       setLoading(false);
     }
@@ -112,9 +116,10 @@ export default function VersionPage() {
     // someone might want to sign out, and stranding them would be worse.
     return (
       <Shell me={me}>
-        <div className="banner error" role="alert">
-          {error ?? "Not available."}
-        </div>
+        <LoadFailure
+          message={error ?? "This dataset version is not available."}
+          onRetry={() => void load()}
+        />
       </Shell>
     );
   }
@@ -122,6 +127,13 @@ export default function VersionPage() {
 
   return (
     <Shell me={me}>
+      {/* Which dataset this is. Nothing on this page said so: the heading went
+          with the version badge (§14.2, 2026-07-31), and the dataset's identity
+          left with it — not the intent of that decision, just its blast radius.
+          The name alone, no version number: P4 comes back in Phase 3, attached
+          to results rather than to a header. */}
+      <h1>{version.dataset_name}</h1>
+
       {/* "891 rows · 12 columns" used to sit here. Both halves are stated
           again a few pixels below — the column count in the picker, the row
           count beside "View more" — and the counts down there move as you

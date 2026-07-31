@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { LoadFailure } from "@/components/LoadFailure";
 import { ProjectPicker } from "@/components/ProjectPicker";
 import { Shell } from "@/components/Shell";
 import { Upload } from "@/components/Upload";
@@ -14,6 +15,7 @@ import {
   type Project,
   type SampleDataset,
   api,
+  describeFailure,
 } from "@/lib/api";
 
 const LAST_PROJECT = "datacanvas.project";
@@ -46,7 +48,17 @@ export default function HomePage() {
   const [samples, setSamples] = useState<SampleDataset[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+
+  /** An action failed; the page around it still works. Shown as a banner. */
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The page itself could not load — which means no identity, and therefore no
+   * project, no upload, no samples and no account menu. Kept apart from `error`
+   * because the two need opposite treatments: a banner sits above a working
+   * page, and this one has to *replace* the body. See `LoadFailure`.
+   */
+  const [fatal, setFatal] = useState<string | null>(null);
 
   const workspace = me?.workspaces[0] ?? null;
 
@@ -55,6 +67,8 @@ export default function HomePage() {
   }, []);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setFatal(null);
     try {
       const identity = await api.me();
       setMe(identity);
@@ -78,7 +92,7 @@ export default function HomePage() {
         router.replace("/login");
         return;
       }
-      setError(cause instanceof Error ? cause.message : "Could not load your projects.");
+      setFatal(describeFailure(cause));
     } finally {
       setLoading(false);
     }
@@ -111,7 +125,9 @@ export default function HomePage() {
       const created = await api.loadSample(workspace.id, project.id, key);
       router.push(`/versions/${created.version.id}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load that sample.");
+      // A banner, not a `LoadFailure`: the sample did not load, but the page
+      // around it — projects, upload, the other samples — still works.
+      setError(describeFailure(cause));
       setBusy(null);
     }
   }
@@ -120,6 +136,18 @@ export default function HomePage() {
     return (
       <Shell>
         <p className="muted">Loading…</p>
+      </Shell>
+    );
+  }
+
+  if (fatal) {
+    // `me` is passed if we have it, so signing out stays reachable from a page
+    // that failed. It usually will not be — the call that produces `fatal` is
+    // the one that fetches it — and the header is then brand-only, which is
+    // still one working control more than this screen used to offer.
+    return (
+      <Shell me={me}>
+        <LoadFailure message={fatal} onRetry={() => void load()} />
       </Shell>
     );
   }
