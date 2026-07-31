@@ -399,3 +399,246 @@ kode; kalau ada yang keliru di sana, katakan sekarang. Untuk pekerjaan besar,
 tunjukkan rancangannya dulu. Setiap invariant yang disentuh harus punya test.
 Kalau permintaanku melewati batas scope, tolak dan sebutkan bagian dokumennya.
 ```
+
+---
+
+## 12. Laporan A — arsitektur informasi (titik lapor 1)
+
+**Tanggal:** 2026-08-01 · **Commit terakhir:** `4839d50` · **Status:** 🔴 menunggu
+keputusan pemilik produk. Nol baris kode navigasi ditulis.
+
+Langkah 1 (§7) sudah selesai dan ter-commit terpisah. Bagian ini hanya langkah 2:
+**rancangan**, bukan implementasi.
+
+### 12.0 Yang sudah dikerjakan di langkah 1
+
+`/web-design-guidelines frontend/src` dijalankan lewat skill ter-vendor. Temuan
+mekanis diperbaiki di `4839d50`; yang bergantung pada palet atau pada bentuk
+shell **sengaja ditunda** ke langkah 4/7 dan disebut namanya di commit.
+
+| Terukur | Sebelum | Sesudah |
+|---|---|---|
+| Test frontend | 20 | **34** |
+| Test backend | 484 lulus · 2 skip | tak berubah |
+| Prop `style={{…}}` inline | 47 | 41 |
+| Angka numerik literal di dalamnya | 43 | **43** (ditunda ke langkah 7) |
+
+**Dua temuan yang bukan checklist**, keduanya sudah divonis oleh komentar di repo
+ini sendiri sebelum skill mana pun membacanya:
+
+1. **`ProjectPicker` adalah popup keempat.** Ia memakai `role="menu"` +
+   `role="menuitem"` tanpa satu pun perilaku yang dijanjikan peran itu, dan tidak
+   bisa ditutup dari papan ketik sama sekali. `AccountMenu.tsx:13-35` menulis tiga
+   paragraf tentang kenapa itu lebih buruk daripada diam; `useDisclosure` dibangun
+   supaya popup baru mendapat kontraknya *by construction*. Keduanya ditulis
+   2026-07-31, keduanya menghitung **tiga** popup. Yang keempat hidup di header,
+   bukan di grid.
+2. **`End session` melanggar UX-7.** Sesi 2026-07-31 memperbaiki *sign out
+   everywhere* dan menuliskan pelanggarannya; tombol per-baris tiga puluh baris di
+   atasnya tetap mencabut sesi jarak jauh dalam satu klik. Komentar yang mencatat
+   aturannya berada **tepat di bawah** tombol yang melanggarnya.
+
+### 12.1 Tujuan yang dihitung
+
+Rute yang benar-benar ada hari ini — dihitung dari `frontend/src/app/`, bukan dari
+ingatan:
+
+| Rute | Jenis | Terjangkau dari |
+|---|---|---|
+| `/` | **tujuan kerja** — daftar dataset satu project | brand, di setiap layar |
+| `/versions/[versionId]` | **tujuan kerja** — grid satu versi | kartu dataset di `/` |
+| `/settings/account` | tujuan akun | menu akun, di setiap layar |
+| `/login` | tak terautentikasi | redirect |
+| *404* | kesalahan | URL salah — **tidak ada `not-found.tsx`** |
+
+**Tujuan kerja: dua.** Itu angka yang sama yang dipakai D-032 untuk mencabut
+sidebar, dan **angka itu masih benar.** `/settings/account` adalah permukaan akun
+yang menurut konvensi memang tidak masuk navigasi utama, dan ia sudah terjangkau
+dari mana saja.
+
+> ⚠️ **Karena itu aku menolak mengusulkan sidebar kembali**, meski §6 brief
+> membuka pintunya. Aritmetika D-032 tidak berubah, dan syarat kembalinya
+> (`Library` & `Steps`, Fase 3) belum terpenuhi. Mengusulkannya sekarang berarti
+> membatalkan sesi pengurangan dengan alasan yang tidak dipunya.
+
+### 12.2 Yang benar-benar rusak — diverifikasi, bukan disalin dari §4.7
+
+**(a) Konteks project hilang di halaman versi, dan bisa berubah diam-diam.**
+`ProjectPicker` hanya dirender di `/` (`page.tsx:155-162`). Di
+`/versions/[id]`, `Shell` dipanggil tanpa `headerExtras` — jadi tak ada apa pun di
+layar yang menyebut project. Lebih jauh: tautan brand menuju `/`, dan `/` membuka
+project dari `localStorage` (`page.tsx:84-86`), yang **tidak harus** project
+pemilik dataset yang baru saja dilihat.
+
+> Buka versi milik project A dari bookmark saat `localStorage` berisi project B,
+> lalu tekan brand: aplikasi mendarat di project B tanpa satu pun tanda bahwa
+> konteksnya berpindah. Ini **kesalahan orientasi, bukan sekadar afordansi yang
+> hilang** — dan §4.7 tidak menyebutnya.
+
+**(b) Halaman versi tidak bisa menyebut project-nya walau kita mau.**
+`DatasetVersionResponse` (`backend/app/api/schemas.py:130-152`) membawa
+`dataset_id` dan `dataset_name`, **tidak** membawa project. Jadi (a) tidak bisa
+diperbaiki di frontend saja. Ini menjawab pertanyaan §4.7 — *"apakah nama dataset
+sudah cukup?"* — dengan **tidak**, dan alasannya bisa diperiksa.
+
+**(c) 404 adalah bawaan Next.** Tidak ada `app/not-found.tsx`. Layar itu berlatar
+terang, tanpa shell, tanpa satu pun tautan keluar. §14.5 mewajibkan *"selalu
+sediakan jalan maju"* sejak 2026-07-31; aturan itu **belum pernah diuji terhadap
+404.** Kelas cacat yang sama persis dengan layar 500 yang melahirkan aturannya.
+§4.7 juga tidak menyebutnya.
+
+**(d) Yang §4.7 sebut, dan ternyata benar:** tombol *back* browser memang bekerja;
+yang hilang afordansi di dalam aplikasi (Nielsen #3 meminta jalan keluar yang
+**terlihat**, bukan yang tersedia).
+
+### 12.3 Rancangan yang diusulkan
+
+> **Jejak itu masuk ke baris header yang sudah ada, bukan ke baris baru.**
+
+`Shell` sudah punya slot `headerExtras` di antara brand dan spacer — slot yang
+hari ini hanya dipakai `/`. Jejaknya masuk ke situ, di setiap layar.
+
+```
+/                    DataCanvas   Sales ▾                       someone@… ▾
+/versions/{id}       DataCanvas   Sales ▾  ›  penjualan_q3      someone@… ▾
+/settings/account    DataCanvas   Account                       someone@… ▾
+```
+
+| Elemen | Bentuk | Apa yang ia kodekan (aturan ①) |
+|---|---|---|
+| `Sales` | **tautan** ke `/` bila kita tidak di sana; teks biasa bila kita di sana | *project ini memuat apa yang sedang kamu lihat* |
+| `▾` | pemicu picker, selalu di samping nama | *ada project lain, dan ini caranya pindah* |
+| `›` | pemisah, `aria-hidden` | *yang kanan berada di dalam yang kiri* |
+| `penjualan_q3` | teks biasa, bukan tautan | *di sinilah kamu* |
+| `Account` | teks biasa, tanpa project | *ini bukan layar milik project mana pun* |
+
+**Kenapa nama dan caret dipisah, bukan satu tombol.** Kalau seluruh chip adalah
+picker, jalan keluar utama dari halaman versi berharga **dua klik** (buka, pilih
+yang sedang aktif). Jalan keluar tidak boleh lebih mahal daripada perpindahan yang
+jarang. Dipisah: keluar satu klik, ganti project dua. Ongkosnya satu tab stop di
+header — bukan di daftar 60 kolom, jadi aritmetika yang mencabut tombol urut dan
+gagang resize tidak berlaku di sini.
+
+**Segmen ketiga sengaja belum ada.** Jejak penuhnya `Project › Dataset › Versi`,
+tapi hari ini satu Dataset selalu punya tepat satu versi terjangkau — tidak ada
+rute mendaftar versi — sehingga *Dataset* dan *Versi* adalah satu hal. Segmen
+ketiga datang bersama **FR-B.2 + P4**, yang sudah dijadwalkan sebagai satu
+pekerjaan tersendiri. Menambahkannya sekarang berarti merender hierarki yang belum
+bisa dijelajahi.
+
+**Yang ikut diperbaiki karena ia soal orientasi, bukan poles:**
+
+| | |
+|---|---|
+| `app/not-found.tsx` | Memakai `Shell`, kalimat manusia, satu jalan maju. §14.5 sudah mewajibkannya sejak 2026-07-31 |
+| Skip link | Ditunda dari langkah 1 ke sini karena ia afordansi navigasi. Satu anchor, terlihat hanya saat difokus |
+
+**Perubahan backend yang dituntut rancangan ini — satu, dan tanpa migrasi:**
+
+```
+DatasetVersionResponse += project_id: uuid.UUID
+                       += project_name: str
+```
+
+Dataset→Project sudah FK; ini menampilkan identitas objek yang sudah ada, bukan
+fitur baru. **Presedennya kuat dan baru berumur sehari:** `dataset_name`
+ditambahkan ke respons yang sama, atas alasan yang sama — *halamannya tidak
+menyebut miliknya siapa*.
+
+### 12.4 Layar pertama untuk nol · satu · banyak project
+
+| Keadaan | Rancangan | Alasan |
+|---|---|---|
+| **Nol** | — | **Keadaan ini tidak bisa terjadi.** Lihat §12.6 |
+| **Satu** | Persis seperti hari ini | Picker tetap dirender: menyembunyikannya membuat *"aku di project mana"* tak terjawab, dan ia tetap punya isi (`+ New project`) — jadi ia bukan kontrol yang tidak melakukan apa pun |
+| **Banyak** | Persis seperti hari ini, **plus** namanya kini terbaca di halaman versi | Pindah project = 2 klik dengan nilai sekarang terlihat. Itu *recognition*, bukan *recall* (Nielsen #6) |
+
+**Galeri project ditolak, dan alasan §14.5 dikoreksi.** §14.5 menolaknya karena
+mendaratkan pengguna **baru** di galeri berisi satu kartu. Brief benar bahwa
+alasan itu tidak menyentuh pengguna **kembali** yang punya banyak. Alasan yang
+benar untuk keduanya adalah ongkos klik: galeri menambah **satu klik wajib** ke
+kasus yang paling sering (buka aplikasi, lanjutkan di tempat terakhir) demi
+mempercepat kasus yang jarang (ganti project) yang hari ini sudah dua klik. Itu
+rugi bersih, dan ia berlaku untuk pengguna baru **dan** lama.
+
+⚠️ **Batas kejujuran klaim ini:** ia berlaku selama seseorang punya segelintir
+project. Tidak ada satu pun bukti tentang apa yang terjadi pada 30 project —
+picker menjadi daftar gulir tanpa pencarian. **Titik peninjauan: Gerbang 4.**
+
+### 12.5 Terhadap D-032 dan §14.5
+
+| Keputusan | Digugat? | Hasil |
+|---|---|---|
+| **D-032 — sidebar dicabut** | ❌ Tidak | Argumennya **ongkos lebar** (190px di layar 1280px). Jejak ini memakai **nol lebar tambahan** — ia mengisi slot `headerExtras` yang sudah ada — dan nol tinggi tambahan. D-032 tidak tersentuh, syarat kembalinya tidak berubah |
+| **D-032 — Run Log & composer** | ❌ Tidak | Keduanya menunggu **isi**. Di luar §4.7, sesuai §9 brief |
+| **§14.5 — galeri project ditolak** | ⚠️ Sebagian | Keputusannya **dipertahankan**; **alasannya diperbaiki** dan diperluas ke pengguna kembali. Ini perubahan alasan, bukan perubahan keputusan → §0.3 aturan 2 |
+| **§14.5 — jalan maju di setiap kegagalan** | ❌ Tidak | Ditegakkan ke tempat yang belum pernah diuji terhadapnya (404) |
+| **§14.2 — versi di header (P4)** | ❌ Tidak | Segmen ketiga sengaja tidak dibuat. P4 tetap ditunda ke Fase 3 |
+
+**Jadi ADR-nya kecil, dan itu hasil yang benar.** Draf **D-036** hanya memutuskan
+tiga hal: jejak masuk ke header, `project_name` masuk ke respons versi, dan 404
+mendapat halamannya. Tidak ada region baru, tidak ada permukaan baru, tidak ada
+keputusan yang dibatalkan.
+
+### 12.6 ⚠️ Di mana brief ini keliru
+
+**1. "Nol project" adalah keadaan yang tidak bisa dicapai.** §8 mensyaratkan
+*"Layar pertama masuk akal untuk nol, satu, dan banyak project"*. Diperiksa: §15.2
+membuat project otomatis saat registrasi, `RegisterResponse` memang membawanya,
+dan **tidak ada rute menghapus project**. Jadi nol tidak pernah terjadi. Kodenya
+toh menanganinya (`found[0] ?? null` → picker menampilkan *"No project"* dan tetap
+menawarkan `+ New project`). **Merancang untuk keadaan ini akan menjadi pekerjaan
+tanpa pemakai — persis yang §20 larang.**
+
+**2. Tabel "gejala" di §4.7 melewatkan dua hal terburuknya.** Ia mencatat
+afordansi yang hilang, dan tidak mencatat (a) bahwa brand bisa memindahkan
+pengguna ke project yang **berbeda** tanpa suara, maupun (b) bahwa 404 masih
+bawaan Next dan melanggar §14.5. Keduanya lebih berat daripada tiga dari empat
+baris yang ada di tabel itu. Brief benar menyuruh *"periksa dulu, jangan percaya
+daftar ini"* — dan daftar itu memang perlu diperiksa.
+
+**3. §6 membuka pintu sidebar; buktinya menutupnya kembali.** Bukan kekeliruan,
+tapi perlu dinyatakan supaya tidak terbaca sebagai pekerjaan yang dilewatkan:
+pintu itu **sengaja tidak dipakai**.
+
+**4. §7 langkah 1 tidak sepenuhnya bisa dijalankan seperti tertulis.** Ia menyuruh
+*"perbaiki yang mekanis sebelum membahas selera"*, tapi sebagian temuan mekanis
+**nilainya adalah selera**: `theme-color` butuh palet, `📌` butuh keputusan
+ikonografi, skip link adalah navigasi. Ketiganya ditunda dengan alasan tertulis,
+bukan dikerjakan dua kali. Urutan §7 tetap benar; hanya kalimatnya yang terlalu
+rapi.
+
+**5. Penomoran §4 membingungkan saat dirujuk** — §4.7 disisipkan di atas §4.6.
+Sepele, dan hanya masalah kalau ada yang menyebut "bagian terakhir §4".
+
+### 12.7 Alternatif yang ditolak
+
+| Alternatif | Kenapa ditolak |
+|---|---|
+| **Galeri project sebagai layar pertama** | Satu klik wajib ditambahkan ke kasus tersering demi mempercepat yang jarang. §12.4 |
+| **Sidebar kiri kembali** | Tujuan kerja masih dua. Aritmetika D-032 utuh. §12.1 |
+| **Baris kedua khusus breadcrumb** | ± 32px tinggi di setiap layar untuk informasi yang muat di slot header yang sudah kosong — dan sebuah **region baru**, yang ditutup aturan ② |
+| **Brand jadi tombol *back*** | Kontrol yang kadang pulang dan kadang mundur tidak bisa diprediksi, dan menyembunyikan tujuannya. Nielsen #3 meminta jalan keluar yang jelas, bukan yang pintar |
+| **Satu chip picker merangkap jalan keluar** | Jalan keluar jadi dua klik. §12.3 |
+
+### 12.8 Yang TIDAK dikerjakan di langkah 2, dan kenapa
+
+| | |
+|---|---|
+| Semua kode navigasi | **Titik lapor 1.** Itu inti bagian ini |
+| Segmen versi di jejak | Menunggu FR-B.2 + P4, satu pekerjaan tersendiri (§9 brief) |
+| Pencarian di picker project | Tidak ada bukti ia dibutuhkan. Gerbang 4 |
+| Duplikasi `h1` project vs jejak di `/` | Nyata tapi ringan; ia soal ritme badan halaman → langkah 7 |
+| `beforeunload` saat unggah | Masih menunggu jawabanmu dari langkah 1 |
+
+### 12.9 Terbuka / butuh keputusan
+
+| # | Pertanyaan | Rekomendasiku |
+|---|---|---|
+| 1 | Setujui **`project_id` + `project_name`** di `DatasetVersionResponse`? Backend, nol migrasi | **Ya.** Tanpanya §12.2(a) tidak bisa diperbaiki sama sekali |
+| 2 | Nama + caret **dipisah** (keluar 1 klik) atau satu chip picker (keluar 2 klik)? | **Dipisah** |
+| 3 | `app/not-found.tsx` masuk sesi ini? | **Ya** — ia penegakan §14.5 yang sudah ada, bukan permukaan baru |
+| 4 | `beforeunload` saat unggah 28 detik? *(dari langkah 1)* | Netral. Ia menambah perilaku, jadi ini panggilanmu |
+
+Jawab keempatnya — atau cukup **"lanjut"** untuk menerima seluruh rekomendasi —
+dan aku bangun navigasinya (langkah 3), lalu masuk ke token (langkah 4).
