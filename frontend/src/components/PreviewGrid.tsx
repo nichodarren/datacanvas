@@ -211,9 +211,6 @@ export function PreviewGrid({
             hidden={hidden}
             onToggle={toggle}
             onShowAll={() => setHidden(new Set())}
-            onShowDefault={() =>
-              setHidden(new Set(ordered.slice(MAX_DEFAULT_COLUMNS).map((c) => c.name)))
-            }
             onClose={() => setPicking(false)}
           />
         ) : null}
@@ -308,14 +305,12 @@ function ColumnPicker({
   hidden,
   onToggle,
   onShowAll,
-  onShowDefault,
   onClose,
 }: {
   columns: ColumnSpec[];
   hidden: Set<string>;
   onToggle: (name: string) => void;
   onShowAll: () => void;
-  onShowDefault: () => void;
   onClose: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -339,18 +334,14 @@ function ColumnPicker({
 
   return (
     <div ref={box} className="menu column-picker">
-      {/* Ticking forty boxes one at a time is not a feature. The counterpart is
-          not "select none" — that state is refused — but a way back to the
-          default, which is the one someone reaches for after seeing all forty. */}
+      {/* One action, deliberately. "Select none" is a state this refuses, and a
+          "back to the default" button was built and then removed — the way back
+          is unticking, and one control beats two on a panel whose whole point is
+          to be quicker than the boxes below it. */}
       <div className="picker-actions">
         <button type="button" onClick={onShowAll} disabled={hidden.size === 0}>
           Select all
         </button>
-        {columns.length > MAX_DEFAULT_COLUMNS ? (
-          <button type="button" onClick={onShowDefault}>
-            First {MAX_DEFAULT_COLUMNS}
-          </button>
-        ) : null}
         <span className="faint" style={{ fontSize: 12, marginLeft: "auto" }}>
           {visible}/{columns.length}
         </span>
