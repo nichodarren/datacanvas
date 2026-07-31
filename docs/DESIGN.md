@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Dokumen** | DataCanvas Master Design Document |
-| **Versi** | 0.9.0 |
+| **Versi** | 0.10.0 |
 | **Status** | 🟢 **Baseline aktif** — seluruh keputusan D-001…D-030 Accepted; Gerbang 0 & 1 terlampaui; dokumen ini mengikat untuk implementasi |
 | **Tanggal** | 2026-07-29 |
 | **Owner** | Nicholas Darren |
@@ -107,6 +107,7 @@ Beberapa pertanyaan mendasar belum terjawab (lihat §19). Agar dokumen ini bisa 
 | 0.7.0 | 2026-07-29 | **P0-7 selesai — inferensi skema + SchemaContract v1** (§0.3 aturan 2 → minor version). **D-029** menetapkan dua hal yang keduanya tampak sudah jelas jawabannya. **(1) Cakupan harus 100%**, bukan 90 atau 95: `messy_sales.legacy_code` adalah 4.850 dari 5.000 digit murni, dan ambang berapa pun di bawah 100% menjadikannya `integer` — lalu 150 nilai nyata menjadi null secara senyap begitu ada yang meng-cast kolomnya. **(2) Kecocokan diperiksa aturan bentuk, bukan `TRY_CAST`** — diukur, dan hasilnya menutup pilihan itu: `1.5` → `2` (dibulatkan), `007` → `7` (kehilangan digit), `0x1F` → `31`, `inf` → `DATE 9999-12-31`, dan sebuah timestamp menjadi `DATE` dengan waktunya dibuang. Semuanya kesalahan `utf8-lossy` sekali lagi — fungsi konversi pemaaf dipakai untuk mengambil keputusan. Konsekuensi terpenting: **`detection_confidence` kini mengukur ambiguitas, bukan cakupan** — `qty` bisa 100% integer dan tetap 0,6 karena 5 nilai distinct pada 5.000 baris lebih mungkin kategori (PQ-4). Ditambahkan field `detection_reason` ke `columns[]` §9.2, karena FR-B.3 menuntut deteksi ditampilkan **untuk dikoreksi** dan angka 0,5 telanjang bukan sesuatu yang bisa dibantah seseorang. Satu batasan nyata juga diperbaiki: **CSV satu kolom sebelumnya ditolak** — daftar ID adalah CSV yang sah, dan "tidak ditemukan pemisah" adalah jawaban, bukan kegagalan. Tipe hasil inferensi untuk keempat dataset terbundel kini dipaku sebagai kontrak test. |
 | 0.8.0 | 2026-07-29 | **Fase 2 selesai di sisi backend; Gerbang 2 terlampaui dengan angka.** P0-15 (override tipe → SchemaContract v2, FR-C.2/FR-C.3) dan sisa FR-B.1 (pembaca XLSX & JSON) masuk. Keputusan yang layak dicatat pada override: **koreksi yang membuang nilai diterima dan dicatat, bukan ditolak dan bukan dituruti diam-diam.** §10.2 memberi keputusan kepada orang yang tahu arti kolomnya; D-029 ada karena kehilangan nilai secara senyap adalah kegagalan yang dihindari seluruh desain ini. Keduanya berlaku: koreksinya berhasil, dan kontraknya menyatakan berapa nilai yang tidak cocok. Pada pembaca baru: **XLSX dan JSON membuang tipe aslinya** dan tiba sebagai teks seperti CSV — dua jalur inferensi berarti dua set bug, dan Excel adalah program yang mengubah nama gen menjadi tanggal, jadi menurunkan opininya bukan kehilangan otoritas. Ditambahkan `eval/fixtures/build_wide_orders.py` (5 juta baris, 480 MB, ber-seed, tidak di-commit) karena tanpanya NFR-PERF.1 hanya diasumsikan. **NFR-PERF.4 diperbaiki rumusannya** — ia tidak menyebut inferensi, dan diambil harfiah angkanya menjadi 1,5 detik yang menyenangkan alih-alih 29 detik yang sebenarnya; mengukur separuh yang cepat adalah cara membuat gerbang lolos tanpa membuktikan apa pun. Hasil terukur: halaman pertama **56 ms** pada 5 juta baris terhadap anggaran 1 detik. Dinyatakan terbuka: **Gerbang 2 terlampaui untuk backend, belum untuk UI** — P0-14 belum ada, jadi "halaman pertama tampil" yang terukur adalah waktu server, bukan waktu browser. |
 | 0.9.0 | 2026-07-29 | **Fase 2 SELESAI — P0-14 dibangun, Gerbang 2 ditutup penuh.** Frontend Next.js pertama: shell §14.2, login, alur unggah dengan konfirmasi dialect (FR-B.3), **preview grid tervirtualisasi dengan header informatif** (FR-D.1/D.2/D.4), dan koreksi tipe langsung dari klik header (FR-C.2). Ditambahkan **D-030** (proxy same-origin) beserta **dua koreksi terhadap diri sendiri**: alasan pertama yang ditulis untuk proxy keliru — SameSite membandingkan *site* dan port bukan bagian darinya, jadi cookie akan terkirim lintas-port; yang menghalangi adalah CORS. Dan **proxy Next membatasi body di 10 MB**, 2% dari NFR-SCALE.4 — ditemukan dengan mengunggah 480 MB dan mendapat 500 dari proxy tanpa satu baris pun di log API. Gerbang 2 sebelumnya dinyatakan "terlampaui untuk backend, terbuka untuk UI"; kini diukur ulang lewat jalur browser sungguhan: **muat halaman pertama 94 ms pada 5 juta baris** terhadap anggaran 1.000 ms, dan lompat ke baris terakhir 82 ms. Alur §14.3 langkah 1–6 dijalankan utuh. Shell menampilkan Library, Steps, Findings dan Run Log sebagai **kosong yang menjelaskan dirinya** (§14.5), bukan placeholder — Run Log berisi baris contoh akan menyiratkan traceability yang belum ada, dan P3 adalah janji yang tidak boleh diperlakukan santai. CI bertambah satu job (typecheck + build frontend). |
+| 0.10.0 | 2026-07-31 | **Perubahan scope UI (§0.3 aturan 3) — pemilik produk memangkas permukaan Fase 2 setelah memakainya sendiri.** Justifikasinya konsisten di semua item: *produk meminta terlalu banyak keputusan kecil dari orang yang baru datang untuk melihat datanya*, dan menghabiskan ruang layar untuk hal yang belum bisa dipakai. Yang berubah di dokumen ini: **(1) FR-D.1 dipecah** — `FR-D.1a` (paging sisi server, P0, **terpenuhi & terukur**) dan `FR-D.1b` (menjelajah seluruh dataset, **ditunda**). Grid tervirtualisasi diganti pratinjau 10 baris + tombol *View more* (+50/klik). Pemecahannya bukan formalitas: pada 50 baris per klik, baris ke-5.000.000 berjarak seratus ribu klik — pola itu **secara struktural** tidak bisa memenuhi 'jutaan baris', dan mempertahankan rumusan lama akan membuat dokumen ini berbohong. Menghapusnya utuh juga salah, karena kemampuannya nyata dan terukur (78 ms/halaman, 69 ms melompat ke baris 2.500.000). **(2) FR-D.2 terpenuhi** oleh tombol itu — requirement-nya tidak menentukan bentuk kontrolnya. **(3) Indikator null% dicabut dari FR-D.4**; header kolom kembali menjadi label (nama + tipe), bukan dasbor kualitas. Null% tidak pernah dibangun, slotnya sempat diisi confidence yang juga dicabut. **(4) FR-C.6 ditunda ke Gerbang 4** — seluruh peringatan deteksi (pil `check`, lencana `✓ set`, banner, tab Schema, badge kartu) dihapus; `detection_confidence`/`detection_reason` tetap dihitung dan tersimpan, jadi ini pencabutan tampilan, bukan fakta. **(5) Baris keputusan §14.2 'versi di header, selalu' dicabut** — beserta sidebar navigasi, panel Run Log, dan composer copilot, yang bersama-sama menghabiskan ± sepertiga lebar layar 1280px untuk ruang kosong. **Prinsip P4 tidak disentuh**: INV-2, INV-3, dan trigger Postgres yang menegakkannya tetap, karena §9.4 menyusun fingerprint dari `dataset_version_id` + `schema_contract_id` dan INV-6 bergantung padanya. **(6) Catatan Gerbang 2 diperbarui** — tetap ditutup, tapi kini berdiri di atas FR-D.1a saja; tiga baris pengukurannya mengukur jalur browser yang sudah diganti. Ditambah dua cacat yang ditemukan riset, keduanya buatan sendiri: `AccountMenu` mendeklarasikan `role="menu"` tanpa satu pun perilaku keyboard yang dijanjikan peran itu (diganti pola disclosure), dan *Sign out on all devices* tayang tanpa konfirmasi — **melanggar NFR-UX.1/UX-7**, aturan kita sendiri. FR-A.2 juga akhirnya punya permukaan: halaman akun dengan daftar sesi aktif dan pencabutan per-perangkat (OWASP Session Management), plus ganti password yang mencabut sesi lain dan mematikan token reset yang beredar. **Tabrakan yang dicatat tapi belum diselesaikan:** FR-D.5 memesan gestur klik header untuk profil kolom, dan tabrakan itu **diselesaikan di sesi yang sama**: profil pindah ke tab Profile tersendiri (kartu ringkas per kolom → klik → univariat lengkap), sehingga klik header tetap milik FR-C.2. Dicatat bersama tiga syaratnya — profil ringkas vs lengkap adalah dua hal berbeda (NFR-PERF.2), INV-5 menempatkan tab ini di Fase 3 karena kartunya penuh angka yang butuh `computation_id`, dan badge tipe memakai kosakata logis §9.2, bukan tipe fisik. |
 
 ---
 
@@ -514,8 +515,14 @@ Format: **ID · Pernyataan · Rationale · Prioritas · Acceptance criteria**
 | **FR-C.3** | Perubahan skema menghasilkan **SchemaContract versi baru**, tidak menimpa yang lama | P0 |
 | **FR-C.4** | Perubahan SchemaContract meng-invalidate seluruh komputasi yang bergantung padanya (bukan menghapus, tapi menandai stale) | P0 |
 | **FR-C.5** | Pengguna dapat menetapkan *role* kolom: `identifier`, `measure`, `dimension`, `timestamp`, `ignored` | P1 |
-| **FR-C.6** | Sistem menampilkan peringatan ketika deteksi tipe berisiko (mis. kolom numerik dengan < 10 nilai unik, kolom teks yang 95%-nya bisa di-parse jadi tanggal) | P1 |
+| **FR-C.6** | Sistem menampilkan peringatan ketika deteksi tipe berisiko (mis. kolom numerik dengan < 10 nilai unik, kolom teks yang 95%-nya bisa di-parse jadi tanggal) | P1 · **ditunda ke Gerbang 4** |
 | **FR-C.7** | Pengguna dapat menetapkan format khusus (format tanggal, desimal separator, penanda null seperti `-`, `N/A`, `9999`) | P1 |
+
+> **FR-C.6 ditunda (2026-07-31).** Sempat dibangun penuh di Fase 2 — pil `check` di header berconfidence rendah, lencana `✓ set` pada kolom yang sudah dikoreksi, banner *"N columns worth checking"*, tab Schema dengan kolom Confidence dan Why, serta badge `N to check` di kartu dataset. Semuanya dicabut atas keputusan pemilik produk, dengan alasan yang layak dicatat: **produk meminta selusin penilaian kecil dari orang yang baru datang untuk melihat datanya.**
+>
+> Ini P1, jadi menundanya sah — berbeda dari FR-D.1b yang memaksa pemecahan requirement P0. **`detection_confidence` dan `detection_reason` tetap dihitung dan tetap tersimpan di setiap SchemaContract** (D-029); `detection_reason` masih muncul di popup saat mengganti tipe, satu-satunya saat ia menolong. Yang dicabut tampilan, bukan fakta — jadi menghidupkannya kembali tidak butuh migrasi maupun inferensi ulang.
+>
+> **Ditinjau ulang di Gerbang 4.** Kalau penguji salah membaca sebuah tipe dan tidak menyadarinya, sinyalnya perlu kembali — dalam bentuk yang tidak menuntut selusin keputusan di muka.
 
 **Tipe logis yang didukung MVP:**
 `integer` · `decimal` · `boolean` · `categorical` · `text` · `date` · `datetime` · `duration` · `unsupported`
@@ -528,15 +535,46 @@ Format: **ID · Pernyataan · Rationale · Prioritas · Acceptance criteria**
 
 | ID | Requirement | Prioritas |
 |---|---|---|
-| **FR-D.1** | Grid data dengan pagination sisi server, mampu menampilkan dataset jutaan baris tanpa membekukan browser | P0 |
+| **FR-D.1a** | Pembacaan baris dilayani **sisi server** (`offset`/`limit`); sembarang offset di dalam dataset ≤ 5 juta baris terlayani di bawah anggaran NFR-PERF.1 | P0 |
+| **FR-D.1b** | Antarmuka untuk **menjelajah seluruh** dataset, bukan hanya bagian awalnya | **Ditunda** (§16) |
 | **FR-D.2** | Jumlah baris yang ditampilkan dapat diatur pengguna | P0 |
 | **FR-D.3** | Kolom dapat diperlebar, disembunyikan, dipindah urutannya, dan dipin | P1 |
-| **FR-D.4** | Setiap header kolom menampilkan nama, tipe logis (bisa diklik untuk diubah), dan indikator null% | P0 |
+| **FR-D.4** | Setiap header kolom menampilkan nama dan tipe logis (bisa diklik untuk diubah) | P0 |
 | **FR-D.5** | Klik header kolom → membuka panel profil univariat kolom tersebut | P0 |
 | **FR-D.6** | Sort dan filter dasar dari grid, dieksekusi di server | P1 |
 | **FR-D.7** | Sel yang bermasalah (null, gagal parse, outlier ekstrem) ditandai secara visual | P2 |
 
-> **Rationale FR-D.4/D.5 — kritik terhadap ide awal.** Idemu menempatkan preview grid sebagai halaman pertama dan profil sebagai tab terpisah. Aku sarankan **menggabungkan keduanya di permukaan yang sama**: header kolom membawa sinyal kualitas (tipe + null%), dan profil dibuka dari sana. Alasannya: pertanyaan pertama analis pada data asing bukan "apa isinya baris 1–100", melainkan **"apakah data ini bisa dipercaya"**. Grid mentah tidak menjawab itu; header yang informatif menjawabnya seketika. Ini juga menempatkan koreksi tipe (FR-C.2) tepat di tempat masalahnya terlihat.
+> **Rationale FR-D.1a/D.1b — kenapa dipecah (2026-07-31).** Rumusan lama berbunyi *"grid dengan pagination sisi server, mampu menampilkan dataset jutaan baris tanpa membekukan browser"* dan digenapi grid tervirtualisasi. Pemilik produk menggantinya dengan **pratinjau 10 baris + tombol "View more" (+50 tiap klik)**, dan pola itu **secara struktural tidak bisa** memenuhi separuh kedua: pada 50 baris per klik, baris ke-100.000 berjarak dua ribu klik dan baris ke-5.000.000 berjarak seratus ribu — sementara barisnya menumpuk di DOM. Itu aritmetika, bukan kekurangan poles.
+>
+> Yang **tidak** hilang adalah kemampuannya. Rutenya tetap memaging dan tetap terukur: 78 ms satu halaman, 69 ms melompat ke baris 2.500.000 pada fixture 5 juta baris (§20 Gerbang 2). Karena itu requirement-nya dipecah alih-alih dihapus — menghapusnya akan membuang bukti yang sah, membiarkannya utuh akan membuat dokumen ini berbohong.
+>
+> **Pemicu FR-D.1b:** saat ada yang benar-benar perlu memeriksa baris jauh di dalam data. Kemungkinan besar Fase 3, ketika Step menghasilkan tabel turunan yang hasilnya harus diperiksa, bukan sekadar diintip.
+
+> **Rationale FR-D.4/D.5 — kritik terhadap ide awal.** Idemu menempatkan preview grid sebagai halaman pertama dan profil sebagai tab terpisah. Aku sarankan **menggabungkan keduanya di permukaan yang sama**: header kolom membawa sinyal kualitas, dan profil dibuka dari sana. Alasannya: pertanyaan pertama analis pada data asing bukan "apa isinya baris 1–100", melainkan **"apakah data ini bisa dipercaya"**. Grid mentah tidak menjawab itu; header yang informatif menjawabnya seketika. Ini juga menempatkan koreksi tipe (FR-C.2) tepat di tempat masalahnya terlihat.
+>
+> **Indikator null% dicabut dari FR-D.4 (2026-07-31).** Keputusan pemilik produk: header kolom memuat nama dan tipe, tidak lebih. Rumusan lama menuntut null% dan **tidak pernah dibangun** — slotnya sempat diisi indikator confidence, yang juga sudah dihapus (lihat FR-C.6 di bawah). Kualitas data tidak hilang dari produk; ia pindah ke tempat yang memang dirancang untuknya: profil kolom (FR-D.5) dan peringatan PQ di §11.4. Yang berubah adalah **header kolom berhenti menjadi dasbor kualitas** dan kembali menjadi label.
+>
+> **FR-D.5 dirumuskan ulang: tab Profile, bukan klik header (2026-07-31).** Rumusan lama memesan gestur *klik header kolom* untuk membuka profil, dan itu **bertabrakan** dengan FR-C.2 yang sudah memakai gestur yang sama untuk mengganti tipe — dua P0 berebut satu klik. Pemilik produk menyelesaikannya dengan memindahkan profil ke permukaannya sendiri:
+>
+> | Permukaan | Gestur | Untuk |
+> |---|---|---|
+> | Tab **Data** | klik tipe di header | **Mengubah** tafsiran (FR-C.2) |
+> | Tab **Profile** | kartu per kolom | **Membaca** kualitas — ringkas |
+> | Tab **Profile** | klik kartu | Univariat **lengkap**, satu kolom (FR-D.5) |
+>
+> Tiga alasan ini lebih baik dari rumusan aslinya, bukan sekadar berbeda:
+>
+> 1. **Memisahkan mengubah dari membaca.** Koreksi tipe adalah aksi menyunting di tempat masalahnya terlihat; profil adalah tugas membaca. Argumen yang sama pernah memisahkan tab Schema dari grid — dan tetap berlaku.
+> 2. **Ia menskala terhadap lebar.** Grid punya batas horizontal keras (± 15 kolom sebelum sel jadi tak terbaca, §FR-D.3). Kisi kartu **membungkus**: 29 kolom menjadi delapan baris kartu, bukan tabel yang tak muat.
+> 3. **Ia mengembalikan null% ke tempat yang dirancang untuknya.** Indikator itu baru saja dicabut dari FR-D.4 karena header kolom bukan dasbor kualitas — dan kartu profil memang dasbor kualitas. Informasinya tidak hilang; ia pindah ke permukaan yang benar.
+>
+> ⚠️ **Tiga hal yang harus diputuskan sebelum dibangun:**
+>
+> **(a) Profil ringkas dan profil lengkap adalah dua hal berbeda.** NFR-PERF.2 memberi anggaran 2 detik untuk profil univariat **satu** kolom; 29 kolom secara naif berarti ± 58 detik. Kabar baiknya, separuh murahnya **sudah ada**: `column_statistics()` di `storage/engine.py` menghitung null, distinct, min/med/max dalam **satu kali pass** dan sudah dipakai inferensi skema. Kartu ringkas kemungkinan besar tidak butuh tool baru sama sekali — hanya rute yang memaparkan statistik yang sudah dihitung.
+>
+> **(b) INV-5 menentukan fasenya.** *"Setiap angka yang ditampilkan berasal dari `Computation` yang bisa dirujuk."* Kartu profil penuh angka. Membangunnya **sebelum** executor Fase 3 ada berarti menayangkan angka tanpa `computation_id` — melanggar INV-5 dan P3. Karena itu tab Profile masuk **Fase 3**, di atas executor, bukan mendahuluinya.
+>
+> **(c) Badge tipe pakai tipe logis, bukan fisik.** Contoh v1 menampilkan `BIGINT` / `VARCHAR`. Itu detail implementasi; kosakata yang dilihat pengguna adalah §9.2 — `integer`, `categorical`, `text`.
 
 ### FR-E · EDA Library (antarmuka manual)
 
@@ -2086,11 +2124,19 @@ Bukan "aku mengobrol dengan AI tentang data". Perbedaan ini menentukan seluruh t
 |---|---|
 | Copilot adalah **bar bawah**, bukan panel samping | P2 — chat adalah *input*, bukan workspace. Panel samping permanen memberi sinyal "chat adalah produknya". |
 | Run Log **selalu terlihat**, bukan tersembunyi di tab | P3 — traceability yang harus dicari tidak akan dipakai. Ini permukaan kerja utama (FR-H.2). |
-| Dataset version + schema version di **header**, selalu | P4 — pengguna harus selalu tahu versi apa yang sedang dilihat |
+| ~~Dataset version + schema version di **header**, selalu~~ | **Dicabut 2026-07-31** — keputusan pemilik produk. Lihat catatan di bawah tabel |
 | Mode privasi terlihat di header **dan** di dekat input copilot | NFR-PRIV.2 |
 | Hasil muncul di area kerja, bukan di gelembung chat | Hasil adalah artefak yang tahan lama, bukan pesan yang lewat |
 
 > **Kritik terhadap desain chat-centric yang umum.** Hampir semua produk "AI + data" menempatkan chat di tengah dan hasil sebagai gelembung. Itu membuat hasil terasa fana dan tidak bisa dimanipulasi. Kita membalikkannya: **hasil adalah objek permanen di ruang kerja; chat hanya salah satu cara membuatnya.**
+
+> **Versi tidak lagi ditampilkan di header (2026-07-31).** Badge `v1 · schema v4` dan judul "Dataset version N" dicabut atas keputusan pemilik produk.
+>
+> **Yang dicabut adalah tampilannya, bukan prinsip P4.** *Immutable data, versioned schema* tetap mengikat: `DatasetVersion` tidak pernah di-UPDATE (INV-2), koreksi tetap menghasilkan `SchemaContract` baru (INV-3), keduanya ditegakkan trigger Postgres. Harus begitu — §9.4 menyusun setiap fingerprint Step dari `dataset_version_id` dan `schema_contract_id`, dan INV-6 bergantung padanya. Cabut versioning dari model, dan Step di bawah `qty: integer` bertemu Step di bawah `qty: categorical` dengan fingerprint identik tapi jawaban berbeda — cache menyajikan angka yang salah, tanpa suara.
+>
+> ⚠️ **Ini utang yang jatuh tempo di Fase 3.** Begitu Step, Computation dan Finding ada, sebuah angka harus bisa menyebut versi data dan kontrak yang menghasilkannya (INV-5, P3). Saat itu "pengguna harus tahu versi apa yang dilihat" berhenti menjadi kosmetik dan menjadi syarat traceability. Bentuknya boleh berbeda — melekat pada hasil, bukan pada header — tapi ia harus kembali.
+
+> **Shell §14.2 sekarang jauh lebih kosong dari sketsa di atas (2026-07-31).** Sidebar navigasi, panel Run Log, dan composer copilot dicabut dari UI. Sketsa dipertahankan karena ia menggambarkan **tujuan**, bukan keadaan sekarang. Alasan pencabutan dan syarat kembalinya masing-masing tercatat di `the project notes` → *Utang yang diketahui*; ringkasnya: ketiganya kosong, dan bersama sidebar menghabiskan ± sepertiga lebar layar 1280px (jaminan NFR-UX.4) untuk ruang yang tidak bisa dipakai.
 
 ### 14.3 Perjalanan pengguna utama (end-to-end)
 
@@ -2844,6 +2890,12 @@ NFR-PERF.1 memberi anggaran 1 detik; yang terukur 56 ms pada batas NFR-SCALE.1 p
 Anggaran NFR-PERF.1 adalah 1.000 ms. Unggahan 480 MB lewat HTTP sungguhan: 28 detik ujung ke ujung, termasuk normalisasi dan inferensi.
 
 Alur §14.3 langkah 1–6 dijalankan utuh: daftar → unggah → pratinjau dialect → konfirmasi → grid → koreksi tipe → SchemaContract v2. **Seluruh empat kriteria Gerbang 2 terpenuhi.**
+
+> ⚠️ **Jalur browser yang diukur di atas sudah diganti (2026-07-31), dan gerbang ini tetap ditutup — tapi atas dasar yang lebih sempit.** Grid tervirtualisasi diganti pratinjau 10 baris + tombol "View more". Tiga baris tabel di atas — halaman baris, lompat ke baris 2.500.000, lompat ke baris terakhir — mengukur **kemampuan yang UI-nya tidak lagi panggil**.
+>
+> Angkanya tidak dicabut, karena ia tidak salah: rutenya masih ada, masih memaging, masih di bawah anggaran, dan itulah **FR-D.1a** yang gerbang ini sekarang berdiri di atasnya. Yang gugur adalah klaim atas **FR-D.1b** — menjelajah seluruh dataset — yang sejak tanggal itu berstatus ditunda.
+>
+> Dicatat di sini alih-alih dibiarkan, karena §20 sendiri yang menulis kalimat berikut tentang hal lain, dan ia berlaku terbalik di sini: *"komponen yang belum punya pemanggil tidak bisa dibuktikan benar, dan gerbang yang mengklaimnya adalah gerbang yang berbohong."* Di sini komponennya terbukti; **pemanggilnya yang hilang.**
 
 > Di titik ini produk sudah **berguna** meski belum ada satu tool pun. Ini disengaja: kalau Fase 2 tidak terasa berguna, ada yang salah dengan asumsi produk kita.
 

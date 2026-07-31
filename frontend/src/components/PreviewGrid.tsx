@@ -4,32 +4,47 @@ import { useCallback, useEffect, useState } from "react";
 
 import { LOGICAL_TYPES, type ColumnSpec, type SchemaContract, api } from "@/lib/api";
 
-/** How many rows a preview shows. `head(20)`, and nothing beyond it. */
-const PREVIEW_ROWS = 20;
+/** What the first screen shows. Deliberately small: a glance, not a session. */
+const INITIAL_ROWS = 10;
 
 /**
- * The preview: the first rows of a dataset, with every column on screen at once.
+ * How many rows each "View more" adds.
  *
- * This was a virtualized, server-paged grid that could scroll through five
- * million rows without the browser ever holding more than a screenful — the
- * thing FR-D.1 asks for, and the thing Gate 2 measured at 94 ms for the first
- * page of the 5,000,000-row fixture. At the owner's direction it is now a
- * fixed `head(20)` with no scrollbars in either axis.
+ * Larger than the opening ten on purpose. Ten per click reads well in a
+ * specification and is miserable in the hand — nine clicks to reach row 100. The
+ * first screen stays a glance; asking for more should actually give you more.
+ */
+const MORE_ROWS = 50;
+
+/**
+ * The preview: the first rows of a dataset, every column on screen at once, and
+ * a button that fetches the next page.
  *
- * Two requirements are knowingly unmet by that, both recorded in the project notes:
+ * ## What this replaced, and what that costs
  *
- * * **FR-D.1 / FR-D.2 (P0)** — browsing a large dataset. Rows 21 and beyond are
- *   now unreachable from the UI. The server route still pages (`offset`,
- *   `limit`), so the capability is intact; nothing calls for it.
- * * **NFR-PERF.1** — the measurement that closed Gate 2 was taken on the path
- *   this replaces. It stays true of the API and is no longer exercised by the
- *   browser.
+ * A virtualized grid that scrolled through five million rows while the browser
+ * never held more than a screenful. Gate 2 measured it at 94 ms for the first
+ * page of the 5,000,000-row fixture and 69 ms to jump to row 2,500,000.
  *
- * The horizontal constraint is the one with a hard edge. Twelve columns fit;
- * ingest accepts a file with any number of them, and there is no cap anywhere
- * in NFR-SCALE. Past roughly fifteen the cells become too narrow to read, and
- * no amount of styling fixes that — it needs a decision (scrolling back, or
- * choosing which columns to show), not a workaround.
+ * **FR-D.2 (P0) — "the number of rows shown can be set by the user" — is met by
+ * the button.** The requirement does not prescribe a control, and clicking is a
+ * way of setting it.
+ *
+ * **FR-D.1 is met in half, and the other half cannot be met by this pattern —
+ * which is why the requirement was split rather than quietly kept.** Server-side
+ * paging is real: each click is one `offset`/`limit` request, and the route still
+ * answers any offset in a 5M-row dataset in well under a second (FR-D.1a). What
+ * this cannot do is *browse* such a dataset. At fifty rows a click, row 100,000
+ * is two thousand clicks away and row 5,000,000 is a hundred thousand — and the
+ * rows accumulate in the DOM as you go. That is arithmetic, not polish, so
+ * FR-D.1b now says so and waits for a UI that means it.
+ *
+ * ## The horizontal edge
+ *
+ * Twelve columns fit. Ingest accepts any number and there is no cap anywhere in
+ * NFR-SCALE; past roughly fifteen the cells go too narrow to read, and no
+ * styling fixes that. It needs a decision — scrolling back, or FR-D.3's hide and
+ * reorder — not a workaround.
  */
 export function PreviewGrid({
   workspaceId,
@@ -44,24 +59,39 @@ export function PreviewGrid({
   contract: SchemaContract;
   onContractChanged: (next: SchemaContract) => void;
 }) {
-  const [rows, setRows] = useState<(string | null)[][] | null>(null);
+  const [rows, setRows] = useState<(string | null)[][]>([]);
+  const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
   const columns = [...contract.columns].sort((a, b) => a.ordinal - b.ordinal);
 
-  const load = useCallback(async () => {
-    try {
-      const result = await api.rows(workspaceId, versionId, 0, PREVIEW_ROWS);
-      setRows(result.rows);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load rows.");
-    }
-  }, [workspaceId, versionId]);
+  /**
+   * Fetch one page and append it.
+   *
+   * `offset` is passed in rather than read from `rows.length` so this does not
+   * close over the list it appends to — the version that did could fire twice
+   * on the same offset and duplicate a page.
+   */
+  const fetchFrom = useCallback(
+    async (offset: number, limit: number) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const result = await api.rows(workspaceId, versionId, offset, limit);
+        setRows((current) => (offset === 0 ? result.rows : [...current, ...result.rows]));
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not load rows.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [workspaceId, versionId],
+  );
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void fetchFrom(0, INITIAL_ROWS);
+  }, [fetchFrom]);
 
   async function changeType(column: ColumnSpec, logicalType: string) {
     setEditing(null);
@@ -106,7 +136,7 @@ export function PreviewGrid({
           </thead>
 
           <tbody>
-            {(rows ?? []).map((row, index) => (
+            {rows.map((row, index) => (
               // A preview row has no identity of its own — it is a slice of a
               // file, not a record — so the offset is the key.
               // eslint-disable-next-line react/no-array-index-key
@@ -132,11 +162,19 @@ export function PreviewGrid({
         </table>
       </div>
 
-      {rows !== null && totalRows > PREVIEW_ROWS ? (
-        <p className="faint" style={{ fontSize: 12, margin: 0 }}>
-          Showing the first {PREVIEW_ROWS} of {totalRows.toLocaleString()} rows.
-        </p>
-      ) : null}
+      {/* The count is stated whether or not there is more to fetch. "10 of 891"
+          and "891 of 891" answer different questions, and the second is the one
+          that tells you there is nothing left to look for. */}
+      <div className="row">
+        {rows.length < totalRows ? (
+          <button type="button" disabled={busy} onClick={() => void fetchFrom(rows.length, MORE_ROWS)}>
+            {busy ? "Loading…" : `View ${Math.min(MORE_ROWS, totalRows - rows.length)} more`}
+          </button>
+        ) : null}
+        <span className="faint" style={{ fontSize: 12 }}>
+          {rows.length.toLocaleString()} of {totalRows.toLocaleString()} rows
+        </span>
+      </div>
     </div>
   );
 }
