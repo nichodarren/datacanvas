@@ -42,7 +42,12 @@ else
     PGREADY=""
 fi
 if [ -n "$PGREADY" ] && ! "$PGREADY" >/dev/null 2>&1; then
-    fail "Postgres tidak menjawab." "Nyalakan: D:\pgsql\bin\pg_ctl -D D:\pgdata -l D:\pgdata\server.log start"
+    # Log DI LUAR data directory. Menaruhnya di dalam `-D` memasang ranjau yang
+    # meledak hanya setelah crash: fsync pass pra-recovery membuka setiap file
+    # di data directory, termasuk log yang sedang dipegang pg_ctl → sharing
+    # violation di Windows, dan cluster tidak pernah selesai recovery. Pesan ini
+    # sebelumnya menyarankan justru path yang beracun itu.
+    fail "Postgres tidak menjawab." "Nyalakan: D:\pgsql\bin\pg_ctl -D D:\pgdata -l D:\pgdata-server.log start"
 fi
 printf '   postgres OK\n'
 

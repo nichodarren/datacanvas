@@ -68,7 +68,7 @@ portable. Tanpa installer, tanpa service Windows, semuanya di satu folder:
 
 D:\pgsql\bin\initdb -D D:\pgdata -U datacanvas -A scram-sha-256 `
     --pwfile=<file berisi password> --encoding=UTF8 --locale=C
-D:\pgsql\bin\pg_ctl -D D:\pgdata -l D:\pgdata\server.log start
+D:\pgsql\bin\pg_ctl -D D:\pgdata -l D:\pgdata-server.log start   # log DI LUAR -D
 D:\pgsql\bin\createdb -h localhost -U datacanvas datacanvas
 D:\pgsql\bin\createdb -h localhost -U datacanvas datacanvas_test
 ```
