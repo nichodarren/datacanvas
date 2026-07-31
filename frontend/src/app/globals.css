@@ -534,15 +534,6 @@ div.card.dataset {
   white-space: nowrap;
 }
 
-.menu-head {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 10px 8px;
-  font-size: 12px;
-  word-break: break-all;
-}
-
 .menu {
   position: absolute;
   top: calc(100% + 6px);

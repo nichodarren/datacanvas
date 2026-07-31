@@ -40,6 +40,12 @@ import { type Me, api } from "@/lib/api";
  * because uploading into the wrong account is a real mistake with real cleanup
  * and nothing else on screen would catch it.
  *
+ * The panel does not repeat the email. It did, back when the header block also
+ * carried the workspace and role and so had something to say; once those went,
+ * it was the same string twice, stacked, which reads as carelessness. The
+ * button already answers the question, and `title` carries the full address if
+ * it truncates — the same bargain the grid cells make.
+ *
  * The workspace is deliberately not named anywhere — see the commit that
  * removed it. One workspace per account, no route to create a second, so the
  * line was identical for every user alive.
@@ -116,17 +122,11 @@ export function AccountMenu({ me }: { me: Me }) {
 
       {open ? (
         <div ref={panel} id={panelId} className="menu right">
-          <div className="menu-head">
-            <strong>{me.user.email}</strong>
-          </div>
-
           {error ? (
             <div className="banner error" style={{ margin: "0 4px 6px" }} role="alert">
               {error}
             </div>
           ) : null}
-
-          <div className="menu-sep" />
 
           {/* Everything that needs a form or a list lives on the page, not in
               here. A popup that has to scroll is the wrong shape for its
