@@ -29,9 +29,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^\config/skills/(react-best-practices|composition-patterns)/|^\config/skills/web-design-guidelines/guidelines\.md$
+        exclude: ^\config/skills/(react-best-practices|composition-patterns|frontend-design)/|^\config/skills/web-design-guidelines/guidelines\.md$
       - id: end-of-file-fixer
-        exclude: ^\config/skills/(react-best-practices|composition-patterns)/|^\config/skills/web-design-guidelines/guidelines\.md$
+        exclude: ^\config/skills/(react-best-practices|composition-patterns|frontend-design)/|^\config/skills/web-design-guidelines/guidelines\.md$
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
