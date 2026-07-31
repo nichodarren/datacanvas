@@ -107,12 +107,12 @@ export interface Dataset {
 }
 
 /**
- * A dataset as the home screen shows it.
+ * A dataset as the home screen shows it: enough to choose one without opening
+ * any of them.
  *
- * Deliberately more than a name. `columns_needing_attention` is what turns a
- * list of uploads into a place to start — it answers "which of these wants me?"
- * without opening any of them, and it is the same threshold the grid header
- * uses so the two cannot disagree.
+ * `columns_needing_attention` used to be here and came out with the grid signal
+ * it counted. `schema_version_no` is currently unread — it costs nothing to
+ * send, and a version-history view is the next thing that will want it.
  */
 export interface DatasetSummary {
   id: string;
@@ -124,7 +124,6 @@ export interface DatasetSummary {
   row_count: number | null;
   column_count: number | null;
   schema_version_no: number | null;
-  columns_needing_attention: number;
 }
 
 export interface SampleDataset {
@@ -181,7 +180,6 @@ export interface RowPage {
   total_rows: number;
 }
 
-/** §9.2's closed vocabulary, mirrored. `test_api_schemas.py` guards the backend half. */
 /** One live session as its owner sees it. Never carries a token (§13.2). */
 export interface UserSession {
   id: string;
@@ -193,6 +191,7 @@ export interface UserSession {
   is_current: boolean;
 }
 
+/** §9.2's closed vocabulary, mirrored. `test_api_schemas.py` guards the backend half. */
 export const LOGICAL_TYPES = [
   "integer",
   "decimal",

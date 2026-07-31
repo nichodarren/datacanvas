@@ -257,7 +257,6 @@ async def list_datasets(
                 None if summary.latest_version is None else summary.latest_version.column_count
             ),
             schema_version_no=summary.schema_version_no,
-            columns_needing_attention=summary.columns_needing_attention,
         )
         for summary in summaries
     ]

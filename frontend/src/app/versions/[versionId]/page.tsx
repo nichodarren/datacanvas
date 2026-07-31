@@ -14,12 +14,26 @@ import {
 } from "@/lib/api";
 
 /**
- * One DatasetVersion: its rows, and its interpretation.
+ * One DatasetVersion: its rows, read according to its schema contract.
  *
- * Two tabs, because §9.2 keeps two things apart that most tools conflate: the
- * data (immutable, INV-2) and the schema (versioned, INV-3). They change for
- * different reasons and at different rates, and the UI says so — the version
- * badge in the header carries both numbers, always (§14.2, P4).
+ * This was two tabs and a warning banner. The Schema tab listed every column
+ * with its confidence and a sentence explaining the guess; the banner named the
+ * columns whose confidence fell below 0.8 and asked the user to look at them.
+ *
+ * Both are gone at the owner's direction. The reasoning against them is the
+ * same one that emptied the shell: the product currently asks a first-time
+ * visitor to make a dozen small judgements before they have looked at a single
+ * row. The type under each column name is the detection, and the detection is
+ * what FR-B.3 requires be shown for correction — the rest was commentary.
+ *
+ * FR-C.6 ("warn when detection is risky") is **P1**. Skipping a P1 is a product
+ * decision; it is recorded in the project notes rather than left as something nobody
+ * noticed. `detection_confidence` and `detection_reason` are still computed and
+ * still stored on the contract — this removes a display, not a fact.
+ *
+ * The two version numbers stay in the header (§14.2, P4). They are the visible
+ * proof of what §9.2 keeps apart: data that never changes (INV-2) and an
+ * interpretation that is versioned rather than overwritten (INV-3).
  */
 export default function VersionPage() {
   const router = useRouter();
@@ -30,7 +44,6 @@ export default function VersionPage() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [version, setVersion] = useState<DatasetVersion | null>(null);
   const [contract, setContract] = useState<SchemaContract | null>(null);
-  const [tab, setTab] = useState<"preview" | "schema">("preview");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -97,9 +110,6 @@ export default function VersionPage() {
     );
   }
 
-  const uncertain = contract.columns.filter(
-    (column) => !column.overridden && column.detection_confidence < 0.8,
-  );
 
   return (
     <Shell versionBadge={badge} me={me}>
@@ -116,99 +126,17 @@ export default function VersionPage() {
         </div>
       ) : null}
 
-      {/* FR-C.6 / §14.3 step 4: the banner that sends a user to the columns
-          worth a second look, rather than making them scan every header. */}
-      {uncertain.length > 0 ? (
-        <div className="banner">
-          <strong>
-            {uncertain.length} column{uncertain.length === 1 ? "" : "s"} worth checking.
-          </strong>{" "}
-          <span className="muted">
-            {uncertain.map((column) => column.name).join(", ")} — the detector was not confident.
-            Click a column type in the grid to correct it.
-          </span>
-        </div>
-      ) : null}
-
-      <div className="tabs">
-        <button
-          type="button"
-          className={tab === "preview" ? "active" : ""}
-          onClick={() => setTab("preview")}
-        >
-          Preview
-        </button>
-        <button
-          type="button"
-          className={tab === "schema" ? "active" : ""}
-          onClick={() => setTab("schema")}
-        >
-          Schema
-        </button>
-      </div>
-
-      {tab === "preview" ? (
-        version.data_present ? (
-          <PreviewGrid
-            workspaceId={workspaceId}
-            versionId={versionId}
-            totalRows={version.row_count}
-            contract={contract}
-            onContractChanged={setContract}
-          />
-        ) : (
-          <p className="faint">No rows to show.</p>
-        )
+      {version.data_present ? (
+        <PreviewGrid
+          workspaceId={workspaceId}
+          versionId={versionId}
+          totalRows={version.row_count}
+          contract={contract}
+          onContractChanged={setContract}
+        />
       ) : (
-        <SchemaTable contract={contract} />
+        <p className="faint">No rows to show.</p>
       )}
     </Shell>
-  );
-}
-
-/**
- * The schema as a list.
- *
- * The grid is where a type gets corrected, because that is where the problem is
- * visible (FR-D.4 rationale). This view exists for the other question — *what
- * did the machine decide, and why* — which is a reading task, not an editing
- * one, and is unreadable spread across thirty column headers.
- */
-function SchemaTable({ contract }: { contract: SchemaContract }) {
-  return (
-    <>
-      <p className="faint" style={{ fontSize: 12 }}>
-        Schema version {contract.version_no}
-        {contract.derived_from ? " · corrected from the previous version" : " · auto-detected"}.
-        Corrections never overwrite: each one creates a new version (INV-3).
-      </p>
-      <table className="plain">
-        <thead>
-          <tr>
-            <th>Column</th>
-            <th>Type</th>
-            <th>Confidence</th>
-            <th>Why</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...contract.columns]
-            .sort((a, b) => a.ordinal - b.ordinal)
-            .map((column) => (
-              <tr key={column.name}>
-                <td className="mono">{column.name}</td>
-                <td>
-                  <span className="pill">{column.logical_type}</span>
-                  {column.overridden ? <span className="pill ok"> set by a user</span> : null}
-                </td>
-                <td className={column.detection_confidence < 0.8 ? "pill warn" : "faint"}>
-                  {column.detection_confidence.toFixed(2)}
-                </td>
-                <td className="muted">{column.detection_reason}</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-    </>
   );
 }

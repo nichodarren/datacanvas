@@ -193,16 +193,21 @@ export function PreviewGrid({
 }
 
 /**
- * One column header (FR-D.4).
+ * One column header: the name, and what the column is being read as.
  *
- * Confidence is shown as a word, not only a colour: NFR-UX.3 requires charts
- * and signals to stay readable without distinguishing colour, and the same
- * reasoning applies to a warning that decides whether someone checks a column.
+ * It used to carry two more signals — a `check` pill when detection confidence
+ * fell below 0.8, and a `✓ set` badge once a user had overridden the type.
+ * Across twelve columns of a wide table that is twelve small decisions asked of
+ * someone who came here to look at their data, and the owner's call was that
+ * the type alone is the information.
  *
- * `detection_reason` is the tooltip, and it is the reason the field was added
- * to §9.2 at all — "0.5" tells a user nothing they can act on, while "97% of
- * values are numeric, but 150 are not" tells them exactly what to go and look
- * at.
+ * FR-C.6 (warn when detection is risky) is **P1**, so this is a product
+ * decision rather than a dropped P0 — recorded in the project notes so it is a choice
+ * on the record and not an omission nobody noticed.
+ *
+ * `detection_reason` survives in the popup below. That is not a label: it is
+ * only read once someone has decided to change a type, which is exactly the
+ * moment "numeric, but only 7 distinct values in 891 rows" is worth having.
  */
 function ColumnHeader({
   column,
@@ -215,23 +220,12 @@ function ColumnHeader({
   onOpen: () => void;
   onPick: (logicalType: string) => void;
 }) {
-  const uncertain = !column.overridden && column.detection_confidence < 0.8;
-
   return (
     <th style={{ position: "relative", minWidth: 150 }}>
-      <button type="button" className="colhead" onClick={onOpen} title={column.detection_reason}>
+      <button type="button" className="colhead" onClick={onOpen}>
         <span className="name">{column.name}</span>
         <span className="meta">
-          <span className={uncertain ? "type uncertain" : "type"}>{column.logical_type}</span>
-          {column.overridden ? (
-            <span className="overridden" title="Set by a user, not detected">
-              ✓ set
-            </span>
-          ) : uncertain ? (
-            <span className="pill warn" title={column.detection_reason}>
-              check
-            </span>
-          ) : null}
+          <span className="type">{column.logical_type}</span>
         </span>
       </button>
 

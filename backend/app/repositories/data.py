@@ -11,7 +11,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Row
@@ -34,38 +33,25 @@ from app.repositories.tables import (
     source_file,
 )
 
-#: A column the detector was not confident about. The same bar the grid uses to
-#: decide whether to show a "check" badge, kept in one place so the card and the
-#: header cannot disagree about which columns are worth a second look.
-UNSURE_CONFIDENCE = 0.8
-
 
 @dataclass(frozen=True, slots=True)
 class DatasetSummary:
-    """What a dataset card needs, without opening the dataset."""
+    """What a dataset card needs, without opening the dataset.
+
+    ``columns_needing_attention`` used to be here — a count of columns whose
+    detection confidence fell below 0.8, computed by walking the contract's
+    column JSON on every listing. It went when the grid stopped marking those
+    columns: a count with nothing to point at is a warning the user cannot act
+    on, and the work to produce it was being done for a badge nobody would see.
+
+    ``detection_confidence`` is still on every contract (D-029). This removed a
+    derived field, not a fact.
+    """
 
     dataset: Dataset
     version_count: int
     latest_version: DatasetVersion | None
     schema_version_no: int | None
-    columns_needing_attention: int
-
-
-def _unsure_columns(contract_row: Row[tuple[Any, ...]] | None) -> int:
-    """Count columns the detector flagged, ignoring ones a human has settled.
-
-    An overridden column is a decision, not a guess — surfacing it as needing
-    attention would mean the badge never goes away no matter what the user does,
-    which is how a warning becomes wallpaper.
-    """
-    if contract_row is None:
-        return 0
-    return sum(
-        1
-        for column in contract_row.columns
-        if column.get("overridden_by") is None
-        and column.get("detection_confidence", 1.0) < UNSURE_CONFIDENCE
-    )
 
 
 def _to_dataset(row: Row[tuple[object, ...]]) -> Dataset:
@@ -208,7 +194,6 @@ class DatasetRepository:
                     version_count=int(counts.get(item.id, 0)),
                     latest_version=None if version_row is None else _to_version(version_row),
                     schema_version_no=None if contract_row is None else contract_row.version_no,
-                    columns_needing_attention=_unsure_columns(contract_row),
                 )
             )
         return summaries
@@ -347,7 +332,6 @@ class SourceFileRepository:
 
 
 __all__ = [
-    "UNSURE_CONFIDENCE",
     "DatasetRepository",
     "DatasetSummary",
     "DatasetVersionRepository",

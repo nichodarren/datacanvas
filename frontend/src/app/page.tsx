@@ -229,10 +229,15 @@ export default function HomePage() {
 /**
  * One dataset, as something you can act on.
  *
- * The badge is the point. A card that only said "5,000 × 12" would be tidier
- * and would answer nothing — *which of these needs me?* is the question someone
- * returning to their own work actually has, and the count of unsure columns is
- * the only thing on this screen that answers it.
+ * This card used to carry a `n to check` badge counting columns whose detection
+ * confidence fell below 0.8. It came out with the signal it pointed at: the
+ * grid no longer marks those columns, so a badge here would send someone
+ * looking for something they cannot find — the worst kind of warning, since it
+ * cannot be satisfied.
+ *
+ * `schema vN` went too. The card answers *which of these do I want to open* and
+ * a schema version number has never helped with that; it belongs on the version
+ * page, where it is feedback for a correction you just made.
  */
 function DatasetCard({ dataset }: { dataset: DatasetSummary }) {
   const target = dataset.latest_version_id ? `/versions/${dataset.latest_version_id}` : null;
@@ -247,16 +252,8 @@ function DatasetCard({ dataset }: { dataset: DatasetSummary }) {
       </span>
       <span className="row" style={{ gap: 6 }}>
         {dataset.version_no !== null ? <span className="pill">v{dataset.version_no}</span> : null}
-        {dataset.schema_version_no !== null ? (
-          <span className="pill">schema v{dataset.schema_version_no}</span>
-        ) : null}
         {dataset.version_count > 1 ? (
           <span className="pill">{dataset.version_count} versions</span>
-        ) : null}
-        {dataset.columns_needing_attention > 0 ? (
-          <span className="pill warn">
-            {dataset.columns_needing_attention} to check
-          </span>
         ) : null}
       </span>
     </>

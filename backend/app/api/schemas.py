@@ -178,12 +178,12 @@ class DatasetResponse(BaseModel):
 
 
 class DatasetSummaryResponse(BaseModel):
-    """A dataset card (FR-D.4 in spirit, one level up).
+    """A dataset card: enough to pick one without opening any of them.
 
-    A list of names tells someone what they uploaded and nothing about which one
-    needs them. ``columns_needing_attention`` is what turns the list into a
-    starting point, and it is the same threshold the grid header uses so the two
-    can never disagree.
+    ``columns_needing_attention`` used to be here, counting columns whose
+    detection confidence fell below a shared threshold. It went when the grid
+    stopped marking those columns — a count that points at something invisible
+    is a warning the reader cannot act on.
     """
 
     id: uuid.UUID
@@ -195,7 +195,6 @@ class DatasetSummaryResponse(BaseModel):
     row_count: int | None
     column_count: int | None
     schema_version_no: int | None
-    columns_needing_attention: int
 
 
 class SampleDatasetResponse(BaseModel):

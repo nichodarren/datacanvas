@@ -206,34 +206,11 @@ h2 {
   padding: 1px 8px;
   color: var(--ink-dim);
 }
-.pill.warn {
-  color: var(--warn);
-  border-color: var(--warn);
-}
 .pill.ok {
   color: var(--ok);
   border-color: var(--ok);
 }
 
-.tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 16px;
-}
-.tabs button {
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: var(--ink-dim);
-  padding: 8px 14px;
-}
-.tabs button.active {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
-}
 
 /* --------------------------------------------------------------- grid ---- */
 
@@ -263,10 +240,12 @@ table.grid thead th {
   vertical-align: top;
 }
 
-/* FR-D.4: name, logical type (clickable, to change it), and a confidence
-   signal. Three facts in the header, because the first question anyone has
-   about unfamiliar data is whether it can be trusted — and a raw grid of cells
-   never answers that. */
+/* The header carries the column name and the logical type, and the type is a
+   button: FR-C.2 puts correction where the problem is visible. A confidence
+   signal and an "overridden" badge lived here too, and came out at the owner's
+   direction — twelve small judgements asked of someone who came to look at
+   their data. FR-D.4 also asks for a null% indicator, which has never been
+   built; both gaps are recorded in the project notes. */
 .colhead {
   display: block;
   width: 100%;
@@ -294,13 +273,6 @@ table.grid thead th {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--accent);
-}
-.colhead .type.uncertain {
-  color: var(--warn);
-}
-.colhead .overridden {
-  font-size: 11px;
-  color: var(--ok);
 }
 
 table.grid td {

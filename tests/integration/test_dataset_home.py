@@ -24,7 +24,6 @@ from httpx import AsyncClient
 
 from app.auth.tokens import COOKIE_NAME
 from app.repositories.connection import Database
-from app.repositories.data import UNSURE_CONFIDENCE
 
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
@@ -116,22 +115,24 @@ async def test_a_card_can_say_which_dataset_needs_attention(api: AsyncClient) ->
     assert summary["column_count"] == 3
     assert summary["version_no"] == 1
     assert summary["schema_version_no"] == 1
-    assert summary["columns_needing_attention"] == 2, "qty and code, but not city"
 
 
-async def test_correcting_a_column_removes_it_from_the_count(api: AsyncClient) -> None:
-    """A warning that never clears is wallpaper.
+async def test_correcting_a_column_advances_the_contract(api: AsyncClient) -> None:
+    """FR-C.3 / INV-3: a correction adds a version rather than overwriting one.
 
-    An overridden column is a decision, not a guess. Leaving it in the count
-    would mean the badge stays lit no matter what the user does — and a badge
-    that cannot be satisfied stops being read.
+    This used to assert that a "columns needing attention" count shrank. That
+    count is gone — the grid no longer marks low-confidence columns, and a
+    number pointing at an invisible signal is a warning nobody can act on. What
+    still matters, and is what the card actually shows, is that the correction
+    produced contract v2.
     """
     session = await _session(api)
     uploaded = await _upload(api, session)
     version_id = uploaded["version"]["id"]
 
-    before = (await api.get(_datasets_url(session), headers=_headers(session))).json()[0]
-    assert before["columns_needing_attention"] == 2
+    assert (await api.get(_datasets_url(session), headers=_headers(session))).json()[0][
+        "schema_version_no"
+    ] == 1
 
     corrected = await api.post(
         f"/workspaces/{session['workspace_id']}/dataset-versions/{version_id}/schema",
@@ -141,7 +142,6 @@ async def test_correcting_a_column_removes_it_from_the_count(api: AsyncClient) -
     assert corrected.status_code == 201, corrected.text
 
     after = (await api.get(_datasets_url(session), headers=_headers(session))).json()[0]
-    assert after["columns_needing_attention"] == 1
     assert after["schema_version_no"] == 2, "the card follows the newest contract"
 
 
@@ -161,16 +161,6 @@ async def test_the_card_follows_the_newest_version(api: AsyncClient) -> None:
     assert summary["version_no"] == 2
     assert summary["version_count"] == 2
     assert summary["latest_version_id"] == second.json()["version"]["id"]
-
-
-async def test_the_threshold_is_shared_with_the_grid() -> None:
-    """One number, one place.
-
-    The card and the column header both decide what "unsure" means. If they
-    each had their own constant, a card could promise a badge the grid never
-    shows — and the user would be sent looking for something that is not there.
-    """
-    assert UNSURE_CONFIDENCE == 0.8
 
 
 # ------------------------------------------------------------- samples -----
@@ -209,7 +199,7 @@ async def test_loading_a_sample_produces_a_real_dataset(api: AsyncClient) -> Non
     flagged = [
         column
         for column in body["schema_contract"]["columns"]
-        if column["detection_confidence"] < UNSURE_CONFIDENCE
+        if column["detection_confidence"] < 0.8
     ]
     assert {column["name"] for column in flagged} == {"order_id", "qty", "legacy_code"}
 

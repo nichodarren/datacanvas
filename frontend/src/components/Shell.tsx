@@ -44,12 +44,12 @@ import type { Me } from "@/lib/api";
  *
  * Underneath that was a category error. A schema belongs to one dataset
  * version — *schema of what?* has no answer from a global rail on the home
- * screen, which is why it pointed nowhere. Where the question does have an
- * answer, tabs already answer it, and tabs are the right pattern for two views
- * of one object.
+ * screen, which is why it pointed nowhere. The version page answered it with a
+ * pair of tabs, and those have since gone too: the schema is now read straight
+ * off the column headers, which is the only place a type can be corrected.
  *
  * The app has two destinations today: the dataset list and a version. Brand →
- * home, card → version, tabs → preview/schema is complete navigation for that.
+ * home, card → version is complete navigation for two destinations.
  *
  * All of them come back when they hold something. What none may ever do is
  * *fake* content: placeholder rows in a Run Log would imply traceability that
