@@ -7,22 +7,32 @@ import { AccountMenu } from "@/components/AccountMenu";
 import type { Me } from "@/lib/api";
 
 /**
- * The workspace layout from §14.2.
+ * The workspace layout from §14.2 — the parts of it that do something.
  *
- * Only the Phase 2 surfaces are live. The rest — Library, Steps, Findings, the
- * Run Log, the copilot composer — are **present and visibly empty**, each
- * saying which phase it belongs to.
+ * This used to render the whole shape ahead of its contents: a Run Log panel on
+ * the right and a copilot composer along the bottom, both empty, each saying
+ * which phase it belonged to. The argument was §14.1 — the user should grasp
+ * the mental model in thirty seconds, and a layout that grows new regions later
+ * teaches it twice.
  *
- * That is a deliberate choice over hiding them. §14.1 says the user must
- * understand the mental model in the first thirty seconds: *"I work with data,
- * every step is recorded, and I can go back to any of them."* A layout that
- * grows new regions later teaches that model twice. Showing the shape now, with
- * honest empty states (§14.5), teaches it once — and keeps us from quietly
- * discovering in Phase 3 that the space was never there.
+ * Both are gone, and the argument did not survive contact with the numbers.
+ * The sidebar takes 190px, the Run Log took 260px, the composer took a strip
+ * across the bottom of every screen. At the 1280px NFR-UX.4 guarantees, that is
+ * roughly a third of the width spent on chrome that could not be used — and the
+ * thing it crowded is the preview grid, the one surface that works today and
+ * the one that most wants room (FR-D.1).
  *
- * What it must never do is *fake* them. Placeholder rows in the Run Log would
- * imply traceability that does not exist yet, and P3 is the one promise this
- * product cannot be casual about.
+ * The reasoning was also weaker than it looked. "Teach the layout once" applies
+ * to *regions*; a chat input is a control everyone already recognises, and it
+ * teaches nothing by appearing early. The Run Log had the better case — it
+ * describes traceability (P3), which is genuinely unfamiliar — but describing a
+ * feature is not the same as priming a layout, and a paragraph of prose sat
+ * there permanently to do it.
+ *
+ * They come back when they hold something. Until then the space belongs to the
+ * work. What none of them may ever do is *fake* content: placeholder rows in a
+ * Run Log would imply traceability that does not exist, and P3 is the one
+ * promise this product cannot be casual about.
  */
 export function Shell({
   children,
@@ -88,25 +98,6 @@ export function Shell({
         </nav>
 
         <main className="workarea">{children}</main>
-
-        <aside className="runlog">
-          <div style={{ color: "var(--ink-dim)", fontWeight: 600, marginBottom: 8 }}>Run log</div>
-          <p>
-            Every tool call will appear here — arguments, origin, duration, cache hit — and each
-            entry opens the step it came from.
-          </p>
-          <p style={{ marginTop: 10 }}>
-            Nothing runs tools yet. The executor is Phase 3, so this panel is empty rather than
-            populated with examples.
-          </p>
-        </aside>
-      </div>
-
-      <div className="composer">
-        <span aria-hidden>💬</span>
-        <span>Ask about this data — the copilot arrives in Phase 5.</span>
-        {/* A second hardcoded `balanced` pill lived here. Same defect, and
-            easier to miss than the one in the header. */}
       </div>
     </div>
   );

@@ -173,30 +173,11 @@ button:focus-visible {
   padding: 20px 24px;
 }
 
-/* The Run Log (§14.2) belongs to Phase 3. Its absence is stated rather than
-   faked: an empty panel that explains itself beats placeholder rows that imply
-   a feature exists. */
-.runlog {
-  flex: 0 0 260px;
-  border-left: 1px solid var(--line);
-  background: var(--panel);
-  padding: 14px;
-  color: var(--ink-faint);
-  font-size: 12px;
-  overflow: auto;
-}
-
-.composer {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--line);
-  background: var(--panel);
-  padding: 10px 16px;
-  color: var(--ink-faint);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+/* `.runlog` (260px, right) and `.composer` (a strip along the bottom) lived
+   here. Both were empty placeholders for Phase 3 and Phase 5, and between them
+   and the sidebar roughly a third of a 1280px screen — the width NFR-UX.4
+   guarantees — went to chrome that could not be used. The grid needed it more.
+   They return with contents, not before. */
 
 /* --------------------------------------------------------------- bits ---- */
 
