@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useDisclosure } from "@/hooks/useDisclosure";
 import { LOGICAL_TYPES, type ColumnSpec, type SchemaContract, api } from "@/lib/api";
+import { loadGridPreferences, saveGridPreferences } from "@/lib/gridPreferences";
 
 /** What the first screen shows. Deliberately small: a glance, not a session. */
 const INITIAL_ROWS = 10;
@@ -46,6 +48,14 @@ const MAX_DEFAULT_COLUMNS = 15;
 
 /** The row-number column. Fixed, and the origin every pin offset counts from. */
 const ROWNUM_WIDTH = 48;
+
+/**
+ * How much one `Shift`+arrow moves a column edge.
+ *
+ * Sixteen, so crossing the width of a screen is tens of presses rather than
+ * hundreds, and small enough that the last press can still land where you meant.
+ */
+const RESIZE_STEP = 16;
 
 /**
  * The preview: the first rows of a dataset, every column on screen at once, and
@@ -111,9 +121,22 @@ export function PreviewGrid({
   onContractChanged: (next: SchemaContract) => void;
 }) {
   const [rows, setRows] = useState<(string | null)[][]>([]);
+
+  /**
+   * The column names the row page is indexed by, straight from the server.
+   *
+   * Load-bearing, and it used to be thrown away. A row arrives with one cell per
+   * column **in the file**; the grid draws the columns the user has left
+   * **visible**. Those are two different index spaces, and using one number for
+   * both meant that hiding any column but the last drew every column to its
+   * right from its neighbour — the right headers over the wrong values, with no
+   * error and nothing on screen to suggest it. Keeping this makes the mapping
+   * explicit instead of assumed: cells are looked up by name.
+   */
+  const [fileColumns, setFileColumns] = useState<string[]>([]);
+
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
 
   /**
    * Columns the user has hidden — or that started hidden because the file is
@@ -130,7 +153,8 @@ export function PreviewGrid({
       ),
   );
 
-  const [picking, setPicking] = useState(false);
+  /** Escape, outside clicks and focus, shared with every other popup here. */
+  const picker = useDisclosure();
 
   /**
    * Explicit widths, set by dragging a header edge — and only for columns that
@@ -154,12 +178,51 @@ export function PreviewGrid({
   /** Header cells, so a column can be measured at the moment it is pinned. */
   const headers = useRef(new Map<string, HTMLTableCellElement>());
 
+  /**
+   * Whether stored preferences have been consulted yet.
+   *
+   * The save effect must not fire before this flips, or the defaults computed
+   * on first render would immediately overwrite the choices being loaded — the
+   * grid would remember exactly one thing: that it forgot.
+   */
+  const restored = useRef(false);
+
+  // Restored on mount rather than in the `useState` initialisers above, which
+  // costs one extra render and avoids a worse problem: those initialisers also
+  // run during server rendering, where `localStorage` does not exist. Reading
+  // it there would make the server's HTML disagree with the client's first
+  // render, which React reports as a hydration error.
+  useEffect(() => {
+    const stored = loadGridPreferences(versionId);
+    if (stored) {
+      setHidden(new Set(stored.hidden));
+      setPinned(new Set(stored.pinned));
+      setWidths(stored.widths);
+    }
+    restored.current = true;
+  }, [versionId]);
+
+  useEffect(() => {
+    if (!restored.current) return;
+    saveGridPreferences(versionId, { hidden: [...hidden], pinned: [...pinned], widths });
+  }, [versionId, hidden, pinned, widths]);
+
   // Always the file's own order. Reordering was built and then removed at the
   // owner's direction: the arrows were two more controls on every row of a
   // sixty-row list, and the order a file already has is the order the person
   // who made it chose.
   const ordered = [...contract.columns].sort((a, b) => a.ordinal - b.ordinal);
   const columns = ordered.filter((column) => !hidden.has(column.name));
+
+  /**
+   * Column name to its position in a row, as the server sends them.
+   *
+   * The one thing standing between a hidden column and a table of plausible,
+   * wrong values. Built from the row page rather than from the contract on
+   * purpose: the contract describes how to *read* the columns, the page decides
+   * what order they *arrive* in, and only the second one can answer this.
+   */
+  const cellIndex = new Map(fileColumns.map((name, index) => [name, index]));
 
   /**
    * Where each pinned column comes to rest, in pixels from the left.
@@ -236,6 +299,7 @@ export function PreviewGrid({
       setError(null);
       try {
         const result = await api.rows(workspaceId, versionId, offset, limit);
+        setFileColumns(result.columns);
         setRows((current) => (offset === 0 ? result.rows : [...current, ...result.rows]));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Could not load rows.");
@@ -251,7 +315,6 @@ export function PreviewGrid({
   }, [fetchFrom]);
 
   async function changeType(column: ColumnSpec, logicalType: string) {
-    setEditing(null);
     if (logicalType === column.logical_type) return;
     try {
       const next = await api.correctSchema(workspaceId, versionId, [
@@ -271,8 +334,14 @@ export function PreviewGrid({
         </div>
       ) : null}
 
-      <div className="row" style={{ position: "relative" }}>
-        <button type="button" onClick={() => setPicking(!picking)} aria-expanded={picking}>
+      <div className="row" style={{ position: "relative" }} ref={picker.container}>
+        <button
+          type="button"
+          ref={picker.trigger}
+          onClick={picker.toggle}
+          aria-expanded={picker.open}
+          aria-controls={picker.panelId}
+        >
           Columns
         </button>
         <span className="faint" style={{ fontSize: 12 }}>
@@ -280,15 +349,16 @@ export function PreviewGrid({
             ? `${columns.length} columns`
             : `${columns.length} of ${ordered.length} columns`}
         </span>
-        {picking ? (
+        {picker.open ? (
           <ColumnPicker
+            panelRef={picker.panel}
+            panelId={picker.panelId}
             columns={ordered}
             hidden={hidden}
             onToggle={toggle}
             pinned={pinned}
             onTogglePin={togglePin}
             onShowAll={() => setHidden(new Set())}
-            onClose={() => setPicking(false)}
           />
         ) : null}
       </div>
@@ -312,12 +382,10 @@ export function PreviewGrid({
                   column={column}
                   width={widths[column.name]}
                   pinnedAt={offsets.get(column.name)}
-                  editing={editing === column.name}
                   registerRef={(node) => {
                     if (node) headers.current.set(column.name, node);
                     else headers.current.delete(column.name);
                   }}
-                  onOpen={() => setEditing(editing === column.name ? null : column.name)}
                   onPick={(logicalType) => void changeType(column, logicalType)}
                   onResize={(width) => resize(column.name, width)}
                 />
@@ -334,15 +402,34 @@ export function PreviewGrid({
                 <td className="rownum sticky-col" style={{ left: 0 }}>
                   {index + 1}
                 </td>
-                {columns.map((column, columnIndex) => {
-                  const cell = row[columnIndex];
+                {columns.map((column) => {
+                  // By name, never by position. `columns` is the visible subset;
+                  // `row` is indexed by the file. See `fileColumns`.
+                  const source = cellIndex.get(column.name);
+                  const cell = source === undefined ? undefined : row[source];
                   const at = offsets.get(column.name);
                   // A sticky cell needs its own background, or the columns
                   // scrolling underneath show straight through it.
                   const sticky = at === undefined ? undefined : { left: at };
-                  const className = [at === undefined ? "" : "sticky-col", cell ? "" : "null"]
-                    .filter(Boolean)
-                    .join(" ");
+                  const pinned = at === undefined ? "" : "sticky-col";
+
+                  if (cell === undefined) {
+                    // The contract names a column the row page does not carry.
+                    // Nothing sensible can be drawn, so this says so rather than
+                    // leaving a blank that reads as an empty value (P6).
+                    return (
+                      <td
+                        key={column.name}
+                        className={[pinned, "missing"].filter(Boolean).join(" ")}
+                        style={sticky}
+                        title="This column is not present in the rows the server returned."
+                      >
+                        unavailable
+                      </td>
+                    );
+                  }
+
+                  const className = [pinned, cell ? "" : "null"].filter(Boolean).join(" ");
                   return cell === null || cell === "" ? (
                     // An empty cell and a null cell are different facts, and a
                     // blank space says neither.
@@ -389,45 +476,35 @@ export function PreviewGrid({
  *
  * The last visible column cannot be hidden. A grid of nothing is not a view,
  * and the control that would undo it sits above data that is no longer there.
+ *
+ * Dismissal used to be handled here, and handled short: Escape and an outside
+ * click, but focus never moved into the panel and never came back to the
+ * trigger. It now comes from `useDisclosure` with the other two popups, which
+ * is where the missing half was found.
  */
 function ColumnPicker({
+  panelRef,
+  panelId,
   columns,
   hidden,
   onToggle,
   pinned,
   onTogglePin,
   onShowAll,
-  onClose,
 }: {
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  panelId: string;
   columns: ColumnSpec[];
   hidden: Set<string>;
   onToggle: (name: string) => void;
   pinned: Set<string>;
   onTogglePin: (name: string) => void;
   onShowAll: () => void;
-  onClose: () => void;
 }) {
-  const box = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    const onDocument = (event: MouseEvent) => {
-      if (box.current && !box.current.contains(event.target as Node)) onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDocument);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDocument);
-    };
-  }, [onClose]);
-
   const visible = columns.length - hidden.size;
 
   return (
-    <div ref={box} className="menu column-picker">
+    <div ref={panelRef} id={panelId} className="menu column-picker">
       {/* One action, deliberately. "Select none" is a state this refuses, and a
           "back to the default" button was built and then removed — the way back
           is unticking, and one control beats two on a panel whose whole point is
@@ -452,7 +529,11 @@ function ColumnPicker({
                 disabled={!isHidden && visible <= 1}
                 onChange={() => onToggle(column.name)}
               />
-              <span className="picker-name">{column.name}</span>
+              <span className="picker-name">{column.name}</span>{" "}
+              {/* The space is not decoration. Without it the checkbox's
+                  accessible name is the two spans run together — `qtyinteger` —
+                  which is what a screen reader reads out. A white space-only
+                  text node is not rendered as a flex item, so nothing moves. */}
               <span className="faint mono" style={{ fontSize: 11 }}>
                 {column.logical_type}
               </span>
@@ -500,53 +581,103 @@ function ColumnHeader({
   column,
   width,
   pinnedAt,
-  editing,
   registerRef,
-  onOpen,
   onPick,
   onResize,
 }: {
   column: ColumnSpec;
   width: number | undefined;
   pinnedAt: number | undefined;
-  editing: boolean;
   registerRef: (node: HTMLTableCellElement | null) => void;
-  onOpen: () => void;
   onPick: (logicalType: string) => void;
   onResize: (width: number) => void;
 }) {
   const cell = useRef<HTMLTableCellElement | null>(null);
 
   /**
+   * The type popup. Its open state used to be lifted to the grid so that only
+   * one header could be open at a time; the hook gives that for free, because
+   * opening a second header is an outside click on the first.
+   *
+   * This popup had **no dismissal at all** — no Escape, no outside click. It
+   * floated over the data until you clicked the same header again or picked a
+   * type, which meant a keyboard user could open it and had no way out.
+   */
+  const menu = useDisclosure<HTMLTableCellElement, HTMLButtonElement, HTMLDivElement>();
+
+  /**
    * Drag the right edge to set this column's width.
    *
    * Listeners go on `document`, not the handle: once dragging starts the
-   * pointer routinely leaves the four-pixel strip it began on, and a handler
+   * pointer routinely leaves the five-pixel strip it began on, and a handler
    * bound to the strip would drop the drag the moment it did.
+   *
+   * Pointer events rather than mouse events, so the same code answers a finger.
+   * NFR-UX.4 asks that a tablet not be *broken*, and a control that responds to
+   * nothing available on the device is closer to broken than to imperfect.
    */
-  function startResize(event: React.MouseEvent) {
+  function startResize(event: React.PointerEvent) {
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
     const startWidth = cell.current?.offsetWidth ?? MIN_COLUMN_WIDTH;
 
-    const onMove = (moved: MouseEvent) => onResize(startWidth + moved.clientX - startX);
+    const onMove = (moved: PointerEvent) => onResize(startWidth + moved.clientX - startX);
     const onUp = () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
       document.body.classList.remove("resizing");
     };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    // A pointer can be cancelled without ever coming up — the browser taking
+    // over for a scroll gesture, most often. Without this the page would be
+    // left in `resizing` with listeners still attached.
+    document.addEventListener("pointercancel", onUp);
     // Holds the col-resize cursor across the whole page for the duration, so it
     // does not flicker back to a text caret as the pointer crosses cells.
     document.body.classList.add("resizing");
+  }
+
+  /**
+   * Resize from the keyboard, with the header focused (FR-D.3).
+   *
+   * ## Why the gesture hangs off the header instead of the handle
+   *
+   * The obvious build makes the drag handle a real `<button>`. That is more
+   * discoverable and it is what most grids do — and on a sixty-column file it
+   * is **sixty extra tab stops**, every one of them between a user and the next
+   * column name, to adjust a width. Column reordering was removed from this
+   * component two days earlier for exactly that arithmetic: a hundred and
+   * twenty controls in a list whose job was to let someone tick five boxes.
+   *
+   * The header is already focusable, because it is the button that changes the
+   * type. Hanging the gesture there costs no new tab stops at all.
+   *
+   * ## Why Shift and not Alt
+   *
+   * `Alt`+`←` is Back in Chrome and Firefox on Windows. `preventDefault` does
+   * suppress it, but taking over the browser's own navigation shortcut to
+   * change a column width is not a trade this screen gets to make. `Shift`
+   * plus an arrow does nothing on a focused button.
+   *
+   * There is no separate reset key: `resize` clamps at `MIN_COLUMN_WIDTH`, so
+   * holding `Shift`+`←` *is* the reset, and one fewer binding to advertise.
+   */
+  function onHeaderKeyDown(event: React.KeyboardEvent) {
+    if (!event.shiftKey) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const current = cell.current?.offsetWidth ?? MIN_COLUMN_WIDTH;
+    onResize(current + (event.key === "ArrowRight" ? RESIZE_STEP : -RESIZE_STEP));
   }
 
   return (
     <th
       ref={(node) => {
         cell.current = node;
+        menu.container.current = node;
         registerRef(node);
       }}
       className={pinnedAt === undefined ? undefined : "sticky-col"}
@@ -557,7 +688,19 @@ function ColumnHeader({
         minWidth: MIN_COLUMN_WIDTH,
       }}
     >
-      <button type="button" className="colhead" onClick={onOpen}>
+      <button
+        type="button"
+        className="colhead"
+        ref={menu.trigger}
+        onClick={menu.toggle}
+        onKeyDown={onHeaderKeyDown}
+        aria-expanded={menu.open}
+        aria-controls={menu.panelId}
+        // Advertises the resize gesture to assistive technology, which is the
+        // only place it is announced rather than merely available.
+        aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight"
+        title={`Change how ${column.name} is read · Shift+← / Shift+→ to resize`}
+      >
         <span className="name">{column.name}</span>
         <span className="meta">
           <span className="type">{column.logical_type}</span>
@@ -567,13 +710,15 @@ function ColumnHeader({
       <span
         className="resize-handle"
         role="presentation"
-        onMouseDown={startResize}
+        onPointerDown={startResize}
         onDoubleClick={() => onResize(MIN_COLUMN_WIDTH)}
         title="Drag to resize · double-click to reset"
       />
 
-      {editing ? (
+      {menu.open ? (
         <div
+          ref={menu.panel}
+          id={menu.panelId}
           className="card"
           style={{
             position: "absolute",
@@ -596,7 +741,12 @@ function ColumnHeader({
                 // same fact to anyone who cannot see the colour, so dropping
                 // the label costs nothing there (NFR-UX.3).
                 aria-current={type === column.logical_type}
-                onClick={() => onPick(type)}
+                onClick={() => {
+                  // Focus goes back to the header rather than being dropped on
+                  // a button that is about to unmount.
+                  menu.close(true);
+                  onPick(type);
+                }}
               >
                 {type}
               </button>
