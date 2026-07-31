@@ -31,9 +31,19 @@ import {
  * noticed. `detection_confidence` and `detection_reason` are still computed and
  * still stored on the contract — this removes a display, not a fact.
  *
- * The two version numbers stay in the header (§14.2, P4). They are the visible
- * proof of what §9.2 keeps apart: data that never changes (INV-2) and an
- * interpretation that is versioned rather than overwritten (INV-3).
+ * The `v1 · schema v4` badge and the "Dataset version N" heading went the same
+ * way. §14.2 put them in the header for P4 — *never be unsure which version you
+ * are looking at* — and that requirement is now unmet in the UI on purpose,
+ * recorded in the project notes rather than forgotten.
+ *
+ * **Nothing about the model changed.** A DatasetVersion is still immutable
+ * (INV-2) and a correction still produces a new SchemaContract instead of
+ * overwriting one (INV-3), both enforced by Postgres triggers. They have to be:
+ * §9.4 builds every step fingerprint from `dataset_version_id` and
+ * `schema_contract_id`, and INV-6 — same fingerprint, same result — is what
+ * makes the cache safe to trust. Take versioning out of the model and a step
+ * computed under `qty: integer` and one computed under `qty: categorical` share
+ * a fingerprint and disagree about the answer.
  */
 export default function VersionPage() {
   const router = useRouter();
@@ -83,12 +93,11 @@ export default function VersionPage() {
     void load();
   }, [load]);
 
-  const badge =
-    version && contract ? (
-      <span className="version-badge" title="Data version and schema version (§9.2)">
-        v{version.version_no} · schema v{contract.version_no}
-      </span>
-    ) : undefined;
+  // The header used to carry `v1 · schema v4`. Removed from the UI at the
+  // owner's direction; the versions themselves are untouched — DatasetVersion
+  // is still immutable (INV-2) and a correction still creates a new
+  // SchemaContract rather than overwriting one (INV-3), because the step
+  // fingerprint in §9.4 is built from both ids and INV-6 depends on it.
 
   if (loading) {
     return (
@@ -112,11 +121,11 @@ export default function VersionPage() {
 
 
   return (
-    <Shell versionBadge={badge} me={me}>
-      <h1>Dataset version {version.version_no}</h1>
+    <Shell me={me}>
+      {/* Stored size came out: it is a fact about our storage, not about the
+          user's data, and nobody opening a dataset is asking it. */}
       <p className="muted">
-        {version.row_count.toLocaleString()} rows · {version.column_count} columns ·{" "}
-        {(version.byte_size / 1024 / 1024).toFixed(2)} MB stored
+        {version.row_count.toLocaleString()} rows · {version.column_count} columns
       </p>
 
       {!version.data_present ? (

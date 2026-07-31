@@ -250,12 +250,6 @@ function DatasetCard({ dataset }: { dataset: DatasetSummary }) {
           ? "no version yet"
           : `${dataset.row_count.toLocaleString()} rows × ${dataset.column_count} columns`}
       </span>
-      <span className="row" style={{ gap: 6 }}>
-        {dataset.version_no !== null ? <span className="pill">v{dataset.version_no}</span> : null}
-        {dataset.version_count > 1 ? (
-          <span className="pill">{dataset.version_count} versions</span>
-        ) : null}
-      </span>
     </>
   );
 

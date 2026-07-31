@@ -113,14 +113,6 @@ export function PreviewGrid({
         </div>
       ) : null}
 
-      <div className="row faint" style={{ fontSize: 12 }}>
-        <span>
-          {totalRows.toLocaleString()} rows × {columns.length} columns
-        </span>
-        <span>·</span>
-        <span>Click a column type to correct it.</span>
-      </div>
-
       <div className="grid-wrap" ref={scroller} style={{ height: "62vh" }}>
         <table className="grid" style={{ width: "100%" }}>
           <thead>
@@ -242,29 +234,23 @@ function ColumnHeader({
             boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
           }}
         >
-          <p className="faint" style={{ margin: "0 0 8px", fontSize: 12 }}>
-            {column.detection_reason}
-          </p>
-          <div className="stack" style={{ gap: 4 }}>
+          <div className="type-menu">
             {LOGICAL_TYPES.map((type) => (
               <button
                 key={type}
                 type="button"
+                className={type === column.logical_type ? "current" : ""}
+                // The current type is marked by colour instead of the words
+                // "· current" that used to trail it. `aria-current` carries the
+                // same fact to anyone who cannot see the colour, so dropping
+                // the label costs nothing there (NFR-UX.3).
+                aria-current={type === column.logical_type}
                 onClick={() => onPick(type)}
-                style={{
-                  textAlign: "left",
-                  background: type === column.logical_type ? "var(--panel-2)" : "none",
-                  border: "none",
-                }}
               >
                 {type}
-                {type === column.logical_type ? " ·  current" : ""}
               </button>
             ))}
           </div>
-          <p className="faint" style={{ margin: "8px 0 0", fontSize: 11 }}>
-            Changing a type creates a new schema version. Nothing is overwritten.
-          </p>
         </div>
       ) : null}
     </th>

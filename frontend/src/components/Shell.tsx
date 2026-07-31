@@ -58,13 +58,11 @@ import type { Me } from "@/lib/api";
 export function Shell({
   children,
   headerExtras,
-  versionBadge,
   me,
 }: {
   children: ReactNode;
   /** The `Project ▾` control §14.2 places next to the brand. */
   headerExtras?: ReactNode;
-  versionBadge?: ReactNode;
   /** Absent only while the page is still finding out who is signed in. */
   me?: Me | null;
 }) {
@@ -75,7 +73,6 @@ export function Shell({
           DataCanvas
         </Link>
         {headerExtras}
-        {versionBadge}
         <div className="spacer" />
         {/* The privacy-mode pill (NFR-PRIV.2 / UX-6, §14.2) used to sit here,
             reading `🔒 balanced` out of the JSX. It is gone until Phase 5.
