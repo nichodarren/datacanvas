@@ -285,35 +285,61 @@ h2 {
 }
 
 
-/* --------------------------------------------------------------- grid ---- */
+/* ------------------------------------------------------- scrollbars ------ */
 
-/* A scrollbar that belongs to this page rather than to the operating system.
-   `color-scheme: dark` already darkens the native one; this makes it thin and
-   quiet as well, because at the width Windows draws by default it competes with
-   the table it is attached to. Firefox honours the two `scrollbar-*` properties;
-   Chromium and Safari take the `::-webkit-` rules. */
-.grid-wrap {
+/* One rule for every surface that scrolls, applied by selector rather than by
+   remembering. `color-scheme: dark` already tells the browser which palette to
+   draw; this also makes the bar thin and quiet, because at the width Windows
+   uses by default it competes with whatever it is attached to.
+   Added after the column picker shipped with a pale native bar — the grid had
+   been styled and the panel had not, which is what happens when a rule lives
+   next to one of the things it should cover. */
+.grid-wrap,
+.column-picker,
+.workarea,
+.menu {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
 }
-.grid-wrap::-webkit-scrollbar {
+.grid-wrap::-webkit-scrollbar,
+.column-picker::-webkit-scrollbar,
+.workarea::-webkit-scrollbar,
+.menu::-webkit-scrollbar {
+  width: 10px;
   height: 10px;
 }
-.grid-wrap::-webkit-scrollbar-track {
+.grid-wrap::-webkit-scrollbar-track,
+.column-picker::-webkit-scrollbar-track,
+.workarea::-webkit-scrollbar-track,
+.menu::-webkit-scrollbar-track {
   background: transparent;
 }
-.grid-wrap::-webkit-scrollbar-thumb {
+.grid-wrap::-webkit-scrollbar-thumb,
+.column-picker::-webkit-scrollbar-thumb,
+.workarea::-webkit-scrollbar-thumb,
+.menu::-webkit-scrollbar-thumb {
   background: var(--line);
   border-radius: 999px;
-  /* Inset with a transparent border so the thumb reads as a slim pill rather
-     than a bar wedged against the table's bottom edge. */
+  /* A transparent border inset with `background-clip` makes the thumb read as a
+     slim pill rather than a bar wedged against the edge. */
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-.grid-wrap::-webkit-scrollbar-thumb:hover {
+.grid-wrap::-webkit-scrollbar-thumb:hover,
+.column-picker::-webkit-scrollbar-thumb:hover,
+.workarea::-webkit-scrollbar-thumb:hover,
+.menu::-webkit-scrollbar-thumb:hover {
   background: var(--ink-faint);
   background-clip: padding-box;
 }
+.grid-wrap::-webkit-scrollbar-corner,
+.column-picker::-webkit-scrollbar-corner,
+.workarea::-webkit-scrollbar-corner,
+.menu::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* --------------------------------------------------------------- grid ---- */
 
 /* Horizontal scrolling, and only when it earns its place.
    `table.grid` is `width: 100%` with a `min-width` of columns x MIN_COLUMN_WIDTH.
