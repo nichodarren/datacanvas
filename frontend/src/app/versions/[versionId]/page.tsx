@@ -122,12 +122,10 @@ export default function VersionPage() {
 
   return (
     <Shell me={me}>
-      {/* Stored size came out: it is a fact about our storage, not about the
-          user's data, and nobody opening a dataset is asking it. */}
-      <p className="muted">
-        {version.row_count.toLocaleString()} rows · {version.column_count} columns
-      </p>
-
+      {/* "891 rows · 12 columns" used to sit here. Both halves are stated
+          again a few pixels below — the column count in the picker, the row
+          count beside "View more" — and the counts down there move as you
+          change what is shown, which this line never did. */}
       {!version.data_present ? (
         <div className="banner error">
           The rows for this version are no longer in storage. The schema is still here and can be

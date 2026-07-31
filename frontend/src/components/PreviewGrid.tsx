@@ -367,7 +367,7 @@ export function PreviewGrid({
       <div className="row">
         {rows.length < totalRows ? (
           <button type="button" disabled={busy} onClick={() => void fetchFrom(rows.length, MORE_ROWS)}>
-            {busy ? "Loading…" : `View ${Math.min(MORE_ROWS, totalRows - rows.length)} more`}
+            {busy ? "Loading…" : "View more"}
           </button>
         ) : null}
         <span className="faint" style={{ fontSize: 12 }}>
