@@ -60,7 +60,7 @@ export default function AccountPage() {
 
   return (
     <Shell me={me}>
-      <div className="start">
+      <div>
         <h1>Account</h1>
 
         {error ? (
@@ -151,6 +151,8 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
     <>
       <h2>Password</h2>
       <form className="card stack" onSubmit={submit}>
+        {/* The card fills the page; the inputs do not. A password box the width
+            of a 1900px monitor is not "fuller", it is harder to use. */}
         {error ? (
           <div className="banner error" role="alert">
             {error}
@@ -162,7 +164,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           </div>
         ) : null}
 
-        <label className="stack" style={{ gap: 4 }}>
+        <label className="stack field" style={{ gap: 4 }}>
           <span className="faint">Current password</span>
           <input
             type="password"
@@ -173,7 +175,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           />
         </label>
 
-        <label className="stack" style={{ gap: 4 }}>
+        <label className="stack field" style={{ gap: 4 }}>
           <span className="faint">New password</span>
           <input
             type="password"
@@ -188,7 +190,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           </span>
         </label>
 
-        <label className="stack" style={{ gap: 4 }}>
+        <label className="stack field" style={{ gap: 4 }}>
           <span className="faint">Confirm new password</span>
           <input
             type="password"
