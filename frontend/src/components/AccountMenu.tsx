@@ -76,7 +76,7 @@ export function AccountMenu({ me }: { me: Me }) {
   }
 
   return (
-    <div ref={container} style={{ position: "relative" }}>
+    <div ref={container} className="anchor">
       <button
         ref={trigger}
         type="button"
@@ -92,7 +92,7 @@ export function AccountMenu({ me }: { me: Me }) {
       {open ? (
         <div ref={panel} id={panelId} className="menu right">
           {error ? (
-            <div className="banner error" style={{ margin: "0 4px 6px" }} role="alert">
+            <div className="banner error compact" role="alert">
               {error}
             </div>
           ) : null}

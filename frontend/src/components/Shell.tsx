@@ -69,7 +69,7 @@ export function Shell({
   return (
     <div className="shell">
       <header className="topbar">
-        <Link href="/" className="brand" style={{ color: "var(--ink)", textDecoration: "none" }}>
+        <Link href="/" className="brand">
           DataCanvas
         </Link>
         {headerExtras}

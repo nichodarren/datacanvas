@@ -334,7 +334,7 @@ export function PreviewGrid({
         </div>
       ) : null}
 
-      <div className="row" style={{ position: "relative" }} ref={picker.container}>
+      <div className="row anchor" ref={picker.container}>
         <button
           type="button"
           ref={picker.trigger}
@@ -363,7 +363,15 @@ export function PreviewGrid({
         ) : null}
       </div>
 
-      <div className="grid-wrap">
+      {/* Focusable, and that is not decoration: this is the one region on the
+          page that scrolls sideways, and a scroll container no control inside
+          can reach is unreachable by keyboard entirely (WCAG 2.1.1). The cells
+          are not focusable — a grid of five million values must not be a tab
+          stop each — so without `tabIndex` the arrow keys have nothing to act
+          on and column sixty of a wide file cannot be read at all without a
+          mouse. `region` + a name is what stops it being an unlabelled box in
+          the landmark list it just joined. */}
+      <div className="grid-wrap" tabIndex={0} role="region" aria-label="Data preview">
         {/* `width: 100%` while the columns fit, `min-width` once they do not.
             That single pair is the whole conditional-scrollbar rule: a
             twelve-column file looks exactly as it did with scrolling removed,
@@ -707,29 +715,27 @@ function ColumnHeader({
         </span>
       </button>
 
+      {/* `aria-hidden`, not `role="presentation"`. The element carries a
+          pointer gesture, so calling it presentational was a contradiction —
+          presentational means "no semantics worth exposing", and a drag target
+          has semantics; it is only that they are unavailable to a keyboard.
+          `aria-hidden` states the true thing: this affordance is for pointers,
+          and the keyboard route to the same result is `Shift`+arrow on the
+          header, advertised there through `aria-keyshortcuts`. */}
       <span
         className="resize-handle"
-        role="presentation"
+        aria-hidden="true"
         onPointerDown={startResize}
         onDoubleClick={() => onResize(MIN_COLUMN_WIDTH)}
         title="Drag to resize · double-click to reset"
       />
 
+      {/* The panel's shadow was written inline and differed from `.menu`'s in
+          the last digit of its alpha — two popups, two shadows, one of them a
+          difference nobody chose and nobody could see. It is a class now, so
+          there is one. */}
       {menu.open ? (
-        <div
-          ref={menu.panel}
-          id={menu.panelId}
-          className="card"
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            zIndex: 5,
-            width: 260,
-            margin: 0,
-            boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
-          }}
-        >
+        <div ref={menu.panel} id={menu.panelId} className="card type-popup">
           <div className="type-menu">
             {LOGICAL_TYPES.map((type) => (
               <button

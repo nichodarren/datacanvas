@@ -221,6 +221,14 @@ export default function HomePage() {
                   </button>
                 ))}
               </div>
+              {/* Pressing a sample disables every card and drops a pill into
+                  the one that was pressed — both invisible to someone who
+                  cannot see them, and the button they just activated goes
+                  silent because it is now disabled. This says the same thing in
+                  the channel that is left. */}
+              <p className="sr-only" aria-live="polite">
+                {busy === null ? "" : "Loading the sample dataset…"}
+              </p>
             </>
           ) : null}
         </section>
@@ -231,7 +239,7 @@ export default function HomePage() {
               the account menu, where they are reachable from every screen
               rather than only this one, so the space says something new. */}
           <p className="muted" style={{ marginTop: 0 }}>
-            {datasets.length} dataset{datasets.length === 1 ? "" : "s"}
+            {datasets.length.toLocaleString()} dataset{datasets.length === 1 ? "" : "s"}
           </p>
 
           <div className="cards" style={{ marginTop: 18 }}>

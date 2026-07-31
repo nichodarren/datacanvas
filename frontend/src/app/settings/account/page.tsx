@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import { Shell } from "@/components/Shell";
 import { ApiError, type Me, type UserSession, api } from "@/lib/api";
@@ -115,6 +115,16 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
 
   const mismatch = confirm.length > 0 && next !== confirm;
 
+  /**
+   * Ties the mismatch message to the field it is about.
+   *
+   * It was rendered as a sibling `<span>`, which puts it next to the input on
+   * screen and nowhere at all for anyone who reaches the input by keyboard: the
+   * field announced itself as valid and the reason the submit button had gone
+   * dead was written in a colour they may not be able to see (NFR-UX.3).
+   */
+  const mismatchId = useId();
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (mismatch) return;
@@ -168,6 +178,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           <span className="faint">Current password</span>
           <input
             type="password"
+            name="current-password"
             autoComplete="current-password"
             required
             value={current}
@@ -179,6 +190,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           <span className="faint">New password</span>
           <input
             type="password"
+            name="new-password"
             autoComplete="new-password"
             required
             minLength={12}
@@ -190,21 +202,32 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           </span>
         </label>
 
-        <label className="stack field" style={{ gap: 4 }}>
-          <span className="faint">Confirm new password</span>
-          <input
-            type="password"
-            autoComplete="new-password"
-            required
-            value={confirm}
-            onChange={(event) => setConfirm(event.target.value)}
-          />
-          {mismatch ? (
-            <span style={{ fontSize: 12, color: "var(--danger)" }}>
-              These do not match.
-            </span>
-          ) : null}
-        </label>
+        {/* The message sits outside the `<label>` on purpose. Inside it, its
+            text would be swallowed into the input's accessible *name* — so the
+            field would introduce itself as "Confirm new password These do not
+            match" — and then be read a second time as its description. */}
+        <div className="stack field" style={{ gap: 4 }}>
+          <label className="stack" style={{ gap: 4 }}>
+            <span className="faint">Confirm new password</span>
+            <input
+              type="password"
+              name="confirm-password"
+              autoComplete="new-password"
+              required
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
+              aria-invalid={mismatch}
+              aria-describedby={mismatch ? mismatchId : undefined}
+            />
+          </label>
+          {/* Rendered whether or not it says anything: a live region has to
+              exist before the text arrives, or the change lands in an element
+              nothing is watching. Polite, because it corrects what is being
+              typed rather than interrupting it. */}
+          <span id={mismatchId} className="field-error" aria-live="polite">
+            {mismatch ? "These do not match." : ""}
+          </span>
+        </div>
 
         <p className="faint" style={{ margin: 0, fontSize: 12 }}>
           Changing your password signs out every other device. This one stays signed in.
@@ -246,6 +269,18 @@ function SessionSection({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * The one session whose row is currently asking before it acts.
+   *
+   * `Sign out on all devices` got its confirmation on 2026-07-31, and the
+   * comment recording NFR-UX.1 / UX-7 was written thirty lines below a per-row
+   * button that had none — one click, one remote session gone, nothing to undo
+   * it with. The rule does not distinguish between ending five sessions and
+   * ending one; a device you did not mean to sign out has to be signed back in
+   * from wherever it is, which may not be where you are.
+   */
+  const [confirmingOne, setConfirmingOne] = useState<string | null>(null);
+
   const others = sessions.filter((session) => !session.is_current).length;
 
   async function revoke(id: string) {
@@ -253,6 +288,7 @@ function SessionSection({
     setError(null);
     try {
       await api.revokeSession(id);
+      setConfirmingOne(null);
       onChanged();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not end that session.");
@@ -286,10 +322,16 @@ function SessionSection({
         <table className="plain">
           <thead>
             <tr>
-              <th>Device</th>
-              <th>Address</th>
-              <th>Last active</th>
-              <th />
+              <th scope="col">Device</th>
+              <th scope="col">Address</th>
+              <th scope="col">Last active</th>
+              {/* The action column has no visible heading — a word above two
+                  buttons would be noise. It still needs one for anyone reading
+                  the table through its headers, hence a named but hidden th
+                  rather than an empty cell announcing "blank". */}
+              <th scope="col">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -312,13 +354,35 @@ function SessionSection({
                   {/* The current session is not offered here. Ending it is
                       "Sign out", and dressing that up as revoking a remote
                       device would surprise whoever clicked. */}
-                  {session.is_current ? null : (
+                  {session.is_current ? null : confirmingOne === session.id ? (
+                    // The question names the device it is about, because the
+                    // row it sits in is the only thing that would otherwise say
+                    // which of several this is (W-2).
+                    <span className="row confirm-inline">
+                      <span className="faint">End {describeClient(session.user_agent)}?</span>
+                      <button
+                        type="button"
+                        className="primary"
+                        disabled={busy !== null}
+                        onClick={() => void revoke(session.id)}
+                      >
+                        {busy === session.id ? "Ending…" : "Yes, end it"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => setConfirmingOne(null)}
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
                     <button
                       type="button"
                       disabled={busy !== null}
-                      onClick={() => void revoke(session.id)}
+                      onClick={() => setConfirmingOne(session.id)}
                     >
-                      {busy === session.id ? "Ending…" : "End session"}
+                      End session
                     </button>
                   )}
                 </td>

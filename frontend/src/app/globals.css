@@ -39,6 +39,11 @@
   --danger: #f2777a;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 
+  /* One shadow for every panel that floats over the page. There were two,
+     written a few hundred lines apart and differing only in the last digit of
+     their alpha — a difference nobody could perceive and nobody had chosen. */
+  --shadow-popup: 0 12px 32px rgb(0 0 0 / 50%);
+
   /* Tells the browser this page is dark, so every *native* widget follows:
      scrollbars, checkboxes, select menus, autofill. Without it the grid's
      horizontal scrollbar rendered as a white bar across a dark table — the
@@ -49,6 +54,41 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Removes the ~300 ms wait a browser keeps in case a tap turns out to be a
+   double-tap-to-zoom. Every control here is a discrete target, none of them
+   want zoom, and the delay reads as the app being slow rather than as the
+   browser being careful (NFR-UX.4 — a tablet must not be broken). */
+button,
+a,
+label,
+select,
+summary,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Announced but not drawn. Used where a signal exists only in a channel some
+   people cannot read — a disabled button, a colour, a column of controls whose
+   heading would be noise on screen. Clipped rather than `display: none`,
+   which would remove it from the accessibility tree along with the layout. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The positioning context a popup hangs from. Was three inline
+   `position: relative` declarations at three call sites of the same pattern. */
+.anchor {
+  position: relative;
 }
 
 html,
@@ -63,6 +103,23 @@ body {
 
 a {
   color: var(--accent);
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* A button that changes the form it sits in rather than going somewhere. It
+   borrows a link's look because that is what it behaves like to the eye; it
+   stays a `<button>` because it is not a destination. */
+.linkish {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+}
+.linkish:hover:not(:disabled) {
+  border-color: transparent;
+  text-decoration: underline;
 }
 
 button {
@@ -97,19 +154,30 @@ select {
   border-radius: 6px;
   padding: 6px 10px;
 }
+/* Anchors were missing from this list, so every dataset card and the account
+   menu's one link fell back to whatever ring the browser happened to draw —
+   Q-1 met by luck rather than by the app. `[tabindex]` covers the scroll
+   regions, which are focusable precisely because nothing inside them is. */
 input:focus,
 select:focus,
-button:focus-visible {
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 
 /* -------------------------------------------------------------- shell ---- */
 
+/* `dvh`, not `vh`: on a tablet or phone browser `100vh` is the viewport with
+   the address bar hidden, so the shell is taller than what is on screen and
+   the page gains a scrollbar it never wanted. `dvh` tracks the bar as it comes
+   and goes. NFR-UX.4 promises a tablet is not broken; this is one of the ways
+   it quietly was. */
 .shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
 }
 
 .topbar {
@@ -121,9 +189,18 @@ button:focus-visible {
   background: var(--panel);
   flex: 0 0 auto;
 }
+/* The brand is a link home, and it is the only one in the header. It reads as
+   the product's name rather than as a link — the colour and the underline were
+   three inline declarations on the element until they moved here. */
 .topbar .brand {
   font-weight: 700;
   letter-spacing: 0.02em;
+  color: var(--ink);
+  text-decoration: none;
+}
+.topbar .brand:hover {
+  color: var(--accent);
+  text-decoration: none;
 }
 .topbar .spacer {
   flex: 1;
@@ -285,6 +362,25 @@ h2 {
 .banner.ok {
   border-left-color: var(--ok);
 }
+/* Inside a popup, where the panel's own padding already provides the margin a
+   banner would otherwise add to the page around it. */
+.banner.compact {
+  /* Symmetric, because it sits above the items in one popup and below them in
+     the other. */
+  margin: 6px 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* A message about the field above it. Sized down and coloured, but it is never
+   only coloured — the words carry it (NFR-UX.3). Empty most of the time: it is
+   a live region, and one that only appears when it has something to say is one
+   nothing was listening to. */
+.field-error {
+  font-size: 12px;
+  color: var(--danger);
+  min-height: 1em;
+}
 
 .pill {
   font-size: 11px;
@@ -315,6 +411,13 @@ h2 {
 .menu {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
+}
+/* Reaching the end of a popup's own list must not hand the rest of the wheel
+   gesture to the page underneath, which scrolls the panel away from the
+   pointer that is still inside it. */
+.column-picker,
+.menu {
+  overscroll-behavior: contain;
 }
 .grid-wrap::-webkit-scrollbar,
 .column-picker::-webkit-scrollbar,
@@ -430,6 +533,18 @@ table.grid thead th {
    barely-different background; it is now carried by colour alone in the visual
    channel, with `aria-current` doing the same job for anyone who cannot see it
    (NFR-UX.3 — never colour *only*). */
+/* The panel itself. Was seven inline declarations on the element, including a
+   shadow that did not match the other popup's. */
+.type-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  width: 260px;
+  margin: 0;
+  box-shadow: var(--shadow-popup);
+}
+
 .type-menu {
   display: flex;
   flex-direction: column;
@@ -634,6 +749,24 @@ table.plain td {
   vertical-align: top;
 }
 
+/* A confirmation that stays in the row it is about. A modal would take the
+   device's name off screen at the moment it is the only thing that matters —
+   "end which one?" is the whole question (UX-7). */
+.confirm-inline {
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+/* One line, cut rather than wrapped, with the full value left in `title`. */
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 /* ------------------------------------------------- first screen (§14.5) --- */
 
 /* The empty state is the one screen where a first-time user decides whether
@@ -697,6 +830,15 @@ button.card.sample {
   text-decoration: none;
   font: inherit;
   cursor: pointer;
+  /* A dataset is named after the file it came from, and files are named by
+     whoever made them — `2024_Q3_regional_sales_FINAL_v2_reviewed.csv` is not
+     an unusual one. The grid track is `minmax(240px, 1fr)`, so an unbroken
+     string longer than that pushes the whole row wider than the page instead
+     of wrapping. */
+  overflow-wrap: anywhere;
+}
+a.card.dataset:hover {
+  text-decoration: none;
 }
 a.card.dataset:hover,
 button.card.sample:hover:not(:disabled) {
@@ -752,7 +894,7 @@ div.card.dataset {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-popup);
 }
 /* The account menu hangs off the right edge of the header; anchoring it left
    would push it off screen. */

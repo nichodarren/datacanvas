@@ -249,3 +249,39 @@ describe("popups", () => {
     expect(trigger).toHaveFocus();
   });
 });
+
+/**
+ * The grid scrolls sideways, and a scroll container has to be reachable.
+ *
+ * FR-D.3 answered the sixty-column file with a picker, a default, and a
+ * conditional horizontal scrollbar. The scrollbar was reachable by mouse, by
+ * finger, and by nothing else: the cells are deliberately not focusable — five
+ * million values must not be five million tab stops — so there was no way to
+ * put the keyboard's arrow keys anywhere that would move it. Column sixty could
+ * not be read without a pointer at all (WCAG 2.1.1).
+ *
+ * `tabIndex` on the container is the standard answer, and it costs exactly one
+ * tab stop. `role="region"` with a name is the other half: making an element
+ * focusable puts it in front of a screen reader user, and an unnamed box is a
+ * worse thing to meet than none.
+ */
+describe("reaching the grid from the keyboard", () => {
+  it("makes the scrolling region focusable and names it", async () => {
+    renderGrid();
+    await screen.findByText("a1");
+
+    const region = screen.getByRole("region", { name: "Data preview" });
+    expect(region).toHaveAttribute("tabindex", "0");
+  });
+
+  it("puts the region in the tab order, ahead of the table it holds", async () => {
+    const user = userEvent.setup();
+    renderGrid();
+    await screen.findByText("a1");
+
+    screen.getByRole("button", { name: "Columns" }).focus();
+    await user.tab();
+
+    expect(screen.getByRole("region", { name: "Data preview" })).toHaveFocus();
+  });
+});

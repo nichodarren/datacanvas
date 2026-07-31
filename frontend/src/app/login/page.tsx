@@ -65,8 +65,13 @@ export default function LoginPage() {
           <span className="faint">Email</span>
           <input
             type="email"
+            name="email"
             autoComplete="email"
             required
+            // An address is not prose. Left on, the browser underlines most of
+            // them in red and offers corrections for a string it cannot know
+            // anything about.
+            spellCheck={false}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
@@ -76,6 +81,7 @@ export default function LoginPage() {
           <span className="faint">Password</span>
           <input
             type="password"
+            name="password"
             autoComplete={mode === "login" ? "current-password" : "new-password"}
             required
             minLength={mode === "register" ? 12 : undefined}
@@ -93,13 +99,17 @@ export default function LoginPage() {
           {busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}
         </button>
 
+        {/* A button that looks like a link, because it changes this form rather
+            than going anywhere. The look is a class rather than three inline
+            declarations — it is the same affordance the rest of the app spends
+            `--accent` on, and it has to move when that token does. */}
         <button
           type="button"
+          className="linkish"
           onClick={() => {
             setMode(mode === "login" ? "register" : "login");
             setError(null);
           }}
-          style={{ background: "none", border: "none", color: "var(--accent)" }}
         >
           {mode === "login" ? "Create an account instead" : "I already have an account"}
         </button>

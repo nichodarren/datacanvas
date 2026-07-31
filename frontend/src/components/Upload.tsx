@@ -120,7 +120,9 @@ export function Upload({
           </button>
         </p>
         <p className="faint" style={{ marginBottom: 0, fontSize: 12 }}>
-          CSV, TSV, Parquet, XLSX or JSON — up to 500 MB.
+          {/* A non-breaking space, so a narrow column never wraps the number
+              away from its unit. */}
+          CSV, TSV, Parquet, XLSX or JSON — up to 500&nbsp;MB.
         </p>
         <input
           ref={input}
@@ -138,8 +140,12 @@ export function Upload({
   return (
     <div className="card stack">
       <div className="row">
-        <strong>{file.name}</strong>
-        <span className="faint">{(file.size / 1024 / 1024).toFixed(1)} MB</span>
+        {/* Cut, not wrapped, with the whole name in `title` — the same bargain
+            the grid cells and the account button make. */}
+        <strong className="ellipsis" title={file.name}>
+          {file.name}
+        </strong>
+        <span className="faint">{megabytes(file.size)}&nbsp;MB</span>
         <div style={{ flex: 1 }} />
         <button type="button" onClick={reset} disabled={busy !== null}>
           Cancel
@@ -154,18 +160,37 @@ export function Upload({
 
       {busy === "preview" ? <p className="muted">Reading the first rows…</p> : null}
 
+      {/* The warnings arrive with the preview response, a second or two after
+          the file was chosen and with nothing changing near where the user is
+          looking. This is what makes them arrive for somebody not watching that
+          spot — and it is outside the `preview` branch below because a live
+          region has to be on the page *before* its contents change. Mounted
+          together with what it announces, it announces nothing.
+          `polite`, not `alert`: they describe how the file will be read, and
+          there is still a confirmation step ahead of any of it mattering. */}
+      <div aria-live="polite">
+        {preview?.warnings.map((warning) => (
+          <div className="banner" key={warning}>
+            {warning}
+          </div>
+        ))}
+      </div>
+
       {preview ? (
         <>
-          {preview.warnings.map((warning) => (
-            <div className="banner" key={warning}>
-              {warning}
-            </div>
-          ))}
 
           <div className="row">
             <label className="stack" style={{ gap: 4 }}>
               <span className="faint">Dataset name</span>
-              <input value={name} onChange={(event) => setName(event.target.value)} />
+              {/* `autoComplete="off"`: this is not a field about the person
+                  filling it in, and a password manager offering to remember a
+                  dataset name is a prompt with no right answer. */}
+              <input
+                name="dataset-name"
+                autoComplete="off"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
 
             <span className="pill">{preview.format}</span>
