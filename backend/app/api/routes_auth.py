@@ -6,22 +6,28 @@ manifest entry fails the route-manifest test (§13.3.1 L1).
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from app.api.dependencies import Auth, CurrentPrincipal
 from app.api.schemas import (
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     LoginRequest,
     LogoutAllResponse,
     MeResponse,
     ProjectResponse,
     RegisterRequest,
     RegisterResponse,
+    SessionResponse,
     UserResponse,
     WorkspaceResponse,
 )
 from app.auth.service import EmailAlreadyRegistered, InvalidCredentials, TooManyAttempts
 from app.auth.tokens import COOKIE_NAME
 from app.domain.identity import SESSION_ABSOLUTE_TTL
+from app.domain.ids import SessionId
 
 router = APIRouter(tags=["auth"])
 
@@ -133,6 +139,70 @@ async def logout_all(
     revoked = await auth.logout_everywhere(principal.user_id, ip=_client_ip(request))
     response.delete_cookie(COOKIE_NAME, path="/")
     return LogoutAllResponse(revoked_sessions=revoked)
+
+
+@router.get("/auth/sessions")
+async def list_sessions(auth: Auth, principal: CurrentPrincipal) -> list[SessionResponse]:
+    """Every live session of the caller (OWASP Session Management).
+
+    Scoped to the principal with no id in the path, so there is no parameter an
+    attacker could point at somebody else. That is deliberate: the safest
+    version of this endpoint is one that cannot be asked the wrong question.
+    """
+    sessions = await auth.list_sessions(principal.user_id)
+    return [
+        SessionResponse(
+            id=session.id,
+            created_at=session.created_at,
+            last_seen_at=session.last_seen_at,
+            expires_at=session.expires_at,
+            ip_created=session.ip_created,
+            user_agent=session.user_agent,
+            is_current=session.id == principal.session_id,
+        )
+        for session in sessions
+    ]
+
+
+@router.delete("/auth/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_session(
+    session_id: uuid.UUID, request: Request, auth: Auth, principal: CurrentPrincipal
+) -> None:
+    """End one remote session. 404 covers "not yours" as well as "not there".
+
+    §13.3.1 L2: an authorization failure and a missing row must be
+    indistinguishable, or the response becomes an oracle for which session ids
+    exist.
+    """
+    revoked = await auth.revoke_session(
+        principal.user_id, SessionId(session_id), ip=_client_ip(request)
+    )
+    if not revoked:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="session not found")
+
+
+@router.post("/auth/password")
+async def change_password(
+    payload: ChangePasswordRequest, request: Request, auth: Auth, principal: CurrentPrincipal
+) -> ChangePasswordResponse:
+    """Rotate the password from inside a live session.
+
+    401 rather than 403 for a wrong current password: it is the same failure
+    login reports, and it should read the same way everywhere.
+    """
+    try:
+        revoked = await auth.change_password(
+            user_id=principal.user_id,
+            session_id=principal.session_id,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+            ip=_client_ip(request),
+        )
+    except InvalidCredentials as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials"
+        ) from exc
+    return ChangePasswordResponse(revoked_sessions=revoked)
 
 
 @router.get("/auth/me")

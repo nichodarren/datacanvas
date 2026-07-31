@@ -294,8 +294,45 @@ class LogoutAllResponse(BaseModel):
     revoked_sessions: int
 
 
+class ChangePasswordRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Bounded above only, like login: a length rule on the *current* password
+    # would report something about what is stored.
+    current_password: str = Field(max_length=MAX_PASSWORD_LENGTH)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+
+
+class ChangePasswordResponse(BaseModel):
+    #: Other sessions ended by the change. Returned so the UI can say what
+    #: happened rather than leaving the user to wonder whether it did.
+    revoked_sessions: int
+
+
+class SessionResponse(BaseModel):
+    """One live session, as its owner sees it (OWASP Session Management).
+
+    Carries no token and no hash — only what identifies a session to the person
+    who created it. ``ip_created`` and ``user_agent`` are the user's own data
+    shown back to them, which is why they may appear here and may never appear
+    in `audit_event.metadata` (§13.7.1).
+    """
+
+    id: uuid.UUID
+    created_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    ip_created: str | None
+    user_agent: str | None
+    #: True for the session making the request. The UI must never offer to
+    #: revoke this one as if it were remote — that is what "Sign out" is.
+    is_current: bool
+
+
 __all__ = [
     "AddMemberRequest",
+    "ChangePasswordRequest",
+    "ChangePasswordResponse",
     "ChangeRoleRequest",
     "CreateProjectRequest",
     "DatasetVersionResponse",
@@ -308,6 +345,7 @@ __all__ = [
     "ProjectResponse",
     "RegisterRequest",
     "RegisterResponse",
+    "SessionResponse",
     "UserResponse",
     "WorkspaceResponse",
 ]

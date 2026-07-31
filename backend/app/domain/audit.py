@@ -36,6 +36,13 @@ class AuditAction(StrEnum):
     # They are audit action labels; nothing secret is involved.
     PASSWORD_RESET_REQUESTED = "auth.password_reset_requested"  # noqa: S105
     PASSWORD_RESET_COMPLETED = "auth.password_reset_completed"  # noqa: S105
+    # Distinct from a reset: this one is performed by someone who *could*
+    # already authenticate. An investigation needs to tell those apart — a
+    # reset says "I lost access", a change says "I had access and rotated it".
+    PASSWORD_CHANGED = "auth.password_changed"  # noqa: S105
+    #: One session ended from the account page, as opposed to the caller's own
+    #: logout. §13.7 wants revocation recorded; who revoked what is the point.
+    SESSION_REVOKED = "auth.session_revoked"
     WORKSPACE_CREATED = "workspace.created"
     PROJECT_CREATED = "project.created"
     # §13.7 requires dataset creation and deletion. Note what is *not* here and

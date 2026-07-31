@@ -227,6 +227,76 @@ class SessionRepository:
         )
         return result.rowcount
 
+    async def list_active_for_user(self, user_id: UserId, now: datetime) -> list[Session]:
+        """The sessions a user can actually be shown and act on.
+
+        OWASP's Session Management guidance asks that a user be able to inspect
+        their live sessions — address, client, when it started, when it was last
+        used — and end any of them remotely. Every column that needs is already
+        on the table; this is the query that was missing.
+
+        Expired rows are filtered here rather than in the caller because a
+        session that cannot authenticate is not a session the user has any way
+        to reason about. Showing one would invite them to "revoke" something
+        that was already dead and learn nothing from the result.
+        """
+        rows = await self._c.execute(
+            sa.select(user_session)
+            .where(
+                user_session.c.user_id == user_id,
+                user_session.c.revoked_at.is_(None),
+                user_session.c.expires_at > now,
+            )
+            .order_by(user_session.c.last_seen_at.desc())
+        )
+        return [_to_session(row) for row in rows]
+
+    async def revoke_one_for_user(
+        self, session_id: SessionId, user_id: UserId, now: datetime
+    ) -> bool:
+        """Revoke a single session **that belongs to this user**.
+
+        The ``user_id`` in the WHERE clause is the entire security of this
+        method, and it is not defence in depth — it is the only defence. A
+        session id is a plain UUID that appears in the caller's own listing, so
+        without it any authenticated user could end anyone else's session by
+        guessing or replaying an id. Filtering in Python after the fetch would
+        be equivalent only as long as nobody ever reorders the code.
+
+        Returns whether anything was revoked, so the route can answer 404 for
+        "not yours" and "not there" alike (§13.3.1 L2).
+        """
+        result = await self._c.execute(
+            sa.update(user_session)
+            .where(
+                user_session.c.id == session_id,
+                user_session.c.user_id == user_id,
+                user_session.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
+        return result.rowcount > 0
+
+    async def revoke_others_for_user(self, user_id: UserId, keep: SessionId, now: datetime) -> int:
+        """Every live session except the one making the request.
+
+        Used by a password change. OWASP treats that as a security boundary
+        event: every other session must be invalidated, because the whole point
+        of changing a password is usually that someone else may know the old
+        one. Keeping the caller signed in is the one deliberate exception — a
+        change that logs you out of the tab you just used reads as a failure.
+        """
+        result = await self._c.execute(
+            sa.update(user_session)
+            .where(
+                user_session.c.user_id == user_id,
+                user_session.c.id != keep,
+                user_session.c.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
+        return result.rowcount
+
 
 class WorkspaceRepository:
     def __init__(self, connection: AsyncConnection) -> None:

@@ -53,6 +53,12 @@ ROUTES: tuple[RouteSpec, ...] = (
     RouteSpec("GET", "/auth/me", RouteClass.AUTHENTICATED),
     RouteSpec("POST", "/auth/logout", RouteClass.AUTHENTICATED),
     RouteSpec("POST", "/auth/logout-all", RouteClass.AUTHENTICATED),
+    # Account self-service. All three read or write only the caller's own rows:
+    # the listing takes no id at all, and the revoke scopes its UPDATE by
+    # user_id so a guessed session id matches nothing.
+    RouteSpec("GET", "/auth/sessions", RouteClass.AUTHENTICATED),
+    RouteSpec("DELETE", "/auth/sessions/{session_id}", RouteClass.AUTHENTICATED),
+    RouteSpec("POST", "/auth/password", RouteClass.AUTHENTICATED),
     # Lists only the caller's own workspaces, so it is authenticated rather
     # than tenant-scoped: there is no id in the path to point elsewhere.
     RouteSpec("GET", "/workspaces", RouteClass.AUTHENTICATED),

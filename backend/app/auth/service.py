@@ -36,6 +36,7 @@ from app.repositories.connection import Database
 from app.repositories.identity import (
     LoginAttemptRepository,
     MembershipRepository,
+    PasswordResetRepository,
     ProjectRepository,
     SessionRepository,
     UserRepository,
@@ -112,6 +113,7 @@ class AuthService:
         self.memberships = MembershipRepository(connection)
         self.projects = ProjectRepository(connection)
         self.attempts = LoginAttemptRepository(connection)
+        self.resets = PasswordResetRepository(connection)
         self.audit = AuditRepository(connection)
 
     # ------------------------------------------------------------ register --
@@ -270,6 +272,105 @@ class AuthService:
         revoked = await self.sessions.revoke_all_for_user(user_id, now)
         await self.audit.record(
             action=AuditAction.LOGOUT_ALL,
+            now=now,
+            actor_user_id=user_id,
+            target_type="user",
+            target_id=user_id,
+            ip=ip,
+            metadata={"revoked_count": revoked},
+        )
+        return revoked
+
+    # ------------------------------------------------------------- account --
+
+    async def list_sessions(self, user_id: UserId) -> list[Session]:
+        """Every live session, newest activity first (OWASP Session Management).
+
+        Read-only and unaudited on purpose: looking at your own sessions is not
+        an event, and recording it would bury the revocations that are.
+        """
+        return await self.sessions.list_active_for_user(user_id, self._now())
+
+    async def revoke_session(
+        self, user_id: UserId, session_id: SessionId, *, ip: str | None = None
+    ) -> bool:
+        """End one session belonging to this user. False if there was none.
+
+        The distinction this adds over `logout_everywhere` is the whole reason
+        it exists: a laptop left signed in at the office should cost you that
+        laptop, not every device you own.
+        """
+        now = self._now()
+        revoked = await self.sessions.revoke_one_for_user(session_id, user_id, now)
+        if not revoked:
+            return False
+        await self.audit.record(
+            action=AuditAction.SESSION_REVOKED,
+            now=now,
+            actor_user_id=user_id,
+            target_type="session",
+            target_id=session_id,
+            ip=ip,
+            metadata={"session_id": str(session_id)},
+        )
+        return True
+
+    async def change_password(
+        self,
+        *,
+        user_id: UserId,
+        session_id: SessionId,
+        current_password: str,
+        new_password: str,
+        ip: str | None = None,
+    ) -> int:
+        """Rotate a password from inside a live session. Returns sessions ended.
+
+        Three decisions worth stating, because each has a plausible-looking
+        alternative that is wrong:
+
+        **The current password is required.** The caller is already
+        authenticated, so it looks redundant. It is not: it is what stops a
+        borrowed unlocked laptop from becoming a permanent account takeover.
+
+        **Every other session is revoked.** OWASP treats a password change as a
+        security boundary event — the usual reason to change a password is that
+        someone else may know the old one, and leaving their session alive
+        defeats the entire act. The caller's own session survives, because
+        signing someone out of the tab they are working in reads as a failure.
+
+        **A wrong current password raises InvalidCredentials**, the same type a
+        failed login raises, and it is *not* rate limited here. The login
+        counter keys on an email address from an unauthenticated caller; this
+        path already required a valid session to reach, and reusing that counter
+        would let anyone lock a stranger out by guessing at their own account.
+        """
+        now = self._now()
+        user = await self.users.get(user_id)
+        if user is None:  # pragma: no cover — a live session implies a live user
+            raise InvalidCredentials(str(user_id))
+
+        result = self._hasher.verify(current_password, user.password_hash)
+        if not result.ok:
+            await self.audit.record(
+                action=AuditAction.LOGIN_FAILED,
+                now=now,
+                actor_user_id=user_id,
+                ip=ip,
+                metadata={"failure_code": "password_change_rejected"},
+            )
+            raise InvalidCredentials(user.email)
+
+        await self.users.update_password_hash(user_id, self._hasher.hash(new_password))
+        revoked = await self.sessions.revoke_others_for_user(user_id, session_id, now)
+        # An outstanding reset link must die with the old password. Without
+        # this there is a real hole: an attacker requests a reset, the victim
+        # notices something wrong and changes their password, and the emailed
+        # token still works — the one defensive move available to the user does
+        # not close the door they were trying to shut.
+        await self.resets.invalidate_outstanding(user_id, now)
+        await self.audit.record(
+            action=AuditAction.PASSWORD_CHANGED,
             now=now,
             actor_user_id=user_id,
             target_type="user",

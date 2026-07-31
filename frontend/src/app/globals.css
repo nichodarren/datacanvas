@@ -561,6 +561,9 @@ div.card.dataset {
   left: auto;
   right: 0;
 }
+/* Both a <button> and a <Link> wear this class — the disclosure pattern keeps
+   native elements rather than inventing menuitem semantics, so the styling has
+   to cover an anchor too. */
 .menu-item {
   display: block;
   width: 100%;
@@ -570,6 +573,9 @@ div.card.dataset {
   border-radius: 6px;
   padding: 7px 10px;
   color: var(--ink-dim);
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
 }
 .menu-item:hover {
   background: var(--panel);

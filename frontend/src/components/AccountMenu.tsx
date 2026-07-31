@@ -1,38 +1,48 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { type Me, api } from "@/lib/api";
 
 /**
- * Who you are, and how to stop being them (FR-A.1, FR-A.2).
+ * Who you are, and the way into everything about your account (FR-A.1, A.2).
  *
- * This closes a **P0 requirement that had no surface at all**. FR-A.2 —
- * *"Sesi pengguna dapat dicabut (logout, logout semua perangkat)"* — was
- * implemented end to end in the backend (one `Session` row per device, tokens
- * hashed, both routes live) and then never given a button. From where the user
- * stands that is not an unpolished feature; it is a missing one. The only way
- * to sign out was to delete the cookie by hand in DevTools, which is not a
- * thing anyone can be asked to do on a shared machine.
+ * ## Why this is a disclosure, not a `menu`
  *
- * The email sits **on the button, not only inside the menu**. The usual pattern
- * is an avatar circle, but that pattern assumes one account per person. The
- * question this control exists to answer — *which account am I in?* — has to be
- * answerable without a click, because uploading into the wrong account is a
- * real mistake with real cleanup, and nothing else on screen would catch it.
+ * The first version declared `role="menu"`, `role="menuitem"` and
+ * `aria-haspopup="menu"`. That was wrong, and wrong in the direction that does
+ * the most damage: ARIA's `menu` role means an *application* menu, and
+ * declaring it promises arrow-key navigation, Home/End, first-character
+ * typeahead and composite focus management. This widget implemented none of
+ * them, so it announced a contract to assistive technology and then broke it —
+ * worse than staying silent, because a screen-reader user is told to expect
+ * behaviour that is not there.
  *
- * **The workspace is deliberately not named here.** It was, for a day. Every
- * account gets exactly one workspace at registration and there is no route to
- * create a second, so the line read `Personal workspace · owner` for every user
- * alive — identical, unchangeable, and therefore not information. Worse, naming
- * it here while the header named the *project* made the two read as the same
- * thing, and the first person to see it asked which was which.
+ * MDN says it plainly for navigation: *do not use the menu role*. The WAI-ARIA
+ * Authoring Practices and Adrian Roselli both point at the **disclosure**
+ * pattern instead — `aria-expanded` on a real button, native links and buttons
+ * inside, no invented semantics. That is all this needs.
  *
- * The concept stays in the data model, where it separates policy from work
- * (§7) and carries every authorization decision (INV-7). It just stops being a
- * word the user has to place. If invitations ever land, one workspace becomes
- * several, and *that* is when a name earns a place on screen — not before.
+ * ## What was missing regardless of the role
+ *
+ * The popup could only be closed by clicking outside it. A keyboard user could
+ * open it and get stuck: Tab walked past the panel into the page behind, and
+ * the panel stayed open with no way to dismiss it. Escape, focus moving into
+ * the panel on open, and focus returning to the trigger on close are the
+ * baseline for *any* popup — this had none of the three.
+ *
+ * ## Why the email is on the button
+ *
+ * The usual pattern is an avatar circle, but that assumes one account per
+ * person. *Which account am I in?* has to be answerable without a click,
+ * because uploading into the wrong account is a real mistake with real cleanup
+ * and nothing else on screen would catch it.
+ *
+ * The workspace is deliberately not named anywhere — see the commit that
+ * removed it. One workspace per account, no route to create a second, so the
+ * line was identical for every user alive.
  */
 export function AccountMenu({ me }: { me: Me }) {
   const router = useRouter();
@@ -40,22 +50,47 @@ export function AccountMenu({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const panelId = useId();
 
+  /** Close and put focus back where it came from. */
+  const close = useCallback((restoreFocus: boolean) => {
+    setOpen(false);
+    if (restoreFocus) trigger.current?.focus();
+  }, []);
+
+  // Escape, and an outside click. Escape restores focus to the trigger; a click
+  // elsewhere does not, because the user has already chosen where to go and
+  // yanking focus back would fight them.
   useEffect(() => {
     if (!open) return;
-    const onDocument = (event: MouseEvent) => {
-      if (box.current && !box.current.contains(event.target as Node)) setOpen(false);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close(true);
     };
+    const onDocument = (event: MouseEvent) => {
+      if (box.current && !box.current.contains(event.target as Node)) close(false);
+    };
+    document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDocument);
-    return () => document.removeEventListener("mousedown", onDocument);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDocument);
+    };
+  }, [open, close]);
+
+  // Focus the first control when the panel opens, so the next Tab continues
+  // inside it rather than behind it.
+  useEffect(() => {
+    if (!open) return;
+    panel.current?.querySelector<HTMLElement>("a, button")?.focus();
   }, [open]);
 
-  async function signOut(everywhere: boolean) {
+  async function signOut() {
     setBusy(true);
     setError(null);
     try {
-      if (everywhere) await api.logoutAll();
-      else await api.logout();
+      await api.logout();
       // `replace`, not `push`: leaving a signed-out session on the back stack
       // invites the browser to render it again from cache.
       router.replace("/login");
@@ -68,18 +103,19 @@ export function AccountMenu({ me }: { me: Me }) {
   return (
     <div ref={box} style={{ position: "relative" }}>
       <button
+        ref={trigger}
         type="button"
         className="picker account"
-        onClick={() => setOpen(!open)}
+        onClick={() => (open ? close(true) : setOpen(true))}
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-controls={panelId}
         title={me.user.email}
       >
         <span className="account-email">{me.user.email}</span> <span aria-hidden>▾</span>
       </button>
 
       {open ? (
-        <div className="menu right" role="menu">
+        <div ref={panel} id={panelId} className="menu right">
           <div className="menu-head">
             <strong>{me.user.email}</strong>
           </div>
@@ -92,24 +128,15 @@ export function AccountMenu({ me }: { me: Me }) {
 
           <div className="menu-sep" />
 
-          <button
-            type="button"
-            role="menuitem"
-            className="menu-item"
-            disabled={busy}
-            onClick={() => void signOut(false)}
-          >
-            Sign out
-          </button>
-          {/* The other half of FR-A.2. One line, and the requirement is whole. */}
-          <button
-            type="button"
-            role="menuitem"
-            className="menu-item"
-            disabled={busy}
-            onClick={() => void signOut(true)}
-          >
-            Sign out on all devices
+          {/* Everything that needs a form or a list lives on the page, not in
+              here. A popup that has to scroll is the wrong shape for its
+              contents. */}
+          <Link href="/settings/account" className="menu-item" onClick={() => close(false)}>
+            Account settings
+          </Link>
+
+          <button type="button" className="menu-item" disabled={busy} onClick={() => void signOut()}>
+            {busy ? "Signing out…" : "Sign out"}
           </button>
         </div>
       ) : null}

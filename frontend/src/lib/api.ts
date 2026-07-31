@@ -182,6 +182,17 @@ export interface RowPage {
 }
 
 /** §9.2's closed vocabulary, mirrored. `test_api_schemas.py` guards the backend half. */
+/** One live session as its owner sees it. Never carries a token (§13.2). */
+export interface UserSession {
+  id: string;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  ip_created: string | null;
+  user_agent: string | null;
+  is_current: boolean;
+}
+
 export const LOGICAL_TYPES = [
   "integer",
   "decimal",
@@ -210,6 +221,19 @@ export const api = {
   /** FR-A.2, the "all devices" half. Revokes this session too. */
   logoutAll: () =>
     request<{ revoked_sessions: number }>("/auth/logout-all", { method: "POST" }),
+
+  /** OWASP Session Management: a user must be able to inspect their sessions. */
+  sessions: () => request<UserSession[]>("/auth/sessions"),
+
+  revokeSession: (sessionId: string) =>
+    request<void>(`/auth/sessions/${sessionId}`, { method: "DELETE" }),
+
+  /** Returns how many *other* sessions the change ended. */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    json<{ revoked_sessions: number }>("/auth/password", "POST", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
 
   projects: (workspaceId: string) =>
     request<Project[]>(`/workspaces/${workspaceId}/projects`),
