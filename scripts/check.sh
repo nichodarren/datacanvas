@@ -95,8 +95,12 @@ step "Frontend (kalau dependensinya sudah terpasang)"
 # damage then looks like a defect in the code under test.
 if [ -d "frontend/node_modules" ]; then
     (cd frontend && npx tsc --noEmit)
+    # Tests before the build, for the same reason `tsc` runs before both: a
+    # failing assertion should be reported as a failing assertion, not found
+    # forty seconds later at the bottom of a build log.
+    (cd frontend && npm test --silent)
     (cd frontend && DATACANVAS_NEXT_DIST_DIR=.next-check npx next build --no-lint >/dev/null)
-    printf '   typecheck + build OK\n'
+    printf '   typecheck + test + build OK\n'
 else
     printf '   (frontend/node_modules belum ada — lewati; jalankan npm ci di frontend/)\n'
 fi

@@ -44,7 +44,7 @@ jobs:
         run: uv run mypy --platform win32 backend eval tests
 
   frontend:
-    name: Frontend (typecheck & build)
+    name: Frontend (typecheck, test & build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -58,6 +58,13 @@ jobs:
       # TypeScript strict (NFR-MAINT.4). `tsc` first so a type error is reported
       # as a type error rather than as a build failure ten lines deep.
       - run: npx tsc --noEmit
+        working-directory: frontend
+      # Test perilaku komponen (D-033). Sebuah step di job ini, bukan job
+      # tersendiri: job baru berarti checkout + setup-node + `npm ci` kedua
+      # untuk menjalankan perintah yang butuh dua detik. Ditempatkan sebelum
+      # build dengan alasan yang sama seperti `tsc` sebelum keduanya — assertion
+      # yang gagal harus terbaca sebagai assertion yang gagal.
+      - run: npm test
         working-directory: frontend
       # Output dir terpisah, sama seperti scripts/check.sh — supaya perintah
       # yang dijalankan CI identik dengan yang dijalankan orang di laptop.
