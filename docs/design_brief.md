@@ -130,6 +130,74 @@ font. Keputusan nyata dengan ongkos nyata: self-hosting menambah byte ke setiap
 muat halaman. Pertanyaannya: apakah `system-ui` tetap cukup kalau segala hal lain
 sudah dipilih dengan sadar?
 
+### 4.7 ⚠️ Navigasi & arsitektur informasi — **dikerjakan lebih dulu**
+
+Ditambahkan 2026-08-01 atas permintaan pemilik produk, yang memakai produknya
+dan menyimpulkan navigasinya *"masih nol dan berantakan"*.
+
+**Ini bukan poles, dan tidak boleh dikerjakan seolah begitu.** Ia menggugat dua
+keputusan tertulis, dan keluarannya adalah ADR — bukan penyesuaian CSS.
+
+**Kenapa ia lebih dulu:** skala spasi dan hierarki tidak bisa dipilih untuk shell
+yang region-nya sedang akan berubah. Kalau navigasi menambah rail atau
+breadcrumb, setiap keputusan ritme bergantung padanya. Terbalik urutannya berarti
+menata dua kali.
+
+#### Yang digugat, dan celah nyata di masing-masing
+
+**(a) §14.5 menolak galeri project** (2026-07-29):
+
+> *"Meniru Google Flow — galeri project sebagai layar pertama... FR-A.4
+> mendefinisikan Project sebagai **pengelompok** — map, bukan karya... Menirunya
+> harfiah berarti mendaratkan pengguna baru di galeri berisi satu kartu yang
+> harus diklik sebelum apa pun nyata terjadi."*
+
+⚠️ **Penolakan itu mencampur dua situasi.** Ia benar untuk pengguna **baru**
+dengan satu project auto-buat, dan keliru untuk pengguna **kembali** dengan
+banyak. Dokumennya tidak pernah memisahkan keduanya, dan hari ini beranda selalu
+membuka satu project — yang terakhir dipakai, dari `localStorage`.
+
+**Jangan langsung ganti ke galeri.** Pertanyaan sebenarnya: *bagaimana layar
+pertama melayani nol, satu, dan banyak project tanpa menghukum salah satunya?*
+
+**(b) D-032 mencabut sidebar**, dengan syarat kembali tertulis: *"Fase 3, saat
+`Library` & `Steps` ada dan tujuannya lebih dari dua."* Argumen pencabutannya
+adalah **ongkos ruang** — 190px di layar 1280px untuk satu tautan duplikat dan
+satu tautan rusak. Argumen itu masih berlaku terhadap **sidebar**; ia tidak
+berlaku terhadap **breadcrumb**, yang biayanya satu baris.
+
+#### Yang benar-benar hilang hari ini — periksa dulu, jangan percaya daftar ini
+
+| Gejala | Perlu diverifikasi |
+|---|---|
+| Halaman versi tidak punya jalan kembali selain tautan brand | Tombol *back* browser **berfungsi** (routing Next). Yang hilang **afordansi di dalam aplikasi**, bukan kemampuannya. Nyatakan bedanya |
+| Tidak ada "kamu sedang di mana" | Halaman versi kini menyebut nama dataset (D-034 era). Apakah itu sudah cukup, atau butuh jejak `Project → Dataset → Versi`? |
+| Project hanya ada di dropdown header | Berpindah project butuh dua klik dan mengingat namanya |
+| Beranda selalu membuka project terakhir | Ada di `page.tsx`, dengan komentar yang membelanya. Baca alasannya sebelum membaliknya |
+
+#### Kerangka yang harus dipakai, supaya ini bukan hasil karangan
+
+Jelajahi dulu, jangan langsung membangun:
+
+- **Nielsen #3 — user control and freedom.** Jalan keluar yang jelas dari setiap
+  keadaan. Ini heuristik yang paling langsung mengenai keluhannya.
+- **Nielsen #1 — visibility of system status**, dan **#6 — recognition over
+  recall**. "Project apa yang sedang kubuka" seharusnya terbaca, bukan diingat.
+- **Rosenfeld & Morville**, *Information Architecture* — sistem organisasi,
+  navigasi, dan pelabelan sebagai tiga hal berbeda. Keluhan "berantakan" biasanya
+  soal **pelabelan dan orientasi**, bukan soal kurang tautan.
+- **Breadcrumb**: murah, hampir tidak pernah merugikan, dan menjawab "di mana
+  aku" tanpa mengambil lebar seperti rail.
+- **Hub-and-spoke vs flat** untuk aplikasi bertujuan sedikit — dan hitung
+  **berapa tujuan sebenarnya** yang dipunya aplikasi ini hari ini, karena D-032
+  dicabut atas hitungan "dua".
+
+#### Batas yang tetap berlaku
+
+Run Log dan composer **tetap di luar** (Fase 3 dan Fase 5) — keduanya menunggu
+isi, bukan menunggu navigasi. Yang dibuka di sini hanya **orientasi dan
+perpindahan antar-hal yang sudah ada**.
+
 ### 4.6 Q-4 dan Q-5 (§14.4) ditagih di sini
 
 | | |
@@ -165,14 +233,19 @@ Dua sesi sebelumnya berhasil karena punya aturan tertulis. Sesi ini punya dua.
 > review.
 
 > **② Karakter datang dari sistem, bukan dari permukaan baru.**
-> Netral, ritme spasi, bobot garis, tipografi. Menambah region, panel, atau
-> tujuan navigasi **bukan** pekerjaan sesi ini — kalau bukti menuntutnya, itu
-> ADR tersendiri yang menggugat D-032 secara terbuka.
+> Netral, ritme spasi, bobot garis, tipografi. Menambah region atau panel demi
+> *rupa* bukan pekerjaan sesi ini.
+>
+> **Satu pengecualian, dan hanya satu: navigasi (§4.7).** Di sana permukaan baru
+> memang boleh diusulkan — tapi lewat ADR yang menggugat D-032 dan §14.5 secara
+> terbuka, dengan bukti, bukan diselundupkan sebagai poles. Bedanya bukan
+> formalitas: satu jalur menuntut alasan tertulis, yang lain tidak.
 
 ⚠️ **Kenapa ② perlu ditulis:** pemicu sesi ini adalah *perasaan* mentah, dan obat
 paling naluriah untuk perasaan itu adalah menambah. Jalur defaultnya menuju
 pembatalan dua sesi pengurangan — dan ia akan **terasa seperti kemajuan sepanjang
-prosesnya**.
+prosesnya**. Pengecualian navigasi tidak melonggarkan ini; ia justru menandai
+satu-satunya pintu yang terbuka, sehingga sisanya tetap tertutup.
 
 ---
 
@@ -183,16 +256,30 @@ Berurutan, karena tiap langkah memberi makan berikutnya.
 | # | Langkah | Keluaran |
 |---|---|---|
 | 1 | **Kumpulkan bukti mekanis lebih dulu.** Jalankan `/web-design-guidelines frontend/src` | Daftar temuan `file:line`. Perbaiki yang mekanis **sebelum** membahas selera, supaya keduanya tidak tercampur |
-| 2 | **Putuskan token** — netral + biasnya, rona pengecualian, skala spasi, skala tipografi | Satu blok `:root` per tanah, tiap token bernama sesuai **maknanya**, bukan rupanya |
-| 3 | **Uji rencana itu** dengan pertanyaan skill `frontend-design`: *"apakah ini yang akan kuhasilkan untuk brief serupa mana pun?"* Kalau ya, ulangi | Rencana yang direvisi, dengan catatan apa yang diubah dan kenapa |
-| 4 | **Perluas `test_design_tokens.py` ke dua tanah** — sebelum menulis CSS, supaya palet yang gagal AA tidak pernah sempat masuk | Test merah, lalu hijau |
-| 5 | **Terapkan ke empat layar**: beranda · versi + grid · login · pengaturan akun | Angka ajaib inline diganti token |
-| 6 | **Tulis ADR-nya.** Keputusan positif pertama tentang rupa yang pernah dimiliki project ini | D-036 dst. di §18, §14 diperbarui, changelog §0.6 |
+| 2 | **Arsitektur informasi (§4.7).** Hitung tujuan sebenarnya, jelajahi kerangkanya, rancang orientasi & perpindahan. **Jangan menulis kode dulu** | Rancangan + ADR draf yang menggugat D-032 dan §14.5 dengan bukti |
+| **⏸** | **🔴 TITIK LAPOR 1 — BERHENTI.** Tulis §12 (Laporan A), lalu tunggu. Jangan lanjut ke langkah 3 sebelum pemilik produk menjawab | §12 |
+| 3 | Bangun navigasi yang disetujui | Kode + test |
+| 4 | **Putuskan token** — netral + biasnya, rona pengecualian, penanda "bisa diklik", skala spasi, skala tipografi | Satu blok `:root` per tanah, tiap token bernama sesuai **maknanya**, bukan rupanya |
+| 5 | **Uji rencana itu** dengan pertanyaan skill `frontend-design`: *"apakah ini yang akan kuhasilkan untuk brief serupa mana pun?"* Kalau ya, ulangi | Rencana yang direvisi, dengan catatan apa yang diubah dan kenapa |
+| 6 | **Perluas `test_design_tokens.py` ke dua tanah** — sebelum menulis CSS, supaya palet yang gagal AA tidak pernah sempat masuk | Test merah, lalu hijau |
+| 7 | **Terapkan ke empat layar**: beranda · versi + grid · login · pengaturan akun | Angka ajaib inline diganti token |
+| 8 | **Tulis ADR-nya.** Keputusan positif pertama tentang rupa yang pernah dimiliki project ini | D-036 dst. di §18, §14 diperbarui, changelog §0.6 |
+| **⏹** | **🔴 TITIK LAPOR 2.** Tulis §13 (Laporan B) | §13 |
+
+⚠️ **Titik lapor 1 adalah berhenti sungguhan, bukan formalitas.** Navigasi
+menentukan bentuk shell, dan sistem visual dibangun di atas bentuk itu. Melewatinya
+berarti menata dua kali kalau rancangannya ditolak — dan pemilik produk baru bisa
+menilai setelah melihatnya, bukan sebelum.
 
 ---
 
 ## 8. Definisi selesai
 
+- [ ] **§12 dan §13 ditulis dan di-commit** — tanpa ini sesi dianggap belum selesai
+- [ ] **Titik lapor 1 dihormati** — navigasi tidak dibangun sebelum rancangannya disetujui
+- [ ] Orientasi terjawab di setiap layar: *project apa, dataset apa, versi apa*
+- [ ] Ada jalan keluar dari setiap layar tanpa mengandalkan tombol back browser
+- [ ] Layar pertama masuk akal untuk nol, satu, **dan** banyak project
 - [ ] Nol angka ajaib spasi/ukuran tersisa di JSX
 - [ ] `test_design_tokens.py` menguji **kedua** tanah; semua token lulus AA
 - [ ] Toggle tema bekerja, dan pilihannya bertahan antar-kunjungan
@@ -211,18 +298,101 @@ Berurutan, karena tiap langkah memberi makan berikutnya.
 |---|---|
 | Tab Profile (FR-D.5) | INV-5 — kartunya penuh angka yang butuh `computation_id`. Fase 3, di atas executor |
 | FR-B.2 + identitas versi (P4) | Satu pekerjaan tersendiri, empat bagian, dijadwalkan sesi terpisah |
-| Run Log · sidebar · composer | Masing-masing punya syarat kembali tertulis (Fase 3 / Fase 5) |
+| Run Log · composer | Syarat kembali tertulis (Fase 3 / Fase 5). Keduanya menunggu **isi**, bukan menunggu navigasi — jadi §4.7 tidak menyentuhnya. ⚠️ **Sidebar dikeluarkan dari baris ini** dan kini dapat diusulkan lewat §4.7, karena argumen pencabutannya adalah ongkos ruang, dan itu argumen tentang *bentuk* navigasi — bukan tentang apakah orientasi dibutuhkan |
 | FR-D.6 sort & filter | Filter adalah tugas expression language §11.3; jalur kedua sekarang berarti Fase 3 harus menyatukan atau menghapusnya |
 | Kosakata "asal" (arah C) | Ide bagus yang **belum punya pemakai**. Slot "dihitung" baru nyata di Fase 3, dan §20 melarang membangun untuk pemakai yang belum ada. Tercatat di sini supaya tidak hilang |
 
 ---
 
-## 10. Cara memulai sesi itu
+## 10. WAJIB — laporkan hasilnya ke bawah dokumen ini
+
+Sesi desain **wajib menambahkan** bagian di paling bawah file ini, di dua titik
+yang ditandai di §7. Ini bukan dokumentasi; ini **serah terima yang harus bisa
+diperiksa** oleh sesi lain yang tidak melihat pekerjaannya.
+
+### Aturannya
+
+1. **Tambahkan di bawah, jangan sunting apa pun di atas §12.** Brief adalah
+   masukan; kalau ia berubah sambil dikerjakan, tidak ada lagi yang bisa
+   dijadikan pembanding.
+2. **Commit laporannya**, seperti perubahan lain.
+3. Setelah diverifikasi, isi §12 dst. **dikosongkan** dan brief ditulis ulang
+   untuk siklus berikutnya. Git menyimpan semuanya — tidak ada yang hilang.
+
+### Yang membuat laporan bisa diperiksa
+
+⚠️ **Laporan yang menyenangkan tidak berguna.** Kalau isinya hanya "selesai,
+semua hijau", ia tidak bisa di-cross-check dan sesi ini tidak akan tahu apa yang
+perlu ditindaklanjuti. Wajib memuat:
+
+| Bagian | Isi |
+|---|---|
+| **Keputusan** | Nilai sebenarnya, bukan sifatnya. `--ink-faint: #8290a6`, bukan "netral yang lebih terang". Skala spasi sebagai daftar angka |
+| **Apa yang dikodekan** | Untuk tiap keputusan, jawaban aturan ① — apa yang ia nyatakan tentang isinya. Yang tak bisa menjawab adalah dekorasi, dan harus dinyatakan begitu |
+| **Yang TIDAK dikerjakan** | Beserta alasannya. Daftar kosong di sini hampir pasti berarti ada yang tidak dilaporkan |
+| **⚠️ Di mana brief ini keliru** | **Bagian terpenting.** Kalau brief menyuruh sesuatu yang ternyata salah, keliru, atau mustahil — katakan, jangan diakali diam-diam. Termasuk kalau arah B ternyata tidak bekerja |
+| **Bukti terukur** | Rasio kontras yang benar-benar diukur di **kedua** tanah. Hitungan test sebelum & sesudah. Jumlah angka ajaib yang tersisa |
+| **Yang disentuh** | Commit + berkas. Cukup untuk ditelusuri tanpa menebak |
+| **Terbuka / butuh keputusan** | Apa yang menunggu jawaban pemilik produk |
+
+### Kerangka
+
+```markdown
+## 12. Laporan A — arsitektur informasi (titik lapor 1)
+
+**Tanggal · commit terakhir · status:** …
+
+### Tujuan yang dihitung
+(berapa tujuan sebenarnya yang dipunya aplikasi ini, dan daftarnya)
+
+### Rancangan yang diusulkan
+(orientasi, perpindahan, layar pertama untuk nol/satu/banyak project)
+
+### Terhadap D-032 dan §14.5
+(apa yang digugat, bukti apa, dan apa yang TETAP berlaku)
+
+### Alternatif yang ditolak
+(minimal dua, dengan alasannya)
+
+### ⚠️ Di mana brief ini keliru
+### Terbuka / butuh keputusan
+```
+
+```markdown
+## 13. Laporan B — sistem visual (titik lapor 2)
+
+**Tanggal · commit · status:** …
+
+### Token yang diputuskan
+(nilai sebenarnya, kedua tanah)
+
+### Apa yang dikodekan tiap keputusan
+### Bukti terukur
+(kontras kedua tanah, test sebelum/sesudah, sisa angka ajaib)
+
+### Definisi selesai §8 — poin per poin
+### Yang tidak dikerjakan, dan kenapa
+### ⚠️ Di mana brief ini keliru
+### Terbuka / butuh keputusan
+```
+
+---
+
+## 11. Cara memulai sesi itu
 
 ```
-Baca the project notes, lalu docs/design_brief.md.
+Baca the project notes, lalu docs/design_brief.md seluruhnya.
 Cek `git log --oneline -5` dan `git status`.
 Laporkan singkat posisi kita, lalu mulai dari langkah 1 di §7 brief.
+
+Dua hal yang paling mudah terlewat, jadi kusebut di sini juga:
+
+1. §7 punya TITIK LAPOR 1 setelah rancangan navigasi. Berhenti sungguhan di
+   sana — tulis §12, commit, dan tunggu jawabanku sebelum menulis kode
+   navigasi apa pun.
+2. §10 mewajibkan laporan ditambahkan ke BAWAH brief, bukan disunting ke
+   dalamnya. Bagian "di mana brief ini keliru" bukan basa-basi — kalau brief
+   menyuruh sesuatu yang salah, katakan; jangan diakali diam-diam.
 
 Aturan main tetap berlaku: baca bagian DESIGN.md yang relevan sebelum menulis
 kode; kalau ada yang keliru di sana, katakan sekarang. Untuk pekerjaan besar,
