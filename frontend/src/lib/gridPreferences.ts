@@ -28,6 +28,21 @@
 
 const PREFIX = "datacanvas.grid.";
 
+/**
+ * The shape version of a stored entry. Raise it whenever the meaning of a field
+ * changes; entries written under a different number are ignored and pruned.
+ *
+ * Found by the `react-best-practices` skill's `client-localstorage-schema` rule
+ * on the day that skill was vendored (D-035), in code written hours earlier.
+ *
+ * The shape check alone was not enough, and the gap is subtle. It validates that
+ * `hidden` and `pinned` are arrays and `widths` is an object — so a *future*
+ * version of this file that keeps those names while changing what they mean
+ * would read old entries as valid and act on them. A grid silently restoring the
+ * wrong columns is exactly the class of failure the cell-lookup fix removed.
+ */
+const SCHEMA_VERSION = 1;
+
 /** Ninety days. Long enough to come back to a piece of work, short enough that
  *  a browser profile does not accumulate choices about files that are gone. */
 const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
@@ -43,6 +58,8 @@ export interface GridPreferences {
 }
 
 interface StoredPreferences extends GridPreferences {
+  /** Shape version. Entries carrying anything else are ignored. */
+  v: number;
   /** Epoch milliseconds, used only to decide what to prune. */
   at: number;
 }
@@ -66,6 +83,7 @@ function isPreferences(value: unknown): value is StoredPreferences {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Partial<StoredPreferences>;
   return (
+    candidate.v === SCHEMA_VERSION &&
     Array.isArray(candidate.hidden) &&
     Array.isArray(candidate.pinned) &&
     typeof candidate.widths === "object" &&
@@ -93,7 +111,7 @@ export function saveGridPreferences(versionId: string, preferences: GridPreferen
   const store = storage();
   if (!store) return;
   try {
-    const entry: StoredPreferences = { ...preferences, at: Date.now() };
+    const entry: StoredPreferences = { ...preferences, v: SCHEMA_VERSION, at: Date.now() };
     store.setItem(PREFIX + versionId, JSON.stringify(entry));
     prune(store);
   } catch {

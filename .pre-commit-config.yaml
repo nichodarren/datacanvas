@@ -19,18 +19,19 @@ default_language_version:
 #
 # Yang dikecualikan hanya salinan verbatim. `README.md` dan `SKILL.md`
 # web-design-guidelines kita tulis sendiri, jadi keduanya tetap dirapikan.
-VENDORED: &vendored >-
-  ^\config/skills/(react-best-practices|composition-patterns)/|
-  ^\config/skills/web-design-guidelines/guidelines\.md$
-
+#
+# Pola ini ditulis dua kali alih-alih dipakai lewat anchor YAML: anchor menuntut
+# sebuah key di root, dan pre-commit mencetak `Unexpected key(s) present at
+# root` setiap kali ia jalan. Peringatan yang muncul di tiap commit melatih
+# orang mengabaikan peringatan — duplikasi satu regex lebih murah daripada itu.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: *vendored
+        exclude: ^\config/skills/(react-best-practices|composition-patterns)/|^\config/skills/web-design-guidelines/guidelines\.md$
       - id: end-of-file-fixer
-        exclude: *vendored
+        exclude: ^\config/skills/(react-best-practices|composition-patterns)/|^\config/skills/web-design-guidelines/guidelines\.md$
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
