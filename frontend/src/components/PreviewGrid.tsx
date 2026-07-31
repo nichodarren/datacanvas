@@ -1,30 +1,35 @@
 "use client";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { LOGICAL_TYPES, type ColumnSpec, type SchemaContract, api } from "@/lib/api";
 
-const PAGE_SIZE = 200;
-const ROW_HEIGHT = 27;
+/** How many rows a preview shows. `head(20)`, and nothing beyond it. */
+const PREVIEW_ROWS = 20;
 
 /**
- * The preview grid (P0-14, FR-D.1, FR-D.2, FR-D.4, FR-D.5).
+ * The preview: the first rows of a dataset, with every column on screen at once.
  *
- * Two decisions carry this component.
+ * This was a virtualized, server-paged grid that could scroll through five
+ * million rows without the browser ever holding more than a screenful — the
+ * thing FR-D.1 asks for, and the thing Gate 2 measured at 94 ms for the first
+ * page of the 5,000,000-row fixture. At the owner's direction it is now a
+ * fixed `head(20)` with no scrollbars in either axis.
  *
- * **Rows are fetched a page at a time and never all at once.** FR-D.1 promises
- * a five-million-row dataset without freezing the browser, and the only way to
- * keep that promise is for the browser never to see five million rows. The
- * virtualizer renders what fits on screen; the fetcher pulls the pages those
- * rows fall in.
+ * Two requirements are knowingly unmet by that, both recorded in the project notes:
  *
- * **The header is the product.** §14 (FR-D.4/D.5 rationale) is explicit that
- * the first question on unfamiliar data is not "what is in rows 1 to 100" but
- * "can I trust this?" — and a raw grid never answers it. So each header shows
- * the name, the logical type, and how sure the detector was, and clicking it
- * changes the type (FR-C.2). Correction lives exactly where the problem is
- * visible.
+ * * **FR-D.1 / FR-D.2 (P0)** — browsing a large dataset. Rows 21 and beyond are
+ *   now unreachable from the UI. The server route still pages (`offset`,
+ *   `limit`), so the capability is intact; nothing calls for it.
+ * * **NFR-PERF.1** — the measurement that closed Gate 2 was taken on the path
+ *   this replaces. It stays true of the API and is no longer exercised by the
+ *   browser.
+ *
+ * The horizontal constraint is the one with a hard edge. Twelve columns fit;
+ * ingest accepts a file with any number of them, and there is no cap anywhere
+ * in NFR-SCALE. Past roughly fifteen the cells become too narrow to read, and
+ * no amount of styling fixes that — it needs a decision (scrolling back, or
+ * choosing which columns to show), not a workaround.
  */
 export function PreviewGrid({
   workspaceId,
@@ -39,58 +44,24 @@ export function PreviewGrid({
   contract: SchemaContract;
   onContractChanged: (next: SchemaContract) => void;
 }) {
-  const scroller = useRef<HTMLDivElement>(null);
-  const [rows, setRows] = useState<Map<number, (string | null)[]>>(new Map());
-  const [pending, setPending] = useState<Set<number>>(new Set());
+  const [rows, setRows] = useState<(string | null)[][] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
 
   const columns = [...contract.columns].sort((a, b) => a.ordinal - b.ordinal);
 
-  const virtualizer = useVirtualizer({
-    count: totalRows,
-    getScrollElement: () => scroller.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 20,
-  });
-
-  const items = virtualizer.getVirtualItems();
-
-  const fetchPage = useCallback(
-    async (page: number) => {
-      setPending((current) => new Set(current).add(page));
-      try {
-        const result = await api.rows(workspaceId, versionId, page * PAGE_SIZE, PAGE_SIZE);
-        setRows((current) => {
-          const next = new Map(current);
-          result.rows.forEach((row, index) => next.set(result.offset + index, row));
-          return next;
-        });
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Could not load rows.");
-      }
-    },
-    [workspaceId, versionId],
-  );
-
-  // Which pages the visible window falls in. Deliberately driven by what is on
-  // screen rather than by a scroll position: overscan, resizing and jumping to
-  // an offset all produce the same question, and answering it in one place
-  // means no path can forget to load.
-  useEffect(() => {
-    if (items.length === 0) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (!first || !last) return;
-
-    for (
-      let page = Math.floor(first.index / PAGE_SIZE);
-      page <= Math.floor(last.index / PAGE_SIZE);
-      page += 1
-    ) {
-      if (!pending.has(page)) void fetchPage(page);
+  const load = useCallback(async () => {
+    try {
+      const result = await api.rows(workspaceId, versionId, 0, PREVIEW_ROWS);
+      setRows(result.rows);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load rows.");
     }
-  }, [items, pending, fetchPage]);
+  }, [workspaceId, versionId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function changeType(column: ColumnSpec, logicalType: string) {
     setEditing(null);
@@ -113,11 +84,11 @@ export function PreviewGrid({
         </div>
       ) : null}
 
-      <div className="grid-wrap" ref={scroller} style={{ height: "62vh" }}>
-        <table className="grid" style={{ width: "100%" }}>
+      <div className="grid-wrap">
+        <table className="grid">
           <thead>
             <tr>
-              <th style={{ width: 64 }}>
+              <th style={{ width: 48 }}>
                 <span className="colhead" style={{ cursor: "default" }}>
                   <span className="name faint">#</span>
                 </span>
@@ -135,51 +106,37 @@ export function PreviewGrid({
           </thead>
 
           <tbody>
-            {/* A spacer row above and below the window is what lets a native
-                table scroll like a five-million-row one without holding five
-                million <tr>. */}
-            <tr style={{ height: items[0]?.start ?? 0 }} />
-            {items.map((item) => {
-              const row = rows.get(item.index);
-              return (
-                <tr key={item.key} style={{ height: ROW_HEIGHT }}>
-                  <td className="rownum">{(item.index + 1).toLocaleString()}</td>
-                  {columns.map((column, columnIndex) => {
-                    const cell = row?.[columnIndex];
-                    if (!row) {
-                      return (
-                        <td key={column.name} className="null">
-                          …
-                        </td>
-                      );
-                    }
-                    return cell === null || cell === "" ? (
-                      // An empty cell and a null cell are different facts, and
-                      // a blank space says neither. FR-D.7 will mark these
-                      // properly; until then the word is at least honest.
-                      <td key={column.name} className="null">
-                        null
-                      </td>
-                    ) : (
-                      <td key={column.name} title={cell}>
-                        {cell}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-            <tr
-              style={{
-                height: Math.max(
-                  0,
-                  virtualizer.getTotalSize() - (items[items.length - 1]?.end ?? 0),
-                ),
-              }}
-            />
+            {(rows ?? []).map((row, index) => (
+              // A preview row has no identity of its own — it is a slice of a
+              // file, not a record — so the offset is the key.
+              // eslint-disable-next-line react/no-array-index-key
+              <tr key={index}>
+                <td className="rownum">{index + 1}</td>
+                {columns.map((column, columnIndex) => {
+                  const cell = row[columnIndex];
+                  return cell === null || cell === "" ? (
+                    // An empty cell and a null cell are different facts, and a
+                    // blank space says neither.
+                    <td key={column.name} className="null">
+                      null
+                    </td>
+                  ) : (
+                    <td key={column.name} title={cell}>
+                      {cell}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
+
+      {rows !== null && totalRows > PREVIEW_ROWS ? (
+        <p className="faint" style={{ fontSize: 12, margin: 0 }}>
+          Showing the first {PREVIEW_ROWS} of {totalRows.toLocaleString()} rows.
+        </p>
+      ) : null}
     </div>
   );
 }

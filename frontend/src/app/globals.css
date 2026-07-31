@@ -205,10 +205,12 @@ h2 {
 
 /* --------------------------------------------------------------- grid ---- */
 
+/* No scrolling in either axis. The preview is a fixed head(20) with every
+   column on screen, so there is nothing to scroll to — a scrollbar would be an
+   invitation to somewhere that does not exist. */
 .grid-wrap {
   border: 1px solid var(--line);
   border-radius: 10px;
-  overflow: auto;
   background: var(--panel);
   position: relative;
 }
@@ -217,18 +219,18 @@ table.grid {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
+  width: 100%;
+  table-layout: fixed;
 }
 
 table.grid thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   background: var(--panel-2);
   border-bottom: 1px solid var(--line);
   border-right: 1px solid var(--line);
   padding: 0;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 /* The header carries the column name and the logical type, and the type is a
@@ -293,16 +295,16 @@ table.grid thead th {
   font-weight: 700;
 }
 
+/* `table-layout: fixed` shares the width evenly and `overflow-wrap` keeps a
+   long value inside its own cell instead of pushing the table past the page. */
 table.grid td {
   border-bottom: 1px solid var(--line);
   border-right: 1px solid var(--line);
-  padding: 5px 12px;
+  padding: 5px 10px;
   font-family: var(--mono);
   font-size: 12px;
-  white-space: nowrap;
-  max-width: 340px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  vertical-align: top;
+  overflow-wrap: anywhere;
 }
 table.grid td.null {
   color: var(--ink-faint);
