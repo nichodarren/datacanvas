@@ -30,7 +30,6 @@ export function Shell({
   versionBadge,
   active,
   me,
-  workspaceId,
 }: {
   children: ReactNode;
   /** The `Project ▾` control §14.2 places next to the brand. */
@@ -39,8 +38,6 @@ export function Shell({
   active?: "preview" | "schema";
   /** Absent only while the page is still finding out who is signed in. */
   me?: Me | null;
-  /** Which workspace the page is actually working in, when it knows. */
-  workspaceId?: string;
 }) {
   return (
     <div className="shell">
@@ -55,10 +52,10 @@ export function Shell({
             is. It is shown here already, reading from nothing, because the
             header is where §14.2 puts it and moving it later would be a
             second lesson for the user. */}
-        <span className="pill" title="Workspace privacy mode (§13.5). The copilot arrives in Phase 5.">
+        <span className="pill" title="Privacy mode for the copilot (§13.5). Arrives in Phase 5.">
           🔒 balanced
         </span>
-        {me ? <AccountMenu me={me} workspaceId={workspaceId} /> : null}
+        {me ? <AccountMenu me={me} /> : null}
       </header>
 
       <div className="body">

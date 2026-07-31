@@ -78,7 +78,7 @@ export default function HomePage() {
         router.replace("/login");
         return;
       }
-      setError(cause instanceof Error ? cause.message : "Could not load your workspace.");
+      setError(cause instanceof Error ? cause.message : "Could not load your projects.");
     } finally {
       setLoading(false);
     }
@@ -136,7 +136,7 @@ export default function HomePage() {
   const empty = datasets.length === 0;
 
   return (
-    <Shell active="preview" headerExtras={picker} me={me} workspaceId={workspace?.id}>
+    <Shell active="preview" headerExtras={picker} me={me}>
       {error ? (
         <div className="banner error" role="alert">
           {error}

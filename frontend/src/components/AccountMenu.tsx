@@ -19,20 +19,27 @@ import { type Me, api } from "@/lib/api";
  * The email sits **on the button, not only inside the menu**. The usual pattern
  * is an avatar circle, but that pattern assumes one account per person. The
  * question this control exists to answer — *which account am I in?* — has to be
- * answerable without a click, because uploading into the wrong workspace is a
+ * answerable without a click, because uploading into the wrong account is a
  * real mistake with real cleanup, and nothing else on screen would catch it.
  *
- * The role is shown because it is true and load-bearing: it is what explains,
- * later, why a viewer cannot see the buttons an editor can (§13.3).
+ * **The workspace is deliberately not named here.** It was, for a day. Every
+ * account gets exactly one workspace at registration and there is no route to
+ * create a second, so the line read `Personal workspace · owner` for every user
+ * alive — identical, unchangeable, and therefore not information. Worse, naming
+ * it here while the header named the *project* made the two read as the same
+ * thing, and the first person to see it asked which was which.
+ *
+ * The concept stays in the data model, where it separates policy from work
+ * (§7) and carries every authorization decision (INV-7). It just stops being a
+ * word the user has to place. If invitations ever land, one workspace becomes
+ * several, and *that* is when a name earns a place on screen — not before.
  */
-export function AccountMenu({ me, workspaceId }: { me: Me; workspaceId?: string }) {
+export function AccountMenu({ me }: { me: Me }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
-
-  const workspace = me.workspaces.find((item) => item.id === workspaceId) ?? me.workspaces[0];
 
   useEffect(() => {
     if (!open) return;
@@ -75,11 +82,6 @@ export function AccountMenu({ me, workspaceId }: { me: Me; workspaceId?: string 
         <div className="menu right" role="menu">
           <div className="menu-head">
             <strong>{me.user.email}</strong>
-            {workspace ? (
-              <span className="faint">
-                {workspace.name} · {workspace.role}
-              </span>
-            ) : null}
           </div>
 
           {error ? (

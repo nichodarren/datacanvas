@@ -102,7 +102,7 @@ export default function VersionPage() {
   );
 
   return (
-    <Shell versionBadge={badge} active={tab} me={me} workspaceId={workspaceId}>
+    <Shell versionBadge={badge} active={tab} me={me}>
       <h1>Dataset version {version.version_no}</h1>
       <p className="muted">
         {version.row_count.toLocaleString()} rows · {version.column_count} columns ·{" "}
