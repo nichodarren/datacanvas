@@ -29,23 +29,42 @@ import type { Me } from "@/lib/api";
  * feature is not the same as priming a layout, and a paragraph of prose sat
  * there permanently to do it.
  *
- * They come back when they hold something. Until then the space belongs to the
- * work. What none of them may ever do is *fake* content: placeholder rows in a
- * Run Log would imply traceability that does not exist, and P3 is the one
- * promise this product cannot be casual about.
+ * The left navigation rail went the same way, and its case was the strongest of
+ * the three even though navigation is exactly the kind of thing you would
+ * normally introduce early. The principle held; the object did not live up to
+ * it. In 190px of every screen it carried one link that duplicated the brand
+ * (both went to `/`), one that was broken, and three phase labels.
+ *
+ * The broken one was `Schema`, and it was worse than a placeholder. It rendered
+ * as a `<Link>` styled identically to the live item — not as the greyed spans
+ * Library and Steps used — so it promised to work, went to `href="#"`, and
+ * named a feature that *does* exist as a tab on the version page. Its
+ * `aria-disabled` did not disable anything either: the anchor stayed focusable
+ * and clickable while announcing itself as disabled.
+ *
+ * Underneath that was a category error. A schema belongs to one dataset
+ * version — *schema of what?* has no answer from a global rail on the home
+ * screen, which is why it pointed nowhere. Where the question does have an
+ * answer, tabs already answer it, and tabs are the right pattern for two views
+ * of one object.
+ *
+ * The app has two destinations today: the dataset list and a version. Brand →
+ * home, card → version, tabs → preview/schema is complete navigation for that.
+ *
+ * All of them come back when they hold something. What none may ever do is
+ * *fake* content: placeholder rows in a Run Log would imply traceability that
+ * does not exist, and P3 is the one promise this product cannot be casual about.
  */
 export function Shell({
   children,
   headerExtras,
   versionBadge,
-  active,
   me,
 }: {
   children: ReactNode;
   /** The `Project ▾` control §14.2 places next to the brand. */
   headerExtras?: ReactNode;
   versionBadge?: ReactNode;
-  active?: "preview" | "schema";
   /** Absent only while the page is still finding out who is signed in. */
   me?: Me | null;
 }) {
@@ -78,25 +97,6 @@ export function Shell({
       </header>
 
       <div className="body">
-        <nav className="sidebar">
-          <div className="group">Data</div>
-          <Link href="/" className={active === "preview" ? "active" : ""}>
-            Preview
-          </Link>
-          <Link href="#" className={active === "schema" ? "active" : ""} aria-disabled>
-            Schema
-          </Link>
-
-          <div className="group">Explore</div>
-          <span className="item disabled">Library</span>
-          <span className="item disabled">Steps</span>
-          <div className="phase">Phase 3 — the tool catalogue</div>
-
-          <div className="group">Findings</div>
-          <span className="item disabled">Board</span>
-          <div className="phase">Phase 4</div>
-        </nav>
-
         <main className="workarea">{children}</main>
       </div>
     </div>

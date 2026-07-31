@@ -79,7 +79,7 @@ export default function VersionPage() {
 
   if (loading) {
     return (
-      <Shell active="preview">
+      <Shell>
         <p className="muted">Loading…</p>
       </Shell>
     );
@@ -89,7 +89,7 @@ export default function VersionPage() {
     // `me` is passed here too: a page that failed to load is exactly where
     // someone might want to sign out, and stranding them would be worse.
     return (
-      <Shell active="preview" me={me}>
+      <Shell me={me}>
         <div className="banner error" role="alert">
           {error ?? "Not available."}
         </div>
@@ -102,7 +102,7 @@ export default function VersionPage() {
   );
 
   return (
-    <Shell versionBadge={badge} active={tab} me={me}>
+    <Shell versionBadge={badge} me={me}>
       <h1>Dataset version {version.version_no}</h1>
       <p className="muted">
         {version.row_count.toLocaleString()} rows · {version.column_count} columns ·{" "}

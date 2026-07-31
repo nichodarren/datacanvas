@@ -118,7 +118,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <Shell active="preview">
+      <Shell>
         <p className="muted">Loading…</p>
       </Shell>
     );
@@ -136,7 +136,7 @@ export default function HomePage() {
   const empty = datasets.length === 0;
 
   return (
-    <Shell active="preview" headerExtras={picker} me={me}>
+    <Shell headerExtras={picker} me={me}>
       {error ? (
         <div className="banner error" role="alert">
           {error}

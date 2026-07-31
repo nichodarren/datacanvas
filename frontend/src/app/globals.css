@@ -125,46 +125,10 @@ button:focus-visible {
   min-height: 0;
 }
 
-.sidebar {
-  flex: 0 0 190px;
-  border-right: 1px solid var(--line);
-  background: var(--panel);
-  padding: 12px 8px;
-  overflow: auto;
-}
-.sidebar .group {
-  color: var(--ink-faint);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 14px 8px 6px;
-}
-.sidebar a,
-.sidebar .item {
-  display: block;
-  padding: 6px 10px;
-  border-radius: 6px;
-  color: var(--ink-dim);
-  text-decoration: none;
-}
-.sidebar a:hover {
-  background: var(--panel-2);
-  color: var(--ink);
-}
-.sidebar a.active {
-  background: var(--panel-2);
-  color: var(--ink);
-  font-weight: 600;
-}
-.sidebar .item.disabled {
-  color: var(--ink-faint);
-  cursor: default;
-}
-.sidebar .phase {
-  font-size: 11px;
-  color: var(--ink-faint);
-  padding: 0 10px 6px;
-}
+/* `.sidebar` (190px, left) lived here alongside `.runlog` and `.composer`, and
+   went for the same reason: it cost width on every screen and held nothing the
+   user could reach. Its one live item duplicated the brand link, and `Schema`
+   pointed at `href="#"` while looking exactly like a working one. */
 
 .workarea {
   flex: 1;
