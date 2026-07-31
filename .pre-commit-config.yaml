@@ -10,12 +10,27 @@ default_install_hook_types: [pre-commit, commit-msg]
 default_language_version:
   python: python3.13
 
+# Skill pihak ketiga di `config/skills/` di-vendor **verbatim** (D-035), dan
+# `config/skills/.upstream-commit-vercel` mencatat commit asalnya supaya
+# pembaruan bisa ditinjau sebagai diff. Hook perapi whitespace menghancurkan
+# justru kemampuan itu: ia menyunting berkasnya saat commit pertama, dan sejak
+# itu setiap diff terhadap hulu berisi ratusan perubahan spasi yang bukan
+# perubahan aturan. Ditemukan saat commit pertama, yang menyentuh 19 berkas.
+#
+# Yang dikecualikan hanya salinan verbatim. `README.md` dan `SKILL.md`
+# web-design-guidelines kita tulis sendiri, jadi keduanya tetap dirapikan.
+VENDORED: &vendored >-
+  ^\config/skills/(react-best-practices|composition-patterns)/|
+  ^\config/skills/web-design-guidelines/guidelines\.md$
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: *vendored
       - id: end-of-file-fixer
+        exclude: *vendored
       - id: check-merge-conflict
       - id: check-yaml
       - id: check-toml
