@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { type Dialect, type IngestPreview, api } from "@/lib/api";
 
@@ -49,6 +49,30 @@ export function Upload({
    * stops claiming a number and says what is actually happening.
    */
   const [sent, setSent] = useState<number | null>(null);
+
+  /**
+   * Warn before a navigation that would throw away an upload in flight.
+   *
+   * Gate 2 timed the 480 MB fixture at 28 seconds end to end. For all of that
+   * time a stray click on a link, a middle-click, or a reflexive Ctrl+R
+   * cancelled the whole thing with no warning and nothing to resume from — the
+   * bytes are gone and the transaction never committed, so the user starts
+   * again from the file picker.
+   *
+   * Only while `busy === "commit"`. Choosing a file, reading its first
+   * megabyte, or sitting on the confirmation screen costs nothing to redo, and
+   * a browser that questions every navigation is one people learn to dismiss
+   * without reading — which would spend the warning exactly when it matters.
+   *
+   * The browser decides the wording; `preventDefault` is the entire modern API.
+   * Returning a string is the legacy form and is ignored.
+   */
+  useEffect(() => {
+    if (busy !== "commit") return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
 
   async function choose(chosen: File) {
     setFile(chosen);

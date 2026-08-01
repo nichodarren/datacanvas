@@ -6,10 +6,13 @@ import { useCallback, useEffect, useState } from "react";
 import { LoadFailure } from "@/components/LoadFailure";
 import { PreviewGrid } from "@/components/PreviewGrid";
 import { Shell } from "@/components/Shell";
+import { Trail } from "@/components/Trail";
+import { rememberProject } from "@/lib/lastProject";
 import {
   ApiError,
   type DatasetVersion,
   type Me,
+  type Project,
   type SchemaContract,
   api,
   describeFailure,
@@ -59,6 +62,16 @@ export default function VersionPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /**
+   * The other projects, for the trail's picker.
+   *
+   * One extra request on a page that measured 94 ms against a 1000 ms budget
+   * (NFR-PERF.1), and it buys the same header on every screen instead of a
+   * caret that appears on one of them. Fetched after the version, because the
+   * workspace it belongs to is only known once the version has been found.
+   */
+  const [projects, setProjects] = useState<Project[]>([]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -75,6 +88,7 @@ export default function VersionPage() {
           setWorkspaceId(candidate.id);
           setVersion(found);
           setContract(await api.schema(candidate.id, versionId));
+          setProjects(await api.projects(candidate.id));
           return;
         } catch (cause) {
           if (cause instanceof ApiError && cause.isMissing) continue;
@@ -125,8 +139,40 @@ export default function VersionPage() {
   }
 
 
+  /**
+   * Switching project from here means leaving this dataset, so it navigates.
+   *
+   * The remembered project is written *before* the push, because `/` reads it
+   * on mount — writing it afterwards would land the user on the project they
+   * just left and then correct itself, which reads as the app changing its
+   * mind.
+   */
+  // Consts rather than declarations, so they are defined *after* the guards
+  // above and can close over the narrowed `workspaceId`. A hoisted `function`
+  // would capture it as `string | null`, which it demonstrably is not by the
+  // time either of these can be called.
+  const switchProject = (next: Project) => {
+    rememberProject(next.id);
+    router.push("/");
+  };
+
+  const createProject = async (name: string) => {
+    switchProject(await api.createProject(workspaceId, name));
+  };
+
   return (
-    <Shell me={me}>
+    <Shell
+      me={me}
+      headerExtras={
+        <Trail
+          project={{ id: version.project_id, name: version.project_name }}
+          projects={projects}
+          here={version.dataset_name}
+          onSelect={switchProject}
+          onCreate={createProject}
+        />
+      }
+    >
       {/* Which dataset this is. Nothing on this page said so: the heading went
           with the version badge (§14.2, 2026-07-31), and the dataset's identity
           left with it — not the intent of that decision, just its blast radius.

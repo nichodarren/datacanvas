@@ -42,7 +42,12 @@ export function ProjectPicker({
   onCreate,
 }: {
   projects: Project[];
-  current: Project | null;
+  /**
+   * Only the identity is needed, and asking for less than a `Project` is what
+   * lets the version page pass what it has: its response carries the project's
+   * id and name, not the whole record.
+   */
+  current: { id: string; name: string } | null;
   onSelect: (project: Project) => void;
   onCreate: (name: string) => Promise<void>;
 }) {
@@ -93,15 +98,22 @@ export function ProjectPicker({
 
   return (
     <div ref={container} className="anchor">
+      {/* The caret alone. The project's name sits beside it in the trail, where
+          it is a link to that project's screen — see `Trail` for why the exit
+          and the switch are two controls rather than one chip. The name is
+          still in this button's accessible label, because "Switch project" on
+          its own does not say which one you are leaving. */}
       <button
         ref={trigger}
         type="button"
-        className="picker"
+        className="picker caret"
         onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
+        aria-label={current ? `Switch project, currently ${current.name}` : "Choose a project"}
+        title="Switch project"
       >
-        {current?.name ?? "No project"} <span aria-hidden>▾</span>
+        <span aria-hidden>▾</span>
       </button>
 
       {open ? (

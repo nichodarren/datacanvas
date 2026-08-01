@@ -142,6 +142,22 @@ class DatasetVersionResponse(BaseModel):
     #: version you are looking at* — stays unmet in the UI on purpose until
     #: Phase 3, where it returns attached to results rather than to a header.
     dataset_name: str
+    #: The Project this version's dataset belongs to (FR-A.4).
+    #:
+    #: Sent for the same reason ``dataset_name`` above it was, one step further
+    #: up the hierarchy: the version page could not say which project it was in
+    #: because nothing on this response told it. That was not only a missing
+    #: label. The brand link goes to ``/``, and ``/`` opens whichever project
+    #: the browser last remembered — so opening a version belonging to another
+    #: project and pressing the brand moved the user into a different project
+    #: with nothing on screen saying so.
+    #:
+    #: A frontend cannot fix that on its own, which is why these two fields
+    #: exist rather than a cleverer client. Neither is new state: Dataset
+    #: already carries ``project_id`` as a foreign key, and this is that same
+    #: fact, said out loud.
+    project_id: uuid.UUID
+    project_name: str
     version_no: int
     content_hash: str
     row_count: int

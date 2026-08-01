@@ -206,6 +206,81 @@ button:focus-visible,
   flex: 1;
 }
 
+/* --------------------------------------------------------------- trail ---- */
+
+/* Where you are, in the header row that already existed (D-036). It spends no
+   width of its own — it sits in the slot between the brand and the spacer that
+   only the home page was using — which is why D-032's argument against the
+   190px rail does not reach it. */
+.trail ol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.trail li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* Links in the trail are not the app's link colour: inside a header, a row of
+   blue would read as a toolbar of unrelated destinations rather than as one
+   path. They are the ink colour, and hover is what says they are live. */
+.trail a {
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 2px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trail a:hover {
+  color: var(--ink);
+  background: var(--panel-2);
+  text-decoration: none;
+}
+.trail-here {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trail-sep {
+  color: var(--ink-faint);
+  user-select: none;
+}
+
+/* Off screen until focused, then the first thing Tab reaches. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* `<main>` is focusable so the skip link can land on it, and that focus is a
+   destination rather than a control — no ring, or every skip would look like
+   it had selected something. */
+.workarea:focus {
+  outline: none;
+}
+
 /* `.version-badge` carried `v1 · schema v4` here (§14.2, P4). Removed from
    the UI at the owner's direction; the versions themselves are untouched. */
 
@@ -859,6 +934,35 @@ div.card.dataset {
 }
 .picker:hover {
   border-color: var(--line);
+}
+
+/* The caret alone. The project's name is beside it in the trail and is a link
+   to that project — see `Trail` for why leaving and switching are two controls
+   and not one chip. */
+.picker.caret {
+  padding: 4px 6px;
+  color: var(--ink-faint);
+}
+.picker.caret:hover {
+  color: var(--ink);
+}
+
+/* A `<Link>` that has to read as the primary action on a page with no form to
+   submit — the 404's way out. Same shape as `button.primary`, because it does
+   the same job and looking different would suggest it does not. */
+.button-link {
+  display: inline-block;
+  background: var(--accent);
+  color: #0b1020;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.button-link:hover {
+  text-decoration: none;
+  filter: brightness(1.08);
 }
 
 /* -------------------------------------------------------- account menu ---- */

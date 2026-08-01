@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useState } from "react";
 
 import { Shell } from "@/components/Shell";
+import { Trail } from "@/components/Trail";
 import { ApiError, type Me, type UserSession, api } from "@/lib/api";
 
 /**
@@ -59,7 +60,10 @@ export default function AccountPage() {
   }
 
   return (
-    <Shell me={me}>
+    // No project in the trail, because this screen belongs to none. Naming one
+    // here would be a plausible answer to a question the page cannot answer —
+    // the account is above projects, not inside one.
+    <Shell me={me} headerExtras={<Trail project={null} here="Account" />}>
       <div>
         <h1>Account</h1>
 

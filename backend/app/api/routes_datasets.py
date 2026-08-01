@@ -45,6 +45,7 @@ from app.clock import system_clock
 from app.domain.audit import AuditAction
 from app.domain.data import Dataset, DatasetVersion, SchemaContract
 from app.domain.enums import ColumnRole, LogicalType, Role, SourceFormat
+from app.domain.identity import Project
 from app.domain.ids import DatasetId, DatasetVersionId, ProjectId, WorkspaceId
 from app.domain.principal import Principal
 from app.ingest import formats, preview, samples
@@ -53,6 +54,7 @@ from app.ingest.limits import PREVIEW_BYTES, IngestRejected
 from app.ingest.service import IngestService
 from app.repositories.audit import AuditRepository
 from app.repositories.data import DatasetRepository
+from app.repositories.identity import ProjectRepository
 from app.repositories.schema import SchemaContractRepository
 from app.schema import override
 from app.schema.override import SchemaOverrideRejected
@@ -140,13 +142,28 @@ async def _inspect(upload: UploadFile) -> tuple[SourceFormat, Dialect | None]:
     return fmt, detected
 
 
+async def _project(connection: Connection, project_id: ProjectId) -> Project:
+    """The project a scope was opened for.
+
+    It cannot be missing — ``open_project_for_ingest`` had to find it to
+    authorize the caller in the first place — so this says so rather than
+    letting a ``None`` reach a response field as an empty name (P6).
+    """
+    found = await ProjectRepository(connection).get(project_id)
+    if found is None:
+        raise NOT_FOUND
+    return found
+
+
 def _version_response(
-    version: DatasetVersion, *, dataset_name: str, data_present: bool
+    version: DatasetVersion, *, dataset_name: str, project: Project, data_present: bool
 ) -> DatasetVersionResponse:
     return DatasetVersionResponse(
         id=version.id,
         dataset_id=version.dataset_id,
         dataset_name=dataset_name,
+        project_id=project.id,
+        project_name=project.name,
         version_no=version.version_no,
         content_hash=version.content_hash,
         row_count=version.row_count,
@@ -321,7 +338,10 @@ async def load_sample(
     return DatasetWithVersionResponse(
         dataset=_dataset_response(committed.dataset),
         version=_version_response(
-            committed.version, dataset_name=committed.dataset.name, data_present=True
+            committed.version,
+            dataset_name=committed.dataset.name,
+            project=await _project(connection, scope.project_id),
+            data_present=True,
         ),
         schema_contract=_contract_response(committed.contract),
         original_filename=committed.source_file.original_filename,
@@ -656,7 +676,10 @@ async def _commit(
     return DatasetWithVersionResponse(
         dataset=_dataset_response(committed.dataset),
         version=_version_response(
-            committed.version, dataset_name=committed.dataset.name, data_present=True
+            committed.version,
+            dataset_name=committed.dataset.name,
+            project=await _project(connection, scope.project_id),
+            data_present=True,
         ),
         schema_contract=_contract_response(committed.contract),
         original_filename=committed.source_file.original_filename,

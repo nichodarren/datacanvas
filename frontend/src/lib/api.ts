@@ -239,6 +239,18 @@ export interface DatasetVersion {
    * Not the version badge returning: P4 stays unmet in the UI until Phase 3.
    */
   dataset_name: string;
+  /**
+   * The project the dataset belongs to (FR-A.4), and the reason the trail can
+   * exist at all.
+   *
+   * Without it the version page could not name its project — and the brand link
+   * went to `/`, which opens whichever project the browser last remembered. A
+   * version reached from a bookmark could therefore hand the user a *different*
+   * project on the way back, silently. No amount of client cleverness fixes
+   * that; the fact had to come from the server. See `Trail`.
+   */
+  project_id: string;
+  project_name: string;
   version_no: number;
   content_hash: string;
   row_count: number;

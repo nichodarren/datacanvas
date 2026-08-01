@@ -203,6 +203,44 @@ async def test_the_uploaded_data_is_readable_afterwards(api: AsyncClient) -> Non
     assert response.json()["dataset_name"] == body["dataset"]["name"]
 
 
+async def test_the_version_names_the_project_it_belongs_to(api: AsyncClient) -> None:
+    """D-036, and the reason it had to be a server change.
+
+    The version page's only in-app exit was the brand link, which goes to ``/``
+    — and ``/`` opens whichever project the browser last remembered. Opening a
+    version belonging to another project and pressing the brand therefore moved
+    the user into a *different* project, silently. No client can fix that
+    without being told which project the version is in, and this response did
+    not say.
+
+    Asserted against the project the upload was actually scoped to, not against
+    a literal: a field that happens to match a hardcoded name would still pass
+    if it were reporting the wrong project entirely.
+    """
+    session = await _login(api, "alice@example.com")
+    body = await _upload(api, session, ORDERS)
+
+    response = await api.get(
+        f"/workspaces/{session['workspace_id']}/dataset-versions/{body['version']['id']}",
+        headers=_headers(session),
+    )
+    assert response.status_code == 200, response.text
+
+    projects = await api.get(
+        f"/workspaces/{session['workspace_id']}/projects", headers=_headers(session)
+    )
+    assert projects.status_code == 200, projects.text
+    owner = next(item for item in projects.json() if item["id"] == session["project_id"])
+
+    assert response.json()["project_id"] == owner["id"]
+    assert response.json()["project_name"] == owner["name"]
+
+    # And the commit path agrees with the read path. They build this response in
+    # two different files, which is exactly how one of them drifts.
+    assert body["version"]["project_id"] == owner["id"]
+    assert body["version"]["project_name"] == owner["name"]
+
+
 async def test_reuploading_adds_a_version_and_never_overwrites(
     api: AsyncClient, database: Database
 ) -> None:

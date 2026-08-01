@@ -50,9 +50,14 @@ function renderPicker(onCreate = vi.fn().mockResolvedValue(undefined)) {
   return { ...view, onSelect, onCreate };
 }
 
+/** The trigger is the caret alone; the project's name lives beside it in the
+ *  trail. Its label still carries the name, because "Switch project" on its own
+ *  does not say which one you are leaving. */
+const TRIGGER = "Switch project, currently Sales";
+
 async function open() {
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: /Sales/ }));
+  await user.click(screen.getByRole("button", { name: TRIGGER }));
   return user;
 }
 
@@ -68,7 +73,7 @@ describe("the project picker as a disclosure", () => {
     expect(screen.queryByRole("button", { name: "Support" })).not.toBeInTheDocument();
     // Not merely closed: a popup that closes and drops focus on the document
     // leaves a keyboard user at the top of the page.
-    expect(screen.getByRole("button", { name: /Sales/ })).toHaveFocus();
+    expect(screen.getByRole("button", { name: TRIGGER })).toHaveFocus();
   });
 
   it("does not claim ARIA menu semantics it has none of", () => {
@@ -76,7 +81,7 @@ describe("the project picker as a disclosure", () => {
 
     // The trigger promised an application menu — arrow-key navigation,
     // Home/End, first-character typeahead — and implemented no part of it.
-    expect(screen.getByRole("button", { name: /Sales/ })).not.toHaveAttribute("aria-haspopup");
+    expect(screen.getByRole("button", { name: TRIGGER })).not.toHaveAttribute("aria-haspopup");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
   });

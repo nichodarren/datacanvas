@@ -68,6 +68,16 @@ export function Shell({
 }) {
   return (
     <div className="shell">
+      {/* Invisible until it is focused, and then the first thing Tab reaches.
+          The header is small, but it is between the keyboard and the work on
+          every single screen — and the grid below it is the surface people
+          come here for. Deferred out of the mechanical pass on purpose: a skip
+          link is a navigation affordance, and it belongs with the rest of
+          them (D-036). */}
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
+
       <header className="topbar">
         <Link href="/" className="brand">
           DataCanvas
@@ -94,7 +104,13 @@ export function Shell({
       </header>
 
       <div className="body">
-        <main className="workarea">{children}</main>
+        {/* `tabIndex={-1}` so the skip link can actually land focus here.
+            Without it the browser scrolls to the anchor and leaves focus at the
+            top of the document, which is the half-working version of this
+            control that is easy to ship and impossible to notice. */}
+        <main id="main" tabIndex={-1} className="workarea">
+          {children}
+        </main>
       </div>
     </div>
   );

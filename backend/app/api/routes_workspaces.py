@@ -208,10 +208,21 @@ async def get_dataset_version(
         # `None` dressed up as a name (P6).
         raise NOT_FOUND
 
+    # And the project above it, for the same reason and by the same rule: after
+    # the handle, never before. Without this the version page cannot name the
+    # project it is in — and the brand link would go on returning the user to
+    # whichever project their browser last remembered, which need not be this
+    # one.
+    owner = await ProjectRepository(connection).get(dataset.project_id)
+    if owner is None:
+        raise NOT_FOUND
+
     return DatasetVersionResponse(
         id=version.id,
         dataset_id=version.dataset_id,
         dataset_name=dataset.name,
+        project_id=owner.id,
+        project_name=owner.name,
         version_no=version.version_no,
         content_hash=version.content_hash,
         row_count=version.row_count,

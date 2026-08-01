@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { LoadFailure } from "@/components/LoadFailure";
-import { ProjectPicker } from "@/components/ProjectPicker";
 import { Shell } from "@/components/Shell";
+import { Trail } from "@/components/Trail";
 import { Upload } from "@/components/Upload";
+import { recallProject, rememberProject } from "@/lib/lastProject";
 import {
   ApiError,
   type DatasetSummary,
@@ -17,8 +18,6 @@ import {
   api,
   describeFailure,
 } from "@/lib/api";
-
-const LAST_PROJECT = "datacanvas.project";
 
 /**
  * The first screen after signing in.
@@ -81,7 +80,7 @@ export default function HomePage() {
       // Come back to where you were. A tool that always drops you in the same
       // place regardless of what you were doing makes you re-navigate every
       // visit, and that cost is paid every single time.
-      const remembered = window.localStorage.getItem(LAST_PROJECT);
+      const remembered = recallProject();
       const chosen = found.find((item) => item.id === remembered) ?? found[0] ?? null;
       setProject(chosen);
       if (chosen) await loadDatasets(firstWorkspace.id, chosen.id);
@@ -105,7 +104,7 @@ export default function HomePage() {
   async function selectProject(next: Project) {
     if (!workspace) return;
     setProject(next);
-    window.localStorage.setItem(LAST_PROJECT, next.id);
+    rememberProject(next.id);
     setDatasets([]);
     await loadDatasets(workspace.id, next.id);
   }
@@ -153,9 +152,10 @@ export default function HomePage() {
   }
 
   const picker = workspace ? (
-    <ProjectPicker
+    <Trail
+      project={project}
       projects={projects}
-      current={project}
+      atProject
       onSelect={(next) => void selectProject(next)}
       onCreate={createProject}
     />

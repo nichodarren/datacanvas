@@ -81,6 +81,41 @@ describe("Upload progress", () => {
     expect(screen.getByText(/Sending 1\.0 of 2\.0 MB/)).toBeInTheDocument();
   });
 
+  /**
+   * 28 seconds is a long time to lose to a stray click.
+   *
+   * Gate 2 timed the 480 MB fixture at 28 seconds end to end, and for all of it
+   * a link, a middle-click or a reflexive Ctrl+R threw the upload away with no
+   * warning and nothing to resume from. The guard is armed only while the bytes
+   * are actually moving: a browser that questions every navigation is one people
+   * learn to dismiss without reading, which would spend the warning exactly when
+   * it matters.
+   */
+  it("guards against navigating away only while the upload is in flight", async () => {
+    vi.mocked(api.createDataset).mockImplementation(
+      () => new Promise<DatasetWithVersion>(() => {}),
+    );
+
+    const { container } = render(
+      <Upload workspaceId="workspace-1" projectId="project-1" onCommitted={() => {}} />,
+    );
+
+    // Choosing a file and confirming the dialect costs nothing to redo, so
+    // nothing is guarded yet.
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error("the drop zone rendered no file input");
+    fireEvent.change(input, { target: { files: [FILE] } });
+    await screen.findByRole("button", { name: "Confirm and upload" });
+
+    expect(fireEvent(window, new Event("beforeunload", { cancelable: true }))).toBe(true);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Confirm and upload" }));
+
+    // `fireEvent` returns false exactly when something called preventDefault —
+    // which is the whole of the modern beforeunload API.
+    expect(fireEvent(window, new Event("beforeunload", { cancelable: true }))).toBe(false);
+  });
+
   it("stops claiming a number once the bytes are gone", async () => {
     let report: ((fraction: number) => void) | undefined;
     vi.mocked(api.createDataset).mockImplementation((_ws, _project, _file, options) => {
