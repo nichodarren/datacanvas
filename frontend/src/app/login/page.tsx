@@ -51,7 +51,7 @@ export default function LoginPage() {
     <div className="center">
       <form className="card narrow stack" onSubmit={submit}>
         <h1>DataCanvas</h1>
-        <p className="muted" style={{ marginTop: -4 }}>
+        <p className="muted tight">
           {mode === "login" ? "Sign in to continue." : "Create an account."}
         </p>
 
@@ -61,7 +61,7 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        <label className="stack" style={{ gap: 4 }}>
+        <label className="labelled">
           <span className="faint">Email</span>
           <input
             type="email"
@@ -77,7 +77,7 @@ export default function LoginPage() {
           />
         </label>
 
-        <label className="stack" style={{ gap: 4 }}>
+        <label className="labelled">
           <span className="faint">Password</span>
           <input
             type="password"
@@ -89,7 +89,7 @@ export default function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
           />
           {mode === "register" ? (
-            <span className="faint" style={{ fontSize: 12 }}>
+            <span className="faint hint">
               At least 12 characters.
             </span>
           ) : null}

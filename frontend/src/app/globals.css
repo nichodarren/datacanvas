@@ -16,41 +16,132 @@
  */
 
 :root {
-  --bg: #10131a;
-  --panel: #171b24;
-  --panel-2: #1e2330;
-  --line: #2b3242;
-  --ink: #e7ebf3;
-  --ink-dim: #9aa5ba;
-  /* Was #6b7689, which measured 4.1:1 on --bg, 3.8:1 on --panel and 3.4:1 on
-     --panel-2 — under the 4.5:1 AA floor on every surface it is drawn on, while
-     the comment at the top of this file claimed AA was met. It is not a
-     decorative token: it carries the word `null` in a grid cell, the row
-     numbers, and every count and hint on the first screen.
+  /* Tells the browser which grounds this page supports, and *which one is
+     active* — which is what makes `light-dark()` below resolve, and what makes
+     every native widget follow: scrollbars, checkboxes, select menus, autofill.
+     Without it the grid's horizontal scrollbar rendered as a white bar across a
+     dark table. One line, fixing a class of mismatch rather than an instance. */
+  color-scheme: light dark;
 
-     The floor here is set by NFR-UX.3, not by taste, which is why this tier and
-     --ink-dim now sit closer together than they used to. `tests/
-     test_design_tokens.py` measures the ratio rather than pinning the hex, so
-     the palette stays free to move as long as it stays readable. */
-  --ink-faint: #8290a6;
-  --accent: #6ea8fe;
-  --ok: #6ee7a8;
-  --warn: #f2c14e;
-  --danger: #f2777a;
+  /* ------------------------------------------------------------ depth ----
+     Named by depth, and depth is a meaning: how far a surface sits above the
+     page. Cool neutral at a fixed hue (~222°), chosen rather than inherited —
+     the owner picked the direction on 2026-08-01 from three specimens rendered
+     on this same screen. Its cost is stated in D-037: blue-grey is the uniform
+     of nearly every technical tool, so none of the character can come from
+     here. It comes from weight, from the three border tiers below, and from
+     spending hue on nothing but exceptions. */
+  --bg: light-dark(#f7f8fa, #0e1117);
+  --panel: light-dark(#ffffff, #151a23);
+  --panel-2: light-dark(#eef1f5, #1d2431);
+
+  /* ------------------------------------------------------------ borders --
+     Three, because they do three different jobs, and one of them is the only
+     one an automated check can hold to a floor.
+
+     This split did not come from taste. It came from writing
+     `tests/test_design_tokens.py` before writing this block: holding one
+     border colour to WCAG 1.4.11's 3:1 would have drawn the grid's thousands
+     of row separators in the same heavy line as a button's outline. */
+  --edge: light-dark(#767f8e, #6a7484); /* a control is a control (SC 1.4.11) */
+  --line: light-dark(#cbd2dd, #29323f); /* a boundary between regions */
+  --line-soft: light-dark(#e3e7ee, #1f2733); /* rows of the same thing */
+
+  /* -------------------------------------------------------------- ink ----
+     Three tiers of emphasis, all measured against all three surfaces in both
+     grounds. `--ink-faint` is not decorative: it carries the word `null` in a
+     grid cell, which is a fact about the data. */
+  --ink: light-dark(#0f131a, #e6ebf2);
+  --ink-dim: light-dark(#454e5e, #9aa6b8);
+  --ink-faint: light-dark(#59616f, #8391a5);
+
+  /* ----------------------------------------------------------- the hue ---
+     Two, and no more. `--warn` is *look at this, it can still be fixed*;
+     `--danger` is *this failed, or will destroy something*. Every state that
+     uses either also carries a word, because NFR-UX.3 forbids colour being the
+     only difference.
+
+     `--accent` and `--ok` were removed rather than left unused. The accent was
+     doing five jobs — links, logical types, the primary button, every hover
+     border, the focus ring — and colour that marks *everything interactive*
+     has nothing left to say when something is genuinely wrong. Success went
+     because it is the ordinary outcome: "Password changed." already says it,
+     and green added no fact the sentence did not. */
+  --warn: light-dark(#8a5a00, #f2c14e);
+  --danger: light-dark(#a3262b, #f2777a);
+
+  --shadow-color: light-dark(rgb(15 19 26 / 14%), rgb(0 0 0 / 50%));
+  --shadow-popup: 0 10px 28px var(--shadow-color);
+
+  /* ------------------------------------------------------------- type ----
+     Six roles, not seven sizes. There were 11, 12, 13, 14, 15, 20 and 24 in
+     the stylesheet and another handful inline in JSX, none of them named. */
+  --text-meta: 11px; /* types, pills, counts */
+  --text-data: 12px; /* a grid cell */
+  --text-body: 14px; /* anything you read */
+  --text-lead: 15px; /* a section heading */
+  --text-title: 20px; /* a page heading */
+  --text-hero: 24px; /* the one headline on the empty state */
+
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 
-  /* One shadow for every panel that floats over the page. There were two,
-     written a few hundred lines apart and differing only in the last digit of
-     their alpha — a difference nobody could perceive and nobody had chosen. */
-  --shadow-popup: 0 12px 32px rgb(0 0 0 / 50%);
+  /* ------------------------------------------------------------ space ----
+     One 4px scale. Deliberately generic: rhythm is not where this interface's
+     character is supposed to live, and a scale nobody notices is a scale that
+     is working. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
 
-  /* Tells the browser this page is dark, so every *native* widget follows:
-     scrollbars, checkboxes, select menus, autofill. Without it the grid's
-     horizontal scrollbar rendered as a white bar across a dark table — the
-     browser's default for a page it assumes is light. One line, and it fixes a
-     class of mismatch rather than one instance of it. */
+  /* --------------------------------------------------- measured values ---
+     Not spacing. These are numbers something else computed, and they are kept
+     out of the scale so that rounding them to fit it is impossible.
+
+     `--colhead-pad-x` is the width the word `categorical` needs beside its
+     column name at MIN_COLUMN_WIDTH (96px). It was 10px because 12px did not
+     fit, and that is a measurement, not a rhythm.
+
+     `--control-min` is the smallest a standalone control may be. WCAG 2.2 AA
+     (SC 2.5.8) asks 24px and our buttons already cleared it; the 44px figure
+     often quoted is SC 2.5.5, which is AAA. 32 buys margin at no cost to
+     density, and coarse pointers get the full 44 further down. */
+  --colhead-pad-x: 10px;
+  --control-min: 32px;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+/* A finger is not a mouse. Density is the right default for someone at a
+   desk with a 60-column file (NFR-UX.5); it is the wrong one for a thumb, and
+   NFR-UX.4 promises a tablet is not broken. So the trade-off is resolved by
+   input device rather than by picking one and losing the other. 44px is SC
+   2.5.5 (AAA) and Apple's figure — reachable here precisely because it costs
+   nothing on the screens that need the rows. */
+@media (pointer: coarse) {
+  :root {
+    --control-min: 44px;
+  }
+  button,
+  input,
+  select {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+/* The toggle stamps this on <html>, and `color-scheme` does the rest — every
+   `light-dark()` above re-resolves, and so do the native widgets. No second
+   palette to keep in step with the first. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
   color-scheme: dark;
 }
+
 
 * {
   box-sizing: border-box;
@@ -98,14 +189,23 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* `system-ui` is kept, and D-037 records that as a decision rather than an
+     omission: a self-hosted face costs bytes on every load against NFR-PERF.1,
+     and buying character from a display face would spend it in the one place
+     direction B says not to. */
+  font: var(--text-body) / 1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+/* A link is underlined and written in ink. With no accent hue left, the
+   underline is not decoration — it is the entire signal, and it is the one the
+   web has never made ambiguous. */
 a {
-  color: var(--accent);
+  color: var(--ink);
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 2px;
 }
 a:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--ink);
 }
 
 /* A button that changes the form it sits in rather than going somewhere. It
@@ -114,35 +214,52 @@ a:hover {
 .linkish {
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--ink);
   padding: 0;
+  min-height: 0;
+  text-decoration: underline;
+  text-decoration-color: var(--ink-faint);
+  text-underline-offset: 2px;
 }
 .linkish:hover:not(:disabled) {
   border-color: transparent;
-  text-decoration: underline;
+  text-decoration-color: var(--ink);
 }
 
+/* `--edge`, not `--line`: a button is identified by its boundary, and SC
+   1.4.11 asks that boundary to reach 3:1 against whatever it sits on.
+   `test_design_tokens.py` holds it there in both grounds. */
 button {
   font: inherit;
   color: var(--ink);
   background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 6px 12px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--control-min);
   cursor: pointer;
 }
 button:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--ink-dim);
+  background: var(--panel);
 }
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Inverted, and that inversion *is* the emphasis. With no accent hue to spend,
+   ink-on-ground is the strongest statement available at zero saturation —
+   which is direction B taken literally rather than apologetically. */
 button.primary {
-  background: var(--accent);
-  color: #0b1020;
-  border-color: var(--accent);
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
   font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--ink-dim);
+  border-color: var(--ink-dim);
 }
 
 input,
@@ -150,9 +267,9 @@ select {
   font: inherit;
   color: var(--ink);
   background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 6px 10px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
 }
 /* Anchors were missing from this list, so every dataset card and the account
    menu's one link fell back to whatever ring the browser happened to draw —
@@ -163,8 +280,12 @@ select:focus,
 a:focus-visible,
 button:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  /* Ink, because it is the one colour guaranteed to contrast with the page in
+     both grounds — an accent hue would have to re-prove itself on every
+     surface. 2px of offset so the ring stays visible around the primary
+     button, which is itself filled with ink. */
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 /* -------------------------------------------------------------- shell ---- */
@@ -199,7 +320,7 @@ button:focus-visible,
   text-decoration: none;
 }
 .topbar .brand:hover {
-  color: var(--accent);
+  color: var(--ink-dim);
   text-decoration: none;
 }
 .topbar .spacer {
@@ -299,7 +420,7 @@ button:focus-visible,
   flex: 1;
   min-width: 0;
   overflow: auto;
-  padding: 20px 24px;
+  padding: var(--space-5);
 }
 
 /* `.runlog` (260px, right) and `.composer` (a strip along the bottom) lived
@@ -311,12 +432,13 @@ button:focus-visible,
 /* --------------------------------------------------------------- bits ---- */
 
 h1 {
-  font-size: 20px;
-  margin: 0 0 4px;
+  font-size: var(--text-title);
+  margin: 0 0 var(--space-1);
+  text-wrap: balance;
 }
 h2 {
-  font-size: 15px;
-  margin: 24px 0 8px;
+  font-size: var(--text-lead);
+  margin: var(--space-5) 0 var(--space-2);
 }
 .muted {
   color: var(--ink-dim);
@@ -331,21 +453,21 @@ h2 {
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 14px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
 .row {
   display: flex;
-  gap: 10px;
+  gap: var(--space-3);
   align-items: center;
   flex-wrap: wrap;
 }
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 /* The column picker (FR-D.3). Taller than the account menu and scrolls on its
@@ -367,7 +489,7 @@ h2 {
 }
 .picker-actions button {
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: var(--text-data);
 }
 .picker-row {
   display: flex;
@@ -394,19 +516,30 @@ h2 {
 .picker-row .pin {
   background: none;
   border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 1px 6px;
-  font-size: 12px;
-  filter: grayscale(1);
-  opacity: 0.4;
+  border-radius: var(--radius);
+  /* Sized to the row it sits in rather than to `--control-min`: it is one of
+     sixty in a scrolling list, not a standalone control, and SC 2.5.8 exempts
+     targets in a dense inline group where an equivalent exists — the checkbox
+     beside it is full size. Coarse pointers still get the padding bump. */
+  padding: var(--space-1);
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-faint);
+  opacity: 0.75;
 }
 .picker-row .pin:hover:not(:disabled) {
-  opacity: 0.8;
-}
-.picker-row .pin.on {
-  filter: none;
+  color: var(--ink);
   opacity: 1;
-  border-color: var(--accent);
+}
+/* Pinned reads as *pressed*: the chip inverts. `aria-pressed` carries the same
+   state for anyone who cannot see it, so the inversion is emphasis rather than
+   the only signal. `filter: grayscale` went with the emoji it was flattening. */
+.picker-row .pin.on {
+  opacity: 1;
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
 }
 .picker-name {
   flex: 1;
@@ -434,8 +567,11 @@ h2 {
 .banner.error {
   border-left-color: var(--danger);
 }
+/* No hue. Success is the ordinary outcome, not an exception — "Password
+   changed. 3 other sessions were signed out." already says everything green
+   would have. The stripe stays so the shape matches its siblings. */
 .banner.ok {
-  border-left-color: var(--ok);
+  border-left-color: var(--ink-dim);
 }
 /* Inside a popup, where the panel's own padding already provides the margin a
    banner would otherwise add to the page around it. */
@@ -444,7 +580,7 @@ h2 {
      the other. */
   margin: 6px 4px;
   padding: 6px 8px;
-  font-size: 12px;
+  font-size: var(--text-data);
 }
 
 /* A message about the field above it. Sized down and coloured, but it is never
@@ -452,13 +588,13 @@ h2 {
    a live region, and one that only appears when it has something to say is one
    nothing was listening to. */
 .field-error {
-  font-size: 12px;
+  font-size: var(--text-data);
   color: var(--danger);
   min-height: 1em;
 }
 
 .pill {
-  font-size: 11px;
+  font-size: var(--text-meta);
   font-family: var(--mono);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -466,8 +602,8 @@ h2 {
   color: var(--ink-dim);
 }
 .pill.ok {
-  color: var(--ok);
-  border-color: var(--ok);
+  color: var(--ink);
+  border-color: var(--edge);
 }
 
 
@@ -552,15 +688,16 @@ h2 {
 table.grid {
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--text-data);
   width: 100%;
   table-layout: fixed;
 }
 
 table.grid thead th {
   background: var(--panel-2);
+  /* The head/body join is structural; the seams between columns are not. */
   border-bottom: 1px solid var(--line);
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--line-soft);
   padding: 0;
   text-align: left;
   vertical-align: top;
@@ -582,7 +719,7 @@ table.grid thead th {
   border-radius: 0;
   /* 10px, not 12: at MIN_COLUMN_WIDTH the header still has to fit the word
      `categorical` on one line. */
-  padding: 8px 10px;
+  padding: var(--space-2) var(--colhead-pad-x);
   cursor: pointer;
 }
 .colhead:hover {
@@ -600,8 +737,10 @@ table.grid thead th {
 }
 .colhead .type {
   font-family: var(--mono);
-  font-size: 11px;
-  color: var(--accent);
+  font-size: var(--text-meta);
+  /* The mono face already says "the machine worked this out". The colour tier
+     says "and it is not the column's name". Neither needs a hue. */
+  color: var(--ink-faint);
 }
 
 /* The type picker. The current type used to be labelled "· current" against a
@@ -638,19 +777,22 @@ table.grid thead th {
   color: var(--ink);
 }
 .type-menu button.current {
-  background: var(--accent);
-  color: #0b1020;
+  background: var(--ink);
+  color: var(--bg);
   font-weight: 700;
 }
 
 /* `table-layout: fixed` shares the width evenly and `overflow-wrap` keeps a
    long value inside its own cell instead of pushing the table past the page. */
+/* Hairlines, both directions. At `--line` weight a sixty-column preview reads
+   as a cage rather than as a table — which is the whole reason the border
+   tokens split into three. */
 table.grid td {
-  border-bottom: 1px solid var(--line);
-  border-right: 1px solid var(--line);
-  padding: 5px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+  padding: 5px var(--colhead-pad-x);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--text-data);
   vertical-align: top;
   overflow-wrap: anywhere;
 }
@@ -716,7 +858,7 @@ table.grid tbody tr:hover td.sticky-col {
   touch-action: none;
 }
 .resize-handle:hover {
-  background: var(--accent);
+  background: var(--ink-dim);
 }
 /* Held on <body> for the length of a drag so the cursor does not flicker back
    to a text caret as the pointer crosses cells. */
@@ -725,7 +867,7 @@ body.resizing {
   user-select: none;
 }
 body.resizing .resize-handle {
-  background: var(--accent);
+  background: var(--ink-dim);
 }
 
 .rownum {
@@ -751,18 +893,21 @@ body.resizing .resize-handle {
 .upload-progress::-webkit-progress-bar {
   background: var(--panel-2);
 }
+/* Ink, not a hue. A progress bar reports the ordinary course of an operation
+   the user asked for; it is not an exception, and the two colours left are
+   reserved for things that are. */
 .upload-progress::-webkit-progress-value {
-  background: var(--accent);
+  background: var(--ink);
   transition: width 120ms linear;
 }
 .upload-progress::-moz-progress-bar {
-  background: var(--accent);
+  background: var(--ink);
 }
 /* Indeterminate: no `value`, so there is nothing to fill. A travelling sliver
    says "working" without claiming a position. */
 .upload-progress:indeterminate {
   background:
-    linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%) 0 0 / 40% 100%
+    linear-gradient(90deg, transparent 0%, var(--ink) 50%, transparent 100%) 0 0 / 40% 100%
       no-repeat,
     var(--panel-2);
   animation: upload-sweep 1.4s ease-in-out infinite;
@@ -789,8 +934,12 @@ body.resizing .resize-handle {
   color: var(--ink-dim);
   background: var(--panel);
 }
+/* The drop zone under a dragged file. Weight, not hue: the dashed edge goes
+   solid and gains a tier, which is the same move every other "this is live"
+   state on the page makes. */
 .drop.over {
-  border-color: var(--accent);
+  border-style: solid;
+  border-color: var(--ink-dim);
   color: var(--ink);
 }
 
@@ -806,21 +955,21 @@ body.resizing .resize-handle {
 table.plain {
   border-collapse: collapse;
   width: 100%;
-  font-size: 13px;
+  font-size: var(--text-data);
 }
 table.plain th {
   text-align: left;
   color: var(--ink-faint);
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--text-meta);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  padding: 6px 10px;
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
 }
 table.plain td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line-soft);
   vertical-align: top;
 }
 
@@ -851,7 +1000,7 @@ table.plain td {
   max-width: 760px;
 }
 .start h1 {
-  font-size: 24px;
+  font-size: var(--text-hero);
   margin-bottom: 2px;
 }
 
@@ -879,7 +1028,7 @@ table.plain td {
   border-radius: 999px;
   border: 1px solid var(--line);
   color: var(--ink-faint);
-  font-size: 11px;
+  font-size: var(--text-meta);
   display: grid;
   place-items: center;
 }
@@ -917,7 +1066,7 @@ a.card.dataset:hover {
 }
 a.card.dataset:hover,
 button.card.sample:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--ink-dim);
 }
 div.card.dataset {
   cursor: default;
@@ -952,17 +1101,18 @@ div.card.dataset {
    the same job and looking different would suggest it does not. */
 .button-link {
   display: inline-block;
-  background: var(--accent);
-  color: #0b1020;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  padding: 6px 12px;
+  background: var(--ink);
+  color: var(--bg);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3);
   font-weight: 600;
   text-decoration: none;
 }
 .button-link:hover {
+  background: var(--ink-dim);
+  border-color: var(--ink-dim);
   text-decoration: none;
-  filter: brightness(1.08);
 }
 
 /* -------------------------------------------------------- account menu ---- */
@@ -1043,4 +1193,120 @@ div.card.dataset {
 .menu-form input {
   flex: 1;
   min-width: 0;
+}
+
+/* ------------------------------------------------------ theme picker ------ */
+
+/* One row in the account menu, not a region in the shell (D-037). The ground
+   belongs to whoever is reading, so it belongs to the account. */
+.theme-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+.theme-label {
+  font-size: var(--text-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.theme-options {
+  display: flex;
+  gap: var(--space-1);
+}
+.theme-option {
+  flex: 1;
+  padding: var(--space-1) var(--space-2);
+  min-height: 0;
+  font-size: var(--text-meta);
+  background: none;
+  border-color: var(--line);
+  color: var(--ink-dim);
+}
+.theme-option:hover:not(:disabled) {
+  background: var(--panel);
+  color: var(--ink);
+}
+/* Pressed is inverted, like every other "this one is chosen" on the page —
+   the type menu's current entry and the pinned column use the same move.
+   `aria-pressed` carries it for anyone who cannot see the inversion. */
+.theme-option.on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------- small utilities -- */
+
+/* These exist so that JSX carries no numbers. Each is named for the job it
+   does, not for the value it sets — the test of a good one is whether it still
+   makes sense after the scale moves.
+   What is deliberately *not* here: the grid's `minWidth`, `left` and `width`.
+   Those are computed at runtime from column widths and pin offsets, so they are
+   layout results rather than design constants and cannot become tokens. */
+
+/* A paragraph that sits directly under its heading and must not push away
+   from it. */
+.tight {
+  margin-top: 0;
+}
+
+/* Explanatory text attached to a control: "At least 12 characters." */
+.hint {
+  font-size: var(--text-data);
+}
+
+/* A count or a machine-written label — "10 of 891 rows", a logical type. */
+.meta {
+  font-size: var(--text-meta);
+}
+
+/* A control with its label stacked above it. Tighter than `.stack`, because a
+   label and its input are one thing rather than two. */
+.labelled {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.spread {
+  justify-content: space-between;
+}
+.grow {
+  flex: 1;
+}
+.end {
+  text-align: right;
+}
+.self-end {
+  align-self: flex-end;
+}
+
+/* The upload's confirmation table shows the first rows of a file that has not
+   been committed yet. It is a glance, so it is capped at roughly twenty rows
+   and scrolls — unlike the preview grid, which owns its page. */
+.grid-wrap.capped {
+  max-height: 260px;
+}
+
+/* The row-number header. Same shape as a column header, but it is not a
+   button — there is no type to change on a row number. */
+.colhead.static {
+  cursor: default;
+}
+
+/* Pushes what follows to the far end of its row. */
+.push {
+  margin-left: auto;
+}
+
+/* The row-number column is always the first sticky one, and always at the
+   origin. Its *width* stays in TypeScript as `ROWNUM_WIDTH`, because every pin
+   offset is computed from it — a copy here would be a second source of truth
+   for a number the layout arithmetic depends on. */
+table.grid .sticky-col:first-child {
+  left: 0;
 }

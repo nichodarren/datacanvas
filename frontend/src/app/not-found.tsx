@@ -47,7 +47,7 @@ export default function NotFound() {
         <p className="muted">
           The link may be out of date, or the dataset it pointed at may have been deleted.
         </p>
-        <p style={{ marginTop: 16 }}>
+        <p className="row">
           <Link href="/" className="button-link">
             Go to your datasets
           </Link>

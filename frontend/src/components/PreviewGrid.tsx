@@ -344,7 +344,7 @@ export function PreviewGrid({
         >
           Columns
         </button>
-        <span className="faint" style={{ fontSize: 12 }}>
+        <span className="faint hint">
           {hidden.size === 0
             ? `${columns.length} columns`
             : `${columns.length} of ${ordered.length} columns`}
@@ -379,8 +379,8 @@ export function PreviewGrid({
         <table className="grid" style={{ minWidth: tableMinWidth }}>
           <thead>
             <tr>
-              <th className="sticky-col" style={{ width: ROWNUM_WIDTH, left: 0 }}>
-                <span className="colhead" style={{ cursor: "default" }}>
+              <th className="sticky-col" style={{ width: ROWNUM_WIDTH }}>
+                <span className="colhead static">
                   <span className="name faint">#</span>
                 </span>
               </th>
@@ -407,7 +407,7 @@ export function PreviewGrid({
               // file, not a record — so the offset is the key.
               // eslint-disable-next-line react/no-array-index-key
               <tr key={index}>
-                <td className="rownum sticky-col" style={{ left: 0 }}>
+                <td className="rownum sticky-col">
                   {index + 1}
                 </td>
                 {columns.map((column) => {
@@ -465,11 +465,50 @@ export function PreviewGrid({
             {busy ? "Loading…" : "View more"}
           </button>
         ) : null}
-        <span className="faint" style={{ fontSize: 12 }}>
+        <span className="faint hint">
           {rows.length.toLocaleString()} of {totalRows.toLocaleString()} rows
         </span>
       </div>
     </div>
+  );
+}
+
+/**
+ * The pin control's mark, and the only icon in this product (Q-4, D-037).
+ *
+ * It replaces `📌`, which was wrong twice over: an emoji renders as a different
+ * picture on every platform, and a screen reader announces it by its Unicode
+ * name — "pushpin" — in the middle of a button whose label already says what it
+ * does.
+ *
+ * **It is not a drawing of a pushpin.** A pushpin is a metaphor for *attaching*
+ * something, and attaching is not what this does. This freezes a column against
+ * the left edge while the rest scroll past it, so the mark is exactly that: a
+ * solid bar held at the edge, and two lighter rules moving away to its right.
+ * The rule the session worked to (§6 rule ①) is that a visual choice must be
+ * able to name what it encodes — a pushpin could only name a metaphor.
+ *
+ * `aria-hidden`, because the button's `aria-label` already reads
+ * "Pin <column>" / "Unpin <column>" and an icon that repeats its own label is
+ * two announcements of one control.
+ *
+ * ## And no, this product does not have an icon set
+ *
+ * One icon, for the one control that cannot afford a word: in a sixty-column
+ * picker, a text label on every row would double the width of a list whose
+ * whole job is to let someone tick five boxes. Everywhere else the answer is
+ * still words.
+ */
+function PinIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      {/* The column that stays. */}
+      <rect x="0" y="1" width="2.5" height="10" rx="1" fill="currentColor" />
+      {/* The ones that go past it. */}
+      <rect x="5" y="2" width="7" height="1.5" rx="0.75" fill="currentColor" opacity="0.45" />
+      <rect x="5" y="5.25" width="7" height="1.5" rx="0.75" fill="currentColor" opacity="0.45" />
+      <rect x="5" y="8.5" width="7" height="1.5" rx="0.75" fill="currentColor" opacity="0.45" />
+    </svg>
   );
 }
 
@@ -521,7 +560,7 @@ function ColumnPicker({
         <button type="button" onClick={onShowAll} disabled={hidden.size === 0}>
           Select all
         </button>
-        <span className="faint" style={{ fontSize: 12, marginLeft: "auto" }}>
+        <span className="faint hint push">
           {visible}/{columns.length}
         </span>
       </div>
@@ -542,7 +581,7 @@ function ColumnPicker({
                   accessible name is the two spans run together — `qtyinteger` —
                   which is what a screen reader reads out. A white space-only
                   text node is not rendered as a flex item, so nothing moves. */}
-              <span className="faint mono" style={{ fontSize: 11 }}>
+              <span className="faint mono meta">
                 {column.logical_type}
               </span>
             </label>
@@ -559,7 +598,7 @@ function ColumnPicker({
               disabled={isHidden}
               onClick={() => onTogglePin(column.name)}
             >
-              📌
+              <PinIcon />
             </button>
           </div>
         );

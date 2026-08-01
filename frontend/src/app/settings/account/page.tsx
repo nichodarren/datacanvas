@@ -77,7 +77,7 @@ export default function AccountPage() {
           <>
             <h2>Signed in as</h2>
             <div className="card">
-              <div className="row" style={{ justifyContent: "space-between" }}>
+              <div className="row spread">
                 <strong className="mono">{me.user.email}</strong>
                 <span className="faint">
                   since {new Date(me.user.created_at).toLocaleDateString()}
@@ -178,7 +178,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           </div>
         ) : null}
 
-        <label className="stack field" style={{ gap: 4 }}>
+        <label className="labelled field">
           <span className="faint">Current password</span>
           <input
             type="password"
@@ -190,7 +190,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           />
         </label>
 
-        <label className="stack field" style={{ gap: 4 }}>
+        <label className="labelled field">
           <span className="faint">New password</span>
           <input
             type="password"
@@ -201,7 +201,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
             value={next}
             onChange={(event) => setNext(event.target.value)}
           />
-          <span className="faint" style={{ fontSize: 12 }}>
+          <span className="faint hint">
             At least 12 characters.
           </span>
         </label>
@@ -210,8 +210,8 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
             text would be swallowed into the input's accessible *name* — so the
             field would introduce itself as "Confirm new password These do not
             match" — and then be read a second time as its description. */}
-        <div className="stack field" style={{ gap: 4 }}>
-          <label className="stack" style={{ gap: 4 }}>
+        <div className="labelled field">
+          <label className="labelled">
             <span className="faint">Confirm new password</span>
             <input
               type="password"
@@ -233,7 +233,7 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           </span>
         </div>
 
-        <p className="faint" style={{ margin: 0, fontSize: 12 }}>
+        <p className="faint hint tight">
           Changing your password signs out every other device. This one stays signed in.
         </p>
 
@@ -344,17 +344,17 @@ function SessionSection({
                 <td>
                   {describeClient(session.user_agent)}
                   {session.is_current ? (
-                    <span className="pill ok" style={{ marginLeft: 8 }}>
+                    <span className="pill ok">
                       this device
                     </span>
                   ) : null}
-                  <div className="faint" style={{ fontSize: 11 }}>
+                  <div className="faint meta">
                     started {new Date(session.created_at).toLocaleString()}
                   </div>
                 </td>
                 <td className="mono faint">{session.ip_created ?? "unknown"}</td>
                 <td className="faint">{new Date(session.last_seen_at).toLocaleString()}</td>
-                <td style={{ textAlign: "right" }}>
+                <td className="end">
                   {/* The current session is not offered here. Ending it is
                       "Sign out", and dressing that up as revoking a remote
                       device would surprise whoever clicked. */}
@@ -410,7 +410,7 @@ function SessionSection({
                 } and sign out this device too.`}{" "}
             You will need to sign in again.
           </span>
-          <div className="row" style={{ marginTop: 10 }}>
+          <div className="row">
             <button
               type="button"
               className="primary"

@@ -137,13 +137,13 @@ export function Upload({
           if (dropped) void choose(dropped);
         }}
       >
-        <p style={{ margin: 0 }}>Drop a file here, or</p>
-        <p style={{ margin: "10px 0 0" }}>
+        <p className="tight">Drop a file here, or</p>
+        <p className="tight">
           <button type="button" onClick={() => input.current?.click()}>
             choose a file
           </button>
         </p>
-        <p className="faint" style={{ marginBottom: 0, fontSize: 12 }}>
+        <p className="faint hint tight">
           {/* A non-breaking space, so a narrow column never wraps the number
               away from its unit. */}
           CSV, TSV, Parquet, XLSX or JSON — up to 500&nbsp;MB.
@@ -170,7 +170,7 @@ export function Upload({
           {file.name}
         </strong>
         <span className="faint">{megabytes(file.size)}&nbsp;MB</span>
-        <div style={{ flex: 1 }} />
+        <div className="grow" />
         <button type="button" onClick={reset} disabled={busy !== null}>
           Cancel
         </button>
@@ -204,7 +204,7 @@ export function Upload({
         <>
 
           <div className="row">
-            <label className="stack" style={{ gap: 4 }}>
+            <label className="labelled">
               <span className="faint">Dataset name</span>
               {/* `autoComplete="off"`: this is not a field about the person
                   filling it in, and a password manager offering to remember a
@@ -221,7 +221,7 @@ export function Upload({
 
             {dialect ? (
               <>
-                <label className="stack" style={{ gap: 4 }}>
+                <label className="labelled">
                   <span className="faint">Delimiter</span>
                   <select
                     value={dialect.delimiter}
@@ -236,7 +236,7 @@ export function Upload({
                   </select>
                 </label>
 
-                <label className="stack" style={{ gap: 4 }}>
+                <label className="labelled">
                   <span className="faint">Encoding</span>
                   <select
                     value={dialect.encoding}
@@ -249,7 +249,7 @@ export function Upload({
                   </select>
                 </label>
 
-                <label className="row" style={{ gap: 6, alignSelf: "flex-end" }}>
+                <label className="row self-end">
                   <input
                     type="checkbox"
                     checked={dialect.has_header}
@@ -267,7 +267,7 @@ export function Upload({
             )}
           </div>
 
-          <div className="grid-wrap" style={{ maxHeight: 260 }}>
+          <div className="grid-wrap capped">
             <table className="grid">
               <thead>
                 <tr>
@@ -295,7 +295,7 @@ export function Upload({
             </table>
           </div>
 
-          <p className="faint" style={{ fontSize: 12, margin: 0 }}>
+          <p className="faint hint tight">
             Column types are not shown here on purpose: they are worked out by scanning the whole
             file after this is committed (FR-B.3), and you can correct them from the grid.
           </p>
@@ -338,7 +338,7 @@ function UploadProgress({ sent, bytes }: { sent: number | null; bytes: number })
   const transferring = sent !== null && sent < 1;
 
   return (
-    <div className="stack" style={{ gap: 6 }}>
+    <div className="stack">
       <progress
         className="upload-progress"
         max={1}
@@ -350,7 +350,7 @@ function UploadProgress({ sent, bytes }: { sent: number | null; bytes: number })
       />
       {/* Polite, not assertive: the change from one phase to the next is worth
           announcing, but not worth interrupting whatever is being read. */}
-      <span className="faint" style={{ fontSize: 12 }} aria-live="polite">
+      <span className="faint hint" aria-live="polite">
         {transferring
           ? `Sending ${megabytes(bytes * (sent ?? 0))} of ${megabytes(bytes)} MB`
           : "Sent. Reading every row to work out the column types — this is the slow part."}

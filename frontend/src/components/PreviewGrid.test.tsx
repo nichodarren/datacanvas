@@ -265,6 +265,54 @@ describe("popups", () => {
  * focusable puts it in front of a screen reader user, and an unnamed box is a
  * worse thing to meet than none.
  */
+/**
+ * Q-4, closed: no emoji stands in for an icon (D-037).
+ *
+ * `📌` renders as a different picture on every platform and is announced by its
+ * Unicode name — "pushpin" — inside a button whose label already says what it
+ * does. Its replacement is deliberately not a drawing of a pushpin either: a
+ * pushpin means *attach*, and this freezes a column at the edge while the rest
+ * scroll past.
+ */
+describe("the pin control", () => {
+  it("carries no emoji", async () => {
+    renderGrid();
+    await screen.findByText("a1");
+    await openPicker();
+
+    const pin = screen.getByRole("button", { name: "Pin alpha" });
+    // Pinned to the defect rather than to the markup: any emoji here fails,
+    // not merely the one that was there.
+    expect(pin.textContent).toBe("");
+    expect(pin.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("hides the mark from assistive technology, which already has the label", async () => {
+    renderGrid();
+    await screen.findByText("a1");
+    await openPicker();
+
+    const icon = screen.getByRole("button", { name: "Pin alpha" }).querySelector("svg");
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("says whether the column is pinned in a channel other than colour", async () => {
+    const user = userEvent.setup();
+    renderGrid();
+    await screen.findByText("a1");
+    await openPicker();
+
+    await user.click(screen.getByRole("button", { name: "Pin alpha" }));
+
+    // The chip inverts, and `aria-pressed` carries the same fact for anyone who
+    // cannot see the inversion (NFR-UX.3).
+    expect(screen.getByRole("button", { name: "Unpin alpha" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+});
+
 describe("reaching the grid from the keyboard", () => {
   it("makes the scrolling region focusable and names it", async () => {
     renderGrid();

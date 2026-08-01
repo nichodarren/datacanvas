@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ThemePicker } from "@/components/ThemePicker";
 import { useDisclosure } from "@/hooks/useDisclosure";
 import { type Me, api } from "@/lib/api";
 
@@ -107,6 +108,13 @@ export function AccountMenu({ me }: { me: Me }) {
           <button type="button" className="menu-item" disabled={busy} onClick={() => void signOut()}>
             {busy ? "Signing out…" : "Sign out"}
           </button>
+
+          {/* The ground belongs to whoever is looking at it, so it belongs to
+              the account, so it belongs here — not in a new region of the
+              shell. Below the two actions rather than above them: it is a
+              preference, and the actions are what people opened this for. */}
+          <div className="menu-sep" />
+          <ThemePicker />
         </div>
       ) : null}
     </div>

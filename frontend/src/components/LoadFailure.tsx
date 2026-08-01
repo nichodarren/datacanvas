@@ -41,7 +41,7 @@ export function LoadFailure({ message, onRetry }: { message: string; onRetry: ()
       <p className="muted" role="alert">
         {message}
       </p>
-      <p style={{ marginTop: 16 }}>
+      <p className="row">
         <button type="button" className="primary" onClick={onRetry}>
           Try again
         </button>

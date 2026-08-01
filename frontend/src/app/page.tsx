@@ -174,7 +174,7 @@ export default function HomePage() {
       {empty ? (
         <section className="start">
           <h1>Start by adding data</h1>
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="muted tight">
             Everything else in DataCanvas begins with a file.
           </p>
 
@@ -238,11 +238,11 @@ export default function HomePage() {
           {/* This line used to repeat the email and workspace. Both now live in
               the account menu, where they are reachable from every screen
               rather than only this one, so the space says something new. */}
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="muted tight">
             {datasets.length.toLocaleString()} dataset{datasets.length === 1 ? "" : "s"}
           </p>
 
-          <div className="cards" style={{ marginTop: 18 }}>
+          <div className="cards">
             {datasets.map((dataset) => (
               <DatasetCard key={dataset.id} dataset={dataset} />
             ))}
