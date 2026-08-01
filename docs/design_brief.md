@@ -642,3 +642,174 @@ Sepele, dan hanya masalah kalau ada yang menyebut "bagian terakhir §4".
 
 Jawab keempatnya — atau cukup **"lanjut"** untuk menerima seluruh rekomendasi —
 dan aku bangun navigasinya (langkah 3), lalu masuk ke token (langkah 4).
+
+---
+
+## 13. Laporan B — sistem visual (titik lapor 2)
+
+**Tanggal:** 2026-08-01 · **Commit:** `4839d50` · `1982470` · `650d314` · `51da9c9` ·
+`a99ac7c` · **Status:** 🟢 langkah 1–8 selesai · DESIGN.md **0.14.1 → 0.16.0**
+
+### 13.1 Token yang diputuskan — nilai sebenarnya, kedua tanah
+
+Satu deklarasi per token. Tidak ada blok `:root` kedua.
+
+| Token | Terang | Gelap |
+|---|---|---|
+| `--bg` | `#f7f8fa` | `#0e1117` |
+| `--panel` | `#ffffff` | `#151a23` |
+| `--panel-2` | `#eef1f5` | `#1d2431` |
+| `--edge` | `#767f8e` | `#6a7484` |
+| `--line` | `#cbd2dd` | `#29323f` |
+| `--line-soft` | `#e3e7ee` | `#1f2733` |
+| `--ink` | `#0f131a` | `#e6ebf2` |
+| `--ink-dim` | `#454e5e` | `#9aa6b8` |
+| `--ink-faint` | `#59616f` | `#8391a5` |
+| `--warn` | `#8a5a00` | `#f2c14e` |
+| `--danger` | `#a3262b` | `#f2777a` |
+
+**Dihapus:** `--accent`, `--ok`. Keduanya dijaga test supaya tidak kembali diam-diam.
+
+**Skala spasi:** `4 · 8 · 12 · 16 · 24 · 32`
+**Skala tipografi:** `--text-meta 11` · `--text-data 12` · `--text-body 14` ·
+`--text-lead 15` · `--text-title 20` · `--text-hero 24`
+**Di luar skala, sengaja:** `--colhead-pad-x: 10px` · `--control-min: 32px`
+(→ `44px` di `pointer: coarse`) · `--radius: 6px` · `--radius-lg: 10px`
+
+### 13.2 Apa yang dikodekan tiap keputusan (aturan ①)
+
+| Keputusan | Yang ia nyatakan tentang isinya |
+|---|---|
+| **`--accent` dihapus** | Warna yang menandai *segala yang bisa diklik* tidak menyisakan apa pun untuk dikatakan saat sesuatu benar-benar salah. Anggarannya disimpan untuk `stale`/`cached` di Fase 3 |
+| **Tombol primer dibalik** | *Inilah satu aksi itu.* Penekanan maksimum pada saturasi nol |
+| **Pembalikan dipakai ulang** | Tipe terpilih, kolom ter-pin, tanah terpilih — satu gerakan, dipelajari sekali |
+| **Tautan digarisbawahi** | Satu-satunya sinyal yang web tidak pernah buat ambigu |
+| **`--edge`** | *Ini kontrol.* Satu-satunya token warna yang punya lantai terukur (3:1) |
+| **`--line`** | Batas antar-region |
+| **`--line-soft`** | Baris dari hal yang sama — ribuan kali per layar |
+| **Tipe kolom mono + faint** | Mesin yang menyimpulkannya, dan itu bukan nama kolomnya |
+| **Cincin fokus `--ink`** | Satu-satunya warna yang tidak perlu dibuktikan ulang per permukaan per tanah |
+| **`--ok` dicabut** | Sukses adalah hasil normal, bukan pengecualian |
+| **Ikon pin** | Membekukan kolom di tepi — bukan metafora "menempel" |
+| **Tema tiga keadaan** | "Ikuti mesinku" adalah jawaban nyata, dan default-nya |
+| **Skala spasi 4px** | ⚠️ **Tidak mengodekan apa pun, dan itu disengaja.** Ritme bukan tempat karakter seharusnya tinggal. Dinyatakan sebagai generik daripada didandani |
+
+### 13.3 Bukti terukur
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| `test_design_tokens.py` | 13 test, **satu** tanah | **48 test, dua tanah** + kontras non-teks + guard anti-aksen |
+| Test frontend (vitest) | 20 | **56** |
+| Test backend | 484 | **485** |
+| Prop `style={{…}}` inline di JSX | 47 | **4** |
+| **Angka ajaib numerik di JSX** | **43** | **0** |
+| `font-size: <px>` literal di CSS | 8 | **0** |
+| Rona di palet | 4 (`accent` `ok` `warn` `danger`) | **2** |
+
+**Kontras, diukur bukan diperkirakan.** Setiap token teks × tiga permukaan ×
+dua tanah = 30 pasangan, semuanya ≥ 4,5:1. `--edge` × tiga permukaan × dua
+tanah = 6 pasangan, semuanya ≥ 3:1. Cincin fokus sama. Test-nya menegaskan
+**rasio**, bukan hex, jadi palet bebas bergerak dan hanya gagal ketika ia
+bergerak ke tempat yang tak terbaca.
+
+**Empat prop inline yang tersisa semuanya di `PreviewGrid`, dan tak satu pun
+angka ajaib:** `minWidth: tableMinWidth`, `left: pinnedAt`, `width`,
+`width: ROWNUM_WIDTH`. Semuanya dihitung saat runtime dari lebar kolom dan
+offset pin — hasil tata letak, bukan konstanta desain, jadi ia tidak bisa jadi
+token. `ROWNUM_WIDTH` sengaja tetap di TypeScript: setiap offset pin dihitung
+darinya, dan salinan di CSS akan menjadi sumber kebenaran kedua.
+
+### 13.4 Definisi selesai §8 — poin per poin
+
+| | Poin | |
+|---|---|---|
+| ✅ | §12 dan §13 ditulis dan di-commit | Keduanya di bawah brief, tidak menyunting apa pun di atasnya |
+| ✅ | Titik lapor 1 dihormati | Nol baris kode navigasi sebelum §12 di-commit dan dijawab |
+| ✅ | Orientasi terjawab di tiap layar | Project + dataset di jejak. **Versi belum** — menunggu FR-B.2 + P4, dan itu memang di luar sesi ini (§9) |
+| ✅ | Ada jalan keluar dari setiap layar | Termasuk 404, yang sebelumnya bawaan Next tanpa satu pun tautan |
+| ✅ | Layar pertama masuk akal untuk nol/satu/banyak | Dengan koreksi: **nol tidak bisa terjadi** (§12.6) |
+| ✅ | Nol angka ajaib spasi/ukuran di JSX | 43 → 0 |
+| ✅ | `test_design_tokens.py` menguji kedua tanah | 13 → 48 test |
+| ✅ | Toggle tema bekerja & bertahan | Tiga keadaan, di menu akun, dengan bootstrap pra-paint |
+| ✅ | Empat layar memakai sistem yang sama | Beranda · versi+grid · login · akun — plus 404 yang tidak ada di daftar |
+| ✅ | Q-4 selesai | SVG, dan alasan bentuknya tertulis |
+| ✅ | Q-5 diukur, pertukarannya dinyatakan | **Dan premisnya dikoreksi** — lihat §13.6 |
+| ✅ | ADR ditulis | **D-036** (navigasi) dan **D-037** (rupa) |
+| ✅ | `sh scripts/check.sh` hijau | Setiap commit |
+| ✅ | Tiap keputusan menjawab aturan ① | §13.2 — termasuk yang menjawab *"tidak ada"* |
+
+### 13.5 Yang tidak dikerjakan, dan kenapa
+
+| | |
+|---|---|
+| **Sidebar** | Ditolak dengan bukti, bukan dilewatkan. Dua tujuan kerja; aritmetika D-032 utuh (§12.1) |
+| **Segmen versi di jejak** | FR-B.2 + P4 adalah satu pekerjaan tersendiri (§9 brief) |
+| **Muka display** | `system-ui` dipertahankan sebagai keputusan bernalar. ⚠️ Hasilnya **sama dengan default** |
+| **Rona ketiga** | Disimpan utuh untuk `stale`/`cached` Fase 3 — itu argumen terkuat arah B (§3) |
+| **Pencarian di picker project** | Nol bukti ia dibutuhkan. Gerbang 4 |
+| **Duplikasi `h1` vs segmen jejak** | Nyata dan tersisa: beranda dan halaman versi masing-masing menyebut namanya dua kali. Ringan; ia soal ritme badan halaman, bukan token |
+| **Kontras non-teks untuk `--line`/`--line-soft`** | Sengaja tidak ditegakkan. SC 1.4.11 menuntut 3:1 untuk *mengidentifikasi kontrol*, dan garis baris tabel bukan itu — memaksanya menggambar grid dalam jeruji |
+
+### 13.6 ⚠️ Di mana brief ini keliru
+
+**1. Q-5 mengutip ambang yang salah, dan itu ada di §14.4 sejak D-035.**
+Ambang WCAG 2.2 **AA** untuk target adalah **24×24 (SC 2.5.8)**. Angka 44×44
+adalah **SC 2.5.5 — AAA** — dan pedoman Apple. Tombol kita ± 30px, jadi ia
+**sudah lulus AA sebelum sesi ini dimulai**; utang yang tercatat di the project notes
+menggambarkan pelanggaran yang tidak pernah ada. Aturan itu dipanen dari UUPM,
+yang menyebut ambang AAA tanpa mengatakannya, dan tidak ada yang memeriksanya
+terhadap spesifikasi. **Pola yang sama dengan `utf8-lossy` dan `TRY_CAST`:
+sumber yang memaafkan dipakai untuk mengambil keputusan.**
+
+**2. §7 tidak punya langkah untuk toggle tema, padahal §8 mensyaratkannya.**
+Ia ada di Definisi Selesai dan tidak di satu pun dari delapan langkah. Kusebut
+di laporan pertama sesi ini dan tetap benar: toggle adalah **kontrol + tempat
+menaruhnya + persistensi**, dan tempatnya adalah keputusan yang seharusnya ikut
+Laporan A. Dikerjakan di langkah 4 dan ditaruh di menu akun.
+
+**3. §4.1 benar, dan bukti bahwa ia benar datang dari arah yang tak terduga.**
+Brief memperingatkan bahwa slate kebiruan adalah seragam alat teknis. Pemilik
+produk tetap memilihnya setelah melihat ketiganya — itu keputusannya, dan
+dicatat. Tapi konsekuensinya harus tertulis di suatu tempat, jadi ia ada di
+D-037: **nol karakter boleh datang dari palet**, dan seluruh bebannya pindah ke
+bobot dan tiga tier garis. Kalau Gerbang 4 tetap menyebut produk ini generik,
+di situlah pertama-tama harus dilihat.
+
+**4. §7 langkah 6 lebih berharga daripada yang brief sadari.** Ia ditulis
+sebagai higiene — *"supaya palet yang gagal AA tidak pernah sempat masuk"*.
+Yang sebenarnya terjadi: menulis test-nya **melahirkan sebuah token**. Menahan
+satu warna border pada 3:1 akan menggambar ribuan pemisah baris grid dengan
+bobot outline tombol, dan `--edge` tidak ada di rencana langkah 4 sama sekali.
+**Urutannya bukan formalitas; ia menemukan sesuatu.**
+
+**5. §4.4 menuntut "nol angka ajaib", dan itu tidak bisa berarti harfiah nol.**
+Empat nilai inline tersisa di grid dan tidak satu pun boleh jadi token: mereka
+dihitung saat runtime dari lebar kolom dan offset pin. Perbedaan antara
+**konstanta desain** dan **hasil tata letak** tidak ada di brief, dan tanpanya
+poin itu tidak bisa dijawab jujur.
+
+**6. Penomoran §4 tetap membingungkan** (§4.7 di atas §4.6) — sudah disebut di
+Laporan A, disebut lagi karena brief berikutnya akan menuliskannya ulang.
+
+### 13.7 Yang disentuh
+
+| Commit | Isi |
+|---|---|
+| `4839d50` | Temuan mekanis: `ProjectPicker` sebagai popup keempat · konfirmasi `End session` (UX-7) · grid terjangkau keyboard · fokus anchor · live region |
+| `1982470` | Laporan A (§12) |
+| `650d314` | Jejak di header · `project_id`/`project_name` · `not-found.tsx` · skip link · `beforeunload` |
+| `51da9c9` | D-036 · §14.5 baris 404 · alasan galeri diperluas · v0.15.0 |
+| `a99ac7c` | Token, dua tanah, `--accent`/`--ok` dihapus, ikon pin, target sentuh, toggle tema |
+| *(ini)* | D-037 · Q-2/Q-4/Q-5 ditutup di §14.4 · v0.16.0 · Laporan B |
+
+Berkas baru: `components/Trail.tsx` · `components/ThemePicker.tsx` ·
+`lib/lastProject.ts` · `lib/theme.ts` · `app/not-found.tsx` + lima berkas test.
+
+### 13.8 Terbuka / butuh keputusan
+
+| | |
+|---|---|
+| **Duplikasi judul** | Beranda dan halaman versi menyebut namanya di jejak **dan** di `h1`. Hapus `h1`-nya, ganti isinya, atau biarkan? Ia butuh mata, bukan aturan |
+| **Tanah terang belum pernah dipakai sungguhan** | Ia lulus setiap pengukuran dan **belum pernah ditatap berjam-jam**. Kalau ada yang terasa salah di sana, itu bukan bug palet — itu data |
+| **`--warn` terang `#8a5a00`** | Kuning gelap di tanah terang terbaca cokelat. Ia lulus AA dan mungkin tidak terbaca sebagai "peringatan". Kandidat pertama untuk ditinjau |
+| **Muka display** | Ditutup dengan alasan, bukan selamanya. Buka lagi kalau produk ini punya permukaan publik |
