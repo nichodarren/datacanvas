@@ -45,6 +45,10 @@ build/
 eval/datasets/wide_orders.csv
 
 .demo-api.log
+# Local run logs — `python -m app` and `npm run dev` write these when the app
+# is started to look at it. They are session noise, not evidence.
+.api.log
+.web.log
 
 # --- IDE / OS ---
 .vscode/
