@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-import { THEME_CHOICES, type ThemeChoice, applyTheme, recallTheme, rememberTheme } from "@/lib/theme";
+import {
+  THEME_CHOICES,
+  type ThemeChoice,
+  applyTheme,
+  recallTheme,
+  rememberTheme,
+  watchSystemGround,
+} from "@/lib/theme";
 
 const LABELS: Record<ThemeChoice, string> = {
   system: "System",
@@ -51,7 +58,14 @@ export function ThemePicker() {
   const [choice, setChoice] = useState<ThemeChoice | null>(null);
 
   useEffect(() => {
-    setChoice(recallTheme());
+    const stored = recallTheme();
+    setChoice(stored);
+    // Re-applied rather than assumed. The pre-paint bootstrap set `data-theme`
+    // before any stylesheet had loaded, so it could not read `--bg` — which
+    // means the `theme-color` meta is written here, at the first moment the
+    // resolved ground is actually readable.
+    applyTheme(stored);
+    return watchSystemGround(stored);
   }, []);
 
   function pick(next: ThemeChoice) {

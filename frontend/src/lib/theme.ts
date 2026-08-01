@@ -32,6 +32,66 @@ export function applyTheme(choice: ThemeChoice): void {
   const root = document.documentElement;
   if (choice === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", choice);
+  paintBrowserChrome();
+}
+
+/**
+ * `<meta name="theme-color">`, kept in step with the ground.
+ *
+ * It colours the browser's own furniture — the address bar on Android, the
+ * title bar in an installed PWA — and a page whose surroundings stay white
+ * while it is dark reads as a page that has not finished loading.
+ *
+ * **Written from JavaScript rather than declared in the document, and that is
+ * forced rather than chosen.** The static form supports a `media` attribute, so
+ * two tags can follow the OS. Neither can follow *our* toggle: `data-theme` is
+ * an attribute on `<html>`, and no media query can see it. Since the toggle
+ * exists precisely so the OS does not get the last word, the meta has to be
+ * computed from the same answer the stylesheet uses.
+ *
+ * Values are read from the stylesheet's own `--bg` rather than repeated here.
+ * A hardcoded pair would be a second copy of the palette, and the first thing
+ * a second copy does is fall out of step with the first.
+ */
+function paintBrowserChrome(): void {
+  // Read *after* `data-theme` has been set, so `light-dark()` has already
+  // resolved and this is the ground actually in force — whether the choice or
+  // the OS decided it.
+  const ground = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+
+  // No answer, no tag. `--bg` comes back empty if the stylesheet has not landed
+  // yet, and `<meta name="theme-color" content="">` is not a smaller version of
+  // this feature — it is a declaration that the page has no colour, which the
+  // browser is entitled to act on. Saying nothing leaves it to the platform
+  // default, which is the honest fallback (P6).
+  if (!ground) return;
+
+  let tag = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.name = "theme-color";
+    document.head.appendChild(tag);
+  }
+  tag.content = ground;
+}
+
+/**
+ * Keeps the browser chrome honest when the *machine* changes its mind.
+ *
+ * Only matters while the choice is `system`: an OS that flips at sunset moves
+ * the page's own colours through CSS, but the meta tag was computed once and
+ * would sit at yesterday's answer until something else re-rendered.
+ *
+ * Returns its own teardown, so the caller unsubscribes the way it would from
+ * any other listener.
+ */
+export function watchSystemGround(choice: ThemeChoice): () => void {
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const onChange = () => {
+    if (choice === "system") paintBrowserChrome();
+  };
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
 }
 
 export function recallTheme(): ThemeChoice {
