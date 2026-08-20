@@ -10,10 +10,23 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.domain.enums import PrivacyMode
+
+#: The repository root, derived from this file's own location.
+#:
+#: Every path setting below defaults to something relative, and "relative"
+#: previously meant *relative to the working directory* — which made the app's
+#: behaviour depend on where somebody happened to stand when they started it.
+#: Run from ``backend/``, the API booted normally and answered ``/health`` with
+#: 200; the first sign of trouble was a user clicking a sample dataset and being
+#: told it "is not installed on this server". A failure that waits for a user
+#: action to appear is worse than one at startup, and this class of bug is the
+#: one this project keeps writing down: correct because the caller happened to
+#: be in the right place, not because anything said so.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -46,6 +59,19 @@ class Settings(BaseSettings):
     # create a second copy that can drift, and the drifting one would be the
     # copy no check ever looks at.
     samples_root: Path = Field(default=Path("./eval/datasets"))
+
+    @field_validator("storage_root", "samples_root")
+    @classmethod
+    def _anchor_to_repository(cls, value: Path) -> Path:
+        """Resolve a relative path against the repository, never the cwd.
+
+        An absolute value is returned untouched, so a deployment that sets
+        ``STORAGE_ROOT=/var/lib/datacanvas`` still means exactly that. Only the
+        relative defaults are anchored — and anchoring them is what makes
+        ``python -m app`` behave the same from the repository root, from
+        ``backend/``, or from anywhere else.
+        """
+        return value if value.is_absolute() else (PROJECT_ROOT / value).resolve()
 
     # --- Phase 5: copilot ------------------------------------------------
     default_llm_privacy_mode: PrivacyMode = PrivacyMode.BALANCED
