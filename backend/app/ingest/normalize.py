@@ -90,7 +90,7 @@ Reader = Callable[[bytes, Dialect | None], pl.DataFrame]
 
 @dataclass(frozen=True, slots=True)
 class NormalizedTable:
-    """A table on its way to becoming a DatasetVersion."""
+    """A table on its way to becoming a Dataset."""
 
     frame: pl.DataFrame
     parquet: bytes
@@ -256,7 +256,7 @@ def read_sample(
     """A deliberately lenient read, for the preview only (D-025, FR-B.3).
 
     **Preview and commit parse differently, and that is the design.** Commit
-    must be exact — it produces the DatasetVersion every later number depends
+    must be exact — it produces the Dataset every later number depends
     on. A preview exists so a person can *correct* something, and a preview that
     refuses hands them nothing to correct: they cannot tell a wrong delimiter
     from a genuinely ragged file, which are the two problems it is there to
@@ -515,7 +515,7 @@ def normalize(data: bytes, fmt: SourceFormat, dialect: Dialect | None = None) ->
 
 @dataclass(frozen=True, slots=True)
 class IngestedFile:
-    """The facts a DatasetVersion needs, gathered without holding the table.
+    """The facts a Dataset needs, gathered without holding the table.
 
     Everything here is read back from the Parquet footer or from the file on
     disk, which is why none of it requires the frame to still exist.

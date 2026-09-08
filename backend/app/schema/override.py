@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from app.domain.data import ColumnSpec, SchemaContract
-from app.domain.enums import ColumnRole, LogicalType
+from app.domain.enums import LogicalType
 from app.domain.errors import DomainError
 from app.domain.ids import SchemaContractId, UserId
 from app.storage.engine import ColumnStatistics
@@ -47,15 +47,13 @@ class ColumnOverride:
 
     name: str
     logical_type: LogicalType | None = None
-    role: ColumnRole | None = None
     null_markers: tuple[str, ...] | None = None
     format_hint: str | None = None
 
     @property
     def changes_anything(self) -> bool:
         return any(
-            value is not None
-            for value in (self.logical_type, self.role, self.null_markers, self.format_hint)
+            value is not None for value in (self.logical_type, self.null_markers, self.format_hint)
         )
 
 
@@ -68,16 +66,16 @@ def conforming_count(stats: ColumnStatistics, logical_type: LogicalType) -> int 
     lose data" distinct from "happens to lose none this time".
     """
     match logical_type:
-        case LogicalType.INTEGER:
-            return stats.integer_like
-        case LogicalType.DECIMAL:
+        case LogicalType.NUMERICAL:
             return stats.integer_like + stats.decimal_like
         case LogicalType.BOOLEAN:
             return stats.boolean_like
+        # A timestamp is a date with a time on it, so both counts conform. Adding
+        # them rather than taking `date_like` alone is what stops a correction to
+        # `date` on a timestamp column reporting every row as a value it would
+        # discard — which it would not.
         case LogicalType.DATE:
-            return stats.date_like
-        case LogicalType.DATETIME:
-            return stats.datetime_like
+            return stats.date_like + stats.datetime_like
         case _:
             return None
 
@@ -145,7 +143,7 @@ def apply(
 
     return SchemaContract(
         id=SchemaContractId(uuid.uuid4()),
-        dataset_version_id=current.dataset_version_id,
+        dataset_id=current.dataset_id,
         version_no=current.version_no + 1,
         columns=columns,
         created_at=now,
@@ -171,7 +169,6 @@ def _apply_one(
         ordinal=column.ordinal,
         physical_type=column.physical_type,
         logical_type=logical_type,
-        role=override.role if override.role is not None else column.role,
         format_hint=(
             override.format_hint if override.format_hint is not None else column.format_hint
         ),

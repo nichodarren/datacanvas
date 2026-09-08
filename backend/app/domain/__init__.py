@@ -9,21 +9,17 @@ tangled with I/O are the fastest way to make a system untestable.
 from __future__ import annotations
 
 from .audit import AuditAction, AuditEvent
-from .data import ColumnSpec, Dataset, DatasetVersion, SchemaContract, SourceFile
-from .enums import ColumnRole, LogicalType, PrivacyMode, Role, RouteClass, UserStatus
+from .data import ColumnSpec, Dataset, SchemaContract, SourceFile
+from .enums import LogicalType, PrivacyMode, RouteClass, UserStatus
 from .errors import AuthorizationError, DomainError, InvariantViolation
 from .identity import (
     PASSWORD_RESET_TTL,
     SESSION_ABSOLUTE_TTL,
     SESSION_IDLE_TTL,
-    Membership,
-    Organization,
     PasswordResetToken,
-    Project,
     Session,
     User,
-    Workspace,
-    WorkspacePolicy,
+    UserPolicy,
     normalize_email,
 )
 from .principal import Principal
@@ -35,27 +31,20 @@ __all__ = [
     "AuditAction",
     "AuditEvent",
     "AuthorizationError",
-    "ColumnRole",
     "ColumnSpec",
     "Dataset",
-    "DatasetVersion",
     "DomainError",
     "InvariantViolation",
     "LogicalType",
-    "Membership",
-    "Organization",
     "PasswordResetToken",
     "Principal",
     "PrivacyMode",
-    "Project",
-    "Role",
     "RouteClass",
     "SchemaContract",
     "Session",
     "SourceFile",
     "User",
+    "UserPolicy",
     "UserStatus",
-    "Workspace",
-    "WorkspacePolicy",
     "normalize_email",
 ]

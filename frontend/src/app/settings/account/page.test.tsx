@@ -28,21 +28,21 @@ vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return {
     ...actual,
-    api: { ...actual.api, me: vi.fn(), sessions: vi.fn(), revokeSession: vi.fn() },
+    api: {
+      ...actual.api,
+      me: vi.fn(),
+      sessions: vi.fn(),
+      revokeSession: vi.fn(),
+    },
   };
 });
 
 const ME: Me = {
-  user: { id: "user-1", email: "someone@example.com", created_at: "2026-01-01T00:00:00Z" },
-  workspaces: [
-    {
-      id: "workspace-1",
-      name: "Personal",
-      is_personal: true,
-      created_at: "2026-01-01T00:00:00Z",
-      role: "owner",
-    },
-  ],
+  user: {
+    id: "user-1",
+    email: "someone@example.com",
+    created_at: "2026-01-01T00:00:00Z",
+  },
 };
 
 /** Fixed timestamps: a fixture that drifts with the clock fails on its own one day. */
@@ -78,17 +78,23 @@ describe("ending one remote session", () => {
     const user = userEvent.setup();
     render(<AccountPage />);
 
-    await user.click(await screen.findByRole("button", { name: "End session" }));
+    await user.click(
+      await screen.findByRole("button", { name: "End session" }),
+    );
 
     expect(api.revokeSession).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Yes, end it" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Yes, end it" }),
+    ).toBeInTheDocument();
   });
 
   it("names the device it is about", async () => {
     const user = userEvent.setup();
     render(<AccountPage />);
 
-    await user.click(await screen.findByRole("button", { name: "End session" }));
+    await user.click(
+      await screen.findByRole("button", { name: "End session" }),
+    );
 
     // "End this?" beside a table of devices is the one question the row it sits
     // in is answering.
@@ -99,21 +105,29 @@ describe("ending one remote session", () => {
     const user = userEvent.setup();
     render(<AccountPage />);
 
-    await user.click(await screen.findByRole("button", { name: "End session" }));
+    await user.click(
+      await screen.findByRole("button", { name: "End session" }),
+    );
     await user.click(screen.getByRole("button", { name: "Yes, end it" }));
 
-    expect(api.revokeSession).toHaveBeenCalledExactlyOnceWith("session-elsewhere");
+    expect(api.revokeSession).toHaveBeenCalledExactlyOnceWith(
+      "session-elsewhere",
+    );
   });
 
   it("leaves the session alone when the question is declined", async () => {
     const user = userEvent.setup();
     render(<AccountPage />);
 
-    await user.click(await screen.findByRole("button", { name: "End session" }));
+    await user.click(
+      await screen.findByRole("button", { name: "End session" }),
+    );
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(api.revokeSession).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "End session" }),
+    ).toBeInTheDocument();
   });
 
   it("never offers to end the session doing the asking", async () => {
@@ -122,7 +136,9 @@ describe("ending one remote session", () => {
 
     // Two sessions, one of them current: exactly one button, and the current
     // row is labelled instead.
-    expect(screen.getAllByRole("button", { name: "End session" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "End session" })).toHaveLength(
+      1,
+    );
     expect(screen.getByText("this device")).toBeInTheDocument();
   });
 });

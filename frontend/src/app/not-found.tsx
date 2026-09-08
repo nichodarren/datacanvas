@@ -45,7 +45,8 @@ export default function NotFound() {
       <section className="start">
         <h1>There is nothing at this address</h1>
         <p className="muted">
-          The link may be out of date, or the dataset it pointed at may have been deleted.
+          The link may be out of date, or the dataset it pointed at may have
+          been deleted.
         </p>
         <p className="row">
           <Link href="/" className="button-link">

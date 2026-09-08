@@ -37,6 +37,22 @@ class Database:
             # Without this, the first query after an idle period fails once and
             # then works, which is the most confusing kind of intermittent bug.
             pool_pre_ping=True,
+            # Every `TIMESTAMPTZ` comes back in UTC, whatever the server's own
+            # timezone happens to be.
+            #
+            # Found by comparing a cached API response with a freshly computed
+            # one: byte for byte identical except the timestamp, which read
+            # `2026-08-21T09:48:56Z` when it came from Python and
+            # `2026-08-21T16:48:56+07:00` when it came back from the database.
+            # The same instant, spelled two ways, and which one a client got
+            # depended on whether the value had made a round trip. That was
+            # true of every timestamp in the API — `ingested_at`, `created_at`,
+            # `last_seen_at` — not only the one that exposed it.
+            #
+            # Set on the connection rather than fixed at each read: a converter
+            # per repository is a rule seventeen call sites have to remember,
+            # and the eighteenth is where it breaks.
+            connect_args={"options": "-c timezone=UTC"},
         )
 
     @property

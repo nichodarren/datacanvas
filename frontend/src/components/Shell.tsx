@@ -1,9 +1,24 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+/* Imported rather than named by path, and the difference is not style.
+   `src="/logo.png"` is a URL that stays the same when the file behind it
+   changes, so a browser holding the old bytes has no way to learn it should
+   stop. That happened on 2026-08-25: the mark went from cyan to white, the
+   favicon updated because it is fetched differently, and the header kept
+   serving the old one out of cache while the server was answering correctly.
+
+   A static import makes the URL content-addressed —
+   `/_next/static/media/logo.<hash>.png` — so new bytes are always a new
+   address. It also hands `next/image` the intrinsic dimensions, which is why
+   `width`/`height` are gone from the element below. */
+import logo from "../../public/logo.png";
+
 import { AccountMenu } from "@/components/AccountMenu";
+import { ArrowLeft } from "@/components/Icon";
 import type { Me } from "@/lib/api";
 
 /**
@@ -59,12 +74,45 @@ export function Shell({
   children,
   headerExtras,
   me,
+  up,
 }: {
   children: ReactNode;
-  /** The `Project ▾` control §14.2 places next to the brand. */
+  /**
+   * The middle of the header. It held the `Project ▾` control until 2026-08-21,
+   * when the project level came off the screen; the dataset list now puts its
+   * search field here.
+   */
   headerExtras?: ReactNode;
   /** Absent only while the page is still finding out who is signed in. */
   me?: Me | null;
+  /**
+   * Where this page's parent is, for the pages that have one.
+   *
+   * ## Why it is a way *up* and not a Back button
+   *
+   * The browser already has Back, in the corner every browser puts it in, and a
+   * control that calls `history.back()` adds a second copy of it. What the
+   * browser cannot do is the thing that is actually missing: arriving at a
+   * dataset from a link, a bookmark or a fresh tab leaves Back pointing at
+   * whatever came before — another site, or nothing. *Up* always works, because
+   * it is a fact about this page rather than about how someone got here.
+   *
+   * ## Why it is not in the top-left corner
+   *
+   * That corner is the mark, and the mark is the anchor: it is on every screen,
+   * in the same place, and it is already a link home. Putting a back arrow to
+   * its left would give the corner two jobs and demote the one thing that is
+   * constant. So this sits immediately *after* the mark, behind a divider —
+   * the mark says where you are, the divider says the next thing is about this
+   * page, and the label says where it goes.
+   *
+   * ## Why it carries a word
+   *
+   * A bare `←` is only readable as "back", which is the thing it is not. The
+   * label names the destination, so the control answers *where does this go*
+   * before it is pressed rather than after.
+   */
+  up?: { href: string; label: string };
 }) {
   return (
     <div className="shell">
@@ -80,8 +128,33 @@ export function Shell({
 
       <header className="topbar">
         <Link href="/" className="brand">
-          DataCanvas
+          {/* The mockup's header carries the mark and no wordmark, so the
+              product's name lives in this link's accessible name rather than
+              on the screen. `alt=""` was right while the word sat beside it and
+              is wrong now: this is the whole of the link's content, and an
+              empty `alt` would leave a control with no name at all. */}
+          <Image src={logo} alt="DataCanvas home" className="mark" priority />
+          {/* The wordmark and the way up share this slot, and they are mutually
+              exclusive by design: the home page says what this is, every page
+              under it says how to get back. */}
+          {up ? null : (
+            <span className="wordmark" aria-hidden="true">
+              DataCanvas
+            </span>
+          )}
         </Link>
+        {up ? (
+          <>
+            <span className="topbar-divide" aria-hidden="true" />
+            <Link href={up.href} className="up">
+              <ArrowLeft size={16} />
+              {up.label}
+            </Link>
+          </>
+        ) : null}
+        {/* A spacer either side, so the middle stays centred whether or not
+            anything is in it and whether or not the two ends match in width. */}
+        <div className="spacer" />
         {headerExtras}
         <div className="spacer" />
         {/* The privacy-mode pill (NFR-PRIV.2 / UX-6, §14.2) used to sit here,

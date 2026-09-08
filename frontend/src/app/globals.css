@@ -13,27 +13,40 @@
  * below the floor on all three surfaces. It is now measured — every text token
  * against every background — by `tests/test_design_tokens.py`. A claim about
  * this file that nothing checks is a claim that drifts.
+ *
+ * The palette here is the owner's own, drawn in `design/` and ported rather
+ * than invented. D-038 records what that cost and what it bought.
  */
 
 :root {
-  /* Tells the browser which grounds this page supports, and *which one is
-     active* — which is what makes `light-dark()` below resolve, and what makes
-     every native widget follow: scrollbars, checkboxes, select menus, autofill.
-     Without it the grid's horizontal scrollbar rendered as a white bar across a
-     dark table. One line, fixing a class of mismatch rather than an instance. */
-  color-scheme: light dark;
+  /* One ground, and it is declared rather than followed. D-038 supersedes
+     D-037's `light-dark()` pair: the owner designed on a single dark navy, and
+     a light palette derived from it would be a palette nobody drew.
+
+     `color-scheme` still earns its line — it is what makes the native widgets
+     follow: scrollbars, checkboxes, select menus, autofill. Without it the
+     grid's horizontal scrollbar rendered as a white bar across a dark table. */
+  color-scheme: dark;
 
   /* ------------------------------------------------------------ depth ----
      Named by depth, and depth is a meaning: how far a surface sits above the
-     page. Cool neutral at a fixed hue (~222°), chosen rather than inherited —
-     the owner picked the direction on 2026-08-01 from three specimens rendered
-     on this same screen. Its cost is stated in D-037: blue-grey is the uniform
-     of nearly every technical tool, so none of the character can come from
-     here. It comes from weight, from the three border tiers below, and from
-     spending hue on nothing but exceptions. */
-  --bg: light-dark(#f7f8fa, #0e1117);
-  --panel: light-dark(#ffffff, #151a23);
-  --panel-2: light-dark(#eef1f5, #1d2431);
+     page. Black, at the product owner's decision (2026-08-25) — the navy at
+     ~210° that D-038 drew is gone.
+
+     What the navy was doing was carrying the product's character in the
+     ground itself. Black does not do that, and the trade is deliberate: with
+     the ground at zero the whole of the hue circle is available for meaning
+     instead of a slice of it, and this interface needs five type colours
+     nobody can confuse. On navy that was not achievable — the ground's own
+     blue crowded the cool half of the wheel, and five hues collapsed into two
+     families.
+
+     The two raised surfaces are only 1.1:1 above what they sit on, so a panel
+     is told apart by its border rather than by its fill. That is what a black
+     ground costs, and it is why `--line` is heavier here than it was. */
+  --bg: #000000;
+  --panel: #0e0e13;
+  --panel-2: #1a1a22;
 
   /* ------------------------------------------------------------ borders --
      Three, because they do three different jobs, and one of them is the only
@@ -43,47 +56,159 @@
      `tests/test_design_tokens.py` before writing this block: holding one
      border colour to WCAG 1.4.11's 3:1 would have drawn the grid's thousands
      of row separators in the same heavy line as a button's outline. */
-  --edge: light-dark(#767f8e, #6a7484); /* a control is a control (SC 1.4.11) */
-  --line: light-dark(#cbd2dd, #29323f); /* a boundary between regions */
-  --line-soft: light-dark(#e3e7ee, #1f2733); /* rows of the same thing */
+  --edge: #6e6e7e; /* a control is a control (SC 1.4.11) — 3.85:1 on --panel */
+  --line: #383846; /* a boundary between regions — 1.67:1, and load-bearing now */
+  --line-soft: #22222c; /* rows of the same thing */
 
   /* -------------------------------------------------------------- ink ----
-     Three tiers of emphasis, all measured against all three surfaces in both
-     grounds. `--ink-faint` is not decorative: it carries the word `null` in a
-     grid cell, which is a fact about the data. */
-  --ink: light-dark(#0f131a, #e6ebf2);
-  --ink-dim: light-dark(#454e5e, #9aa6b8);
-  --ink-faint: light-dark(#59616f, #8391a5);
+     Three tiers of emphasis, all measured against all three surfaces.
+     `--ink-faint` is not decorative: it carries the word `null` in a grid
+     cell, which is a fact about the data. On navy it sat one nudge above the
+     4.5:1 floor; on black the same tier clears 5.69:1, which is the one plain
+     benefit of dropping the ground to zero. */
+  --ink: #f1f1f5;
+  --ink-dim: #bcbcc7;
+  --ink-faint: #93939f;
 
   /* ----------------------------------------------------------- the hue ---
-     Two, and no more. `--warn` is *look at this, it can still be fixed*;
-     `--danger` is *this failed, or will destroy something*. Every state that
-     uses either also carries a word, because NFR-UX.3 forbids colour being the
-     only difference.
+     `--accent` is back, and D-038 states the price rather than hiding it.
 
-     `--accent` and `--ok` were removed rather than left unused. The accent was
-     doing five jobs — links, logical types, the primary button, every hover
-     border, the focus ring — and colour that marks *everything interactive*
-     has nothing left to say when something is genuinely wrong. Success went
-     because it is the ordinary outcome: "Password changed." already says it,
-     and green added no fact the sentence did not. */
-  --warn: light-dark(#8a5a00, #f2c14e);
-  --danger: light-dark(#a3262b, #f2777a);
+     D-037 removed it for a real reason: one hue was marking links, logical
+     types, the primary button, every hover border and the focus ring, and a
+     colour that means *everything interactive* has nothing left to say when
+     something is genuinely wrong. That argument still holds. What changed is
+     the answer to it — not "spend no hue" but "spend a second one". The
+     exception hues below are amber and red; the accent is cyan. Nothing reads
+     an alarm as an affordance because they do not share a family.
 
-  --shadow-color: light-dark(rgb(15 19 26 / 14%), rgb(0 0 0 / 50%));
+     The debt is written down in D-038: Phase 3 needs `stale` and `cached`
+     (UX-4, UX-5), and neither may be drawn from this cyan. */
+  --accent: #7bd0ff; /* 9.56:1 on --panel, so it may carry text */
+  --accent-ink: #00354a; /* on top of --accent — 7.65:1 */
+  --accent-soft: #c4e7ff; /* the label inside a status pill */
+  --accent-veil: rgb(123 208 255 / 12%); /* a pill's fill */
+  --accent-veil-edge: rgb(123 208 255 / 30%); /* a pill's border */
+
+  /* The same two jobs without the hue. Added 2026-08-25, when the accent came
+     off the home page's resting state: a fill and an edge still have to be
+     drawn, and on a black ground white at low alpha is what a raised surface
+     looks like with no colour spent on it. */
+  --veil: rgb(255 255 255 / 6%);
+  --veil-edge: rgb(255 255 255 / 20%);
+
+  /* The bloom around the mark, for the one piece of text that stands beside it.
+
+     Five stops, and they are not chosen by eye. The mark's own falloff was
+     measured out of `logo.png` — mean alpha at each distance from the tube:
+
+         1 unit  68%   3 units  26%   6 units  11%
+         2 units 44%   4 units  16%   8 units   5%   12 units  0%
+
+     — a steep drop followed by a long tail, reaching nothing at about six
+     times the first stop. Those percentages are the five layers below.
+
+     What is **not** copied is the scale. Proportionally, a bloom that reaches
+     10px on a 150px-tall mark reaches about 1.5px on 24px type, which is to
+     say invisible: the logo looks lit because it is drawn large, and shrinking
+     it to header size takes the light with it. So the shape of the falloff is
+     the logo's and the reach is chosen for this size. The alternative is a
+     wordmark that is technically faithful and visibly unlit.
+
+     Nothing else in this interface glows, and nothing else should. */
+  --glow-text:
+    0 0 3px rgb(255 255 255 / 68%), 0 0 6px rgb(255 255 255 / 44%),
+    0 0 12px rgb(255 255 255 / 26%), 0 0 24px rgb(255 255 255 / 12%),
+    0 0 42px rgb(255 255 255 / 6%);
+
+  /* Two exception hues, and no more. `--warn` is *look at this, it can still
+     be fixed*; `--danger` is *this failed, or will destroy something*. Every
+     state that uses either also carries a word, because NFR-UX.3 forbids
+     colour being the only difference.
+
+     `--ok` stays removed. Success is the ordinary outcome: "Password changed."
+     already says it, and green added no fact the sentence did not. */
+  --warn: #f2c14e;
+  --danger: #ffb4ab;
+
+  /* ------------------------------------------------- logical type ----
+     One hue per logical type, for the badge on a profile card.
+
+     The first attempt at these was drawn on the navy ground and it failed in
+     a way worth recording: five hues chosen 35-45° apart in **HSL** read as
+     two families, one green and one violet. HSL's degrees are not perceptual.
+     Forty degrees between two violets is a much smaller difference than forty
+     degrees between two greens, so an even spacing on paper was an uneven one
+     on screen.
+
+     These are placed in **OKLCH**, five hues exactly 72° apart — the only
+     spacing at which five hues are evenly distinct — and the offset chosen so
+     the nearest one sits 29° from `--accent`, `--warn` or `--danger`. That is
+     the best the circle allows: eight positions on 360° cannot all be 45°
+     apart once three of them are already fixed. The worst pair among the five
+     went from 0.099 to 0.141 in OKLab, and no two share a family.
+
+     Twenty-nine degrees is close enough to warrant the reason it is safe: a
+     type badge only ever appears on a profile card, and since D-041 removed
+     the quality warnings there is no amber or red anywhere on that surface.
+     They cannot be seen next to each other.
+
+     Equal loudness by construction — hue fixed, chroma taken as high as the
+     gamut allows, lightness solved so all five land at **8.0:1 on
+     `--panel-2`**, the lightest surface and therefore the binding one. Black
+     leaves enough headroom to choose that number for evenness rather than
+     scrape it off the 4.5:1 floor. */
+  --type-text: #fb984a; /*  56° — orange */
+  --type-numerical: #89c115; /* 128° — green */
+  --type-date: #27c3ca; /* 200° — teal */
+  --type-categorical: #97adfe; /* 272° — indigo */
+  --type-boolean: #fd8ad0; /* 344° — pink */
+
+  /* Behind a modal. A token rather than a literal in the `::backdrop` rule,
+     and that is not only house style: custom properties reach `::backdrop`
+     through the root in every engine, while inheriting from the originating
+     element is recent enough that a card-level value would land in some
+     browsers and not others. */
+  --scrim: rgb(0 0 0 / 55%);
+
+  --shadow-color: rgb(0 0 0 / 50%);
+  --shadow-card: 0 12px 24px -8px var(--shadow-color);
   --shadow-popup: 0 10px 28px var(--shadow-color);
 
   /* ------------------------------------------------------------- type ----
      Six roles, not seven sizes. There were 11, 12, 13, 14, 15, 20 and 24 in
-     the stylesheet and another handful inline in JSX, none of them named. */
-  --text-meta: 11px; /* types, pills, counts */
+     the stylesheet and another handful inline in JSX, none of them named.
+
+     `--text-data` stays at 12px while everything above it grew. Density is
+     the promise NFR-UX.5 makes to someone holding a 60-column file.
+
+     **This paragraph used to claim `--colhead-pad-x` was the width of the word
+     `categorical`, and that the size and the padding moved together.** Neither
+     was true: `--colhead-pad-x` is padding, and when the grid's type label came
+     up to `--text-meta` nothing recalculated. `categorical` needs 79.2px at
+     12px and a 96px column leaves 76px between its paddings, so on 2026-08-26
+     the word was breaking across two lines — `categorica` over `l` — on six
+     columns at once. The size the header type actually needs is a measured
+     number now (`--colhead-type` below) and `test_preview_grid_layout.py`
+     holds the arithmetic instead of a sentence claiming to. */
+  --text-meta: 12px; /* types, pills, counts */
   --text-data: 12px; /* a grid cell */
   --text-body: 14px; /* anything you read */
-  --text-lead: 15px; /* a section heading */
-  --text-title: 20px; /* a page heading */
-  --text-hero: 24px; /* the one headline on the empty state */
+  --text-lead: 16px; /* a section heading */
+  --text-title: 24px; /* a page heading */
+  --text-hero: 32px; /* the one headline on the empty state */
 
-  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  /* Inter and JetBrains Mono, named in `design/Sistem desain.png` and loaded
+     by `next/font/google` in `layout.tsx` — self-hosted at build time, so no
+     request leaves the page for a font. The stacks below are what renders
+     while that file is still arriving, and on the day it does not. */
+  --sans: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:
+    var(--font-mono), ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* Small type set in capitals needs air between the letters or it sets as a
+     block. One value, so every caps label is spaced the same. */
+  --track-caps: 0.05em;
 
   /* ------------------------------------------------------------ space ----
      One 4px scale. Deliberately generic: rhythm is not where this interface's
@@ -95,6 +220,7 @@
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
+  --space-7: 40px;
 
   /* --------------------------------------------------- measured values ---
      Not spacing. These are numbers something else computed, and they are kept
@@ -107,12 +233,57 @@
      `--control-min` is the smallest a standalone control may be. WCAG 2.2 AA
      (SC 2.5.8) asks 24px and our buttons already cleared it; the 44px figure
      often quoted is SC 2.5.5, which is AAA. 32 buys margin at no cost to
-     density, and coarse pointers get the full 44 further down. */
-  --colhead-pad-x: 10px;
-  --control-min: 32px;
+     density, and coarse pointers get the full 44 in the media query below.
 
-  --radius: 6px;
-  --radius-lg: 10px;
+     That sentence used to read *further down* and pointed at a block that had
+     been overridden since the day it was written. It is split now: the token
+     moves here, the padding moves past the rules it has to beat, and
+     `test_design_tokens.py` holds the order. */
+  --colhead-pad-x: 10px;
+
+  /* `--colhead-type` is the largest the grid's type label may be set at. It is
+     not a seventh role in the scale above — it is `--text-meta` held down by an
+     arithmetic that has nothing to do with reading comfort:
+
+       MIN_COLUMN_WIDTH  96px   (PreviewGrid.tsx, and it cannot rise: 12 columns
+                                 at 98.5 is the whole width the 1280px screen
+                                 NFR-UX.4 guarantees, so a wider minimum puts a
+                                 scrollbar under the file this design was
+                                 approved on)
+       − 2 × 10px pad    76px   of content box
+       `categorical`     11 characters × 0.6em, JetBrains Mono being monospace
+                                 — 72.6px at 11px, 79.2px at 12px
+
+     Which is why it is 11 and why 12 broke the word in half. Measured in
+     Chrome, not taken from a metrics table. */
+  --colhead-type: 11px;
+
+  /* Two floors, and they are not the same rule.
+
+     `--control-min` is *ours*: the smallest a standalone control may be, chosen
+     at 32 because it buys margin at no cost to density. `--target-min` is
+     **WCAG SC 2.5.8 AA**, which asks 24 — the floor that applies to a control
+     which is not standalone, such as the type badge sitting inside a profile
+     card. Coarse pointers get the full 44 (SC 2.5.5, AAA) from the media query
+     further down, which is where the older `44px is the requirement` belief was
+     corrected. */
+  --control-min: 32px;
+  --target-min: 24px;
+  /* What a coarse pointer gets. The comment above has claimed *coarse pointers
+     get the full 44 in the media query below* since D-037, and until 2026-08-26
+     the 44 was never written anywhere — it fell out of `--space-3` + `--space-4`
+     of padding around a line of text. That works for a button with a word in
+     it and not for one holding a single glyph, which has no line of text to pad
+     around, so the number had to become a value. SC 2.5.5, AAA. */
+  --control-coarse: 44px;
+
+  /* Softer than the 6/10 they replace. The mockup rounds a card at 12px and a
+     control at 8px, and that difference is what separates a surface you read
+     from a surface you press. */
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
 }
 
 /* A finger is not a mouse. Density is the right default for someone at a
@@ -125,23 +296,7 @@
   :root {
     --control-min: 44px;
   }
-  button,
-  input,
-  select {
-    padding: var(--space-3) var(--space-4);
-  }
 }
-
-/* The toggle stamps this on <html>, and `color-scheme` does the rest — every
-   `light-dark()` above re-resolves, and so do the native widgets. No second
-   palette to keep in step with the first. */
-:root[data-theme="light"] {
-  color-scheme: light;
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-}
-
 
 * {
   box-sizing: border-box;
@@ -187,25 +342,40 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
+  /* The app owns its scrolling, and this is what makes that true rather than
+     nearly true. `.workarea` below is the scroller; the document was also a
+     scroller, so every page carried **two scrollbars** — the outer one moving
+     the whole shell by a few pixels, the inner one moving the content.
+
+     Written as `hidden` rather than chased down to whichever few pixels
+     overflowed: a shell pinned to the viewport height has no business
+     scrolling at all, so the honest fix is to say so, not to find the leak and
+     leave the next one possible. `100dvh` on `.shell` stays under this, and
+     stays inside it: `dvh` shrinks when a phone's address bar appears while
+     `height: 100%` here does not, so the shell can never exceed what clips
+     it. */
+  overflow: hidden;
   background: var(--bg);
   color: var(--ink);
-  /* `system-ui` is kept, and D-037 records that as a decision rather than an
-     omission: a self-hosted face costs bytes on every load against NFR-PERF.1,
-     and buying character from a display face would spend it in the one place
-     direction B says not to. */
-  font: var(--text-body) / 1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Inter, self-hosted by `next/font/google`. D-037 kept `system-ui` on the
+     argument that a face costs bytes against NFR-PERF.1 and that character
+     must not come from type. D-038 pays that cost deliberately: the owner's
+     system names Inter and JetBrains Mono, and `next/font` subsets and
+     self-hosts them, so the cost is a subset rather than a whole family and
+     nothing is fetched from another origin at runtime. */
+  font: var(--text-body) / 1.5 var(--sans);
 }
 
-/* A link is underlined and written in ink. With no accent hue left, the
-   underline is not decoration — it is the entire signal, and it is the one the
-   web has never made ambiguous. */
+/* A link is written in the accent and underlined — two signals, and the
+   underline stays because it is the one the web has never made ambiguous and
+   the one that survives when the hue cannot be seen (NFR-UX.3). */
 a {
-  color: var(--ink);
-  text-decoration-color: var(--ink-faint);
+  color: var(--accent);
+  text-decoration-color: var(--accent-veil-edge);
   text-underline-offset: 2px;
 }
 a:hover {
-  text-decoration-color: var(--ink);
+  text-decoration-color: var(--accent);
 }
 
 /* A button that changes the form it sits in rather than going somewhere. It
@@ -240,7 +410,7 @@ button {
   cursor: pointer;
 }
 button:hover:not(:disabled) {
-  border-color: var(--ink-dim);
+  border-color: var(--accent);
   background: var(--panel);
 }
 button:disabled {
@@ -248,28 +418,126 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Inverted, and that inversion *is* the emphasis. With no accent hue to spend,
-   ink-on-ground is the strongest statement available at zero saturation —
-   which is direction B taken literally rather than apologetically. */
+/* Filled with the accent, and `--accent-ink` on top of it — the one pairing
+   in this palette that is checked as a pair rather than against a surface,
+   because the surface here *is* the accent. 7.65:1.
+
+   D-037 carried the emphasis by inversion instead, ink on ground, because
+   there was no hue to spend. There is one now, and a filled primary is what
+   the owner drew. */
 button.primary {
-  background: var(--ink);
-  color: var(--bg);
-  border-color: var(--ink);
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
   font-weight: 600;
 }
 button.primary:hover:not(:disabled) {
-  background: var(--ink-dim);
-  border-color: var(--ink-dim);
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
 }
 
+/* `textarea` joined this list on 2026-08-26, and until then there had simply
+   never been one in the product. The first one — the analysis composer —
+   rendered with the browser's own light fill on a black page, which reads as a
+   broken control rather than as an unstyled one. A rule that names two of the
+   three form elements is a rule waiting for the third. */
 input,
-select {
+select,
+textarea {
   font: inherit;
   color: var(--ink);
   background: var(--bg);
+  /* `--edge`, not `--line`. A field is identified by its boundary and SC
+     1.4.11 asks that boundary for 3:1 against what it sits on — which is why
+     softening this to look calmer is not available, however much it would. The
+     calm comes from the fill and the chevron instead. */
   border: 1px solid var(--edge);
   border-radius: var(--radius);
   padding: var(--space-2) var(--space-3);
+  /* `button` has had this since D-037 and fields never did, so a select was
+     ~34px on a touch screen while the button beside it was 44. Above SC
+     2.5.8's 24px either way, so not a failure — but the floor is supposed to
+     be one number, and it was two. */
+  min-height: var(--control-min);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+/* ------------------------------------------------------------- select ----
+   The browser's own arrow is the one thing on this panel that cannot be made
+   to match anything else: it is a different shape, a different weight and a
+   different colour on every platform, and on Windows it is a filled triangle
+   sitting in a grey well. `appearance: none` takes it off; the two gradients
+   below draw a chevron in its place.
+
+   Gradients rather than an SVG data URI, and that is the point of doing it
+   this way: a data URI would have to carry the colour as a literal hex, which
+   is a second copy of a palette token that nothing would keep in step. Here
+   the chevron is painted from `--chevron`, so it follows the palette and can
+   be re-pointed on hover with one declaration. */
+select {
+  --chevron: var(--ink-faint);
+
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--chevron) 50%),
+    linear-gradient(135deg, var(--chevron) 50%, transparent 50%);
+  background-position:
+    right 17px center,
+    right 12px center;
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+  /* Room for the chevron, so a long option never runs underneath it. */
+  padding-right: 34px;
+  cursor: pointer;
+}
+select:hover:not(:disabled),
+select:focus {
+  --chevron: var(--accent);
+}
+select:disabled {
+  --chevron: var(--line);
+  cursor: not-allowed;
+}
+
+/* A finger is not a mouse, part two.
+   `--control-min` moves to 44px beside the token it belongs with, up at the
+   top of this file. **This half had to move down here**, and finding out why
+   was the useful part: it used to sit in the same block, at line 168, and the
+   base `button` and `input, select` rules below it set `padding` again at
+   equal specificity. Later wins, so the coarse-pointer padding was overridden
+   on every device and had never once applied — while a comment two hundred
+   lines up said coarse pointers *get the full 44 further down*.
+
+   Nothing caught it because nothing compares a claim in a comment against the
+   cascade. `test_design_tokens.py` now does, for this rule. */
+@media (pointer: coarse) {
+  button,
+  input,
+  select,
+  textarea {
+    padding: var(--space-3) var(--space-4);
+  }
+  select {
+    padding-right: 40px;
+  }
+}
+
+/* The open list is drawn by the operating system, not by this stylesheet.
+   `color-scheme: dark` on `:root` is what makes it dark at all; these two
+   lines are the most any browser lets us say about it, and they stop the
+   options rendering as black-on-white in the ones that honour them. */
+select option {
+  background: var(--panel);
+  color: var(--ink);
 }
 /* Anchors were missing from this list, so every dataset card and the account
    menu's one link fell back to whatever ring the browser happened to draw —
@@ -277,14 +545,15 @@ select {
    regions, which are focusable precisely because nothing inside them is. */
 input:focus,
 select:focus,
+textarea:focus,
 a:focus-visible,
 button:focus-visible,
 [tabindex]:focus-visible {
-  /* Ink, because it is the one colour guaranteed to contrast with the page in
-     both grounds — an accent hue would have to re-prove itself on every
-     surface. 2px of offset so the ring stays visible around the primary
-     button, which is itself filled with ink. */
-  outline: 2px solid var(--ink);
+  /* The accent, re-proved on every surface by `test_design_tokens.py` rather
+     than assumed — 8.4:1 at its worst, well past SC 1.4.11's 3:1. 2px of
+     offset so the ring stays visible around the primary button, which is
+     itself filled with the same colour. */
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -304,10 +573,38 @@ button:focus-visible,
 .topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+  height: 64px;
+  border-bottom: 1px solid var(--line-soft);
+  /* Translucent over the ground rather than a solid panel, so content
+     scrolling under it stays faintly readable and the header reads as a layer
+     rather than as a lid. The fallback below is opaque: `backdrop-filter` is
+     the one property here that a browser may simply not have, and a
+     see-through header over live text is unreadable, not merely plainer.
+
+     The translucent value is spelled out rather than taken from `--bg`, because
+     `rgb(from var(--bg) r g b / 80%)` is newer than the browsers this ships to.
+     That is exactly why it was still navy on 2026-08-26: a literal does not
+     follow the token it was copied from, and nothing failed — the bar simply
+     sat one shade blue over a black page. Anything hard-coded here has to be
+     changed by hand when the ground moves, and this comment is the reminder. */
+  background: var(--bg);
+  flex: 0 0 auto;
+}
+@supports (backdrop-filter: blur(1px)) {
+  .topbar {
+    background: rgb(0 0 0 / 80%);
+    backdrop-filter: blur(12px);
+  }
+}
+
+/* The mark, at the size the owner drew it. `object-fit: contain` because it is
+   square artwork and a non-square box would crop the glow off it. */
+.topbar .mark {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
   flex: 0 0 auto;
 }
 /* The brand is a link home, and it is the only one in the header. It reads as
@@ -320,64 +617,154 @@ button:focus-visible,
   text-decoration: none;
 }
 .topbar .brand:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+/* The mark alone, with no wordmark beside it — the mockup's header carries the
+   logo and nothing else on the left. The product's name is still the link's
+   accessible name; it is just not drawn. */
+.topbar .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+}
+
+/* The product's name set to stand beside its own mark.
+
+   The mark is a neon tube: one thin stroke, geometric, and glowing. Three
+   things carry that over to type without pretending the letters were drawn by
+   hand — a **light weight**, so the strokes are thin like the tube; **open
+   tracking**, because a neon sign has air between its letters and a tight
+   wordmark beside an airy mark reads as two different logos; and **the same
+   bloom**, which is the part that actually does the work.
+
+   700 was tried on 2026-08-26 and reverted the same hour. It was legible and
+   still unmistakably lit — the glow carries the neon at any weight — but the
+   mark is a single hairline, and a bold word beside it made the mark look
+   frail. Light is not a compromise here; it is the half of the lockup that
+   matches the other half.
+
+   Only on the home page. Everywhere else this slot carries the way up instead,
+   because a page under the dataset list needs an exit more than it needs to be
+   told which product it is in.
+
+   `aria-hidden`, and that is not an oversight: the mark's `alt` already names
+   the link, and without this a screen reader would hear the product's name
+   twice in a row. It is visible text with no reason to be announced. */
+.topbar .wordmark {
+  font-size: var(--text-title);
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: var(--glow-text);
+  white-space: nowrap;
+}
+
+/* A hairline between the mark and whatever the current page adds beside it.
+   Without it the two read as one cluster, and the mark stops being the thing
+   that is the same on every screen. */
+.topbar-divide {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--space-2) var(--space-1);
+  background: var(--line);
+  flex: 0 0 auto;
+}
+
+/* The way up out of a page that has a parent. Reads as a control rather than
+   as a link — no underline, a border that answers WCAG 1.4.11, and a target
+   that clears the touch floor the rest of the header is held to. */
+.topbar .up {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--control-min);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
   color: var(--ink-dim);
   text-decoration: none;
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  flex: 0 0 auto;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.topbar .up:hover {
+  color: var(--ink);
+  border-color: var(--edge);
+  text-decoration: none;
+}
+/* The arrow leads on hover, so the direction reads before the word does. */
+.topbar .up svg {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.topbar .up:hover svg {
+  transform: translateX(-2px);
+}
+
+/* ------------------------------------------------------------- search ----
+   Sits in the middle of the header at the width the mockup gives it. What it
+   searches is the list already on screen, by name, as you type — a smaller
+   promise than the mockup's placeholder makes ("datasets, columns, or
+   metadata") and the whole of what this system can answer today. The
+   placeholder says the smaller thing. */
+.search {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 448px;
+  display: flex;
+  align-items: center;
+}
+.search .glyph {
+  position: absolute;
+  left: var(--space-3);
+  display: flex;
+  color: var(--ink-faint);
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+.search input {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-3) var(--space-2) 40px;
+  min-height: var(--control-min);
+}
+.search input::placeholder {
+  color: var(--ink-faint);
+}
+/* The magnifier follows the field's focus — the mockup's
+   `group-focus-within:text-secondary`. */
+.search:focus-within .glyph {
+  color: var(--ink);
 }
 .topbar .spacer {
   flex: 1;
 }
 
-/* --------------------------------------------------------------- trail ---- */
+/* `.trail` lived here. The breadcrumb it styled was deleted along with the
+   component: it appeared on two screens, and on both of them it repeated the
+   `<h1>` a few centimetres below it — `Account` above `Account`, a dataset's
+   name above the same name. D-036 built it because the version page had
+   *nothing* saying which dataset it was; the same session then gave that page
+   an `<h1>` carrying the dataset name, and the two fixes for one problem
+   shipped together without anybody noticing they overlapped.
 
-/* Where you are, in the header row that already existed (D-036). It spends no
-   width of its own — it sits in the slot between the brand and the spacer that
-   only the home page was using — which is why D-032's argument against the
-   190px rail does not reach it. */
-.trail ol {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-.trail li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-/* Links in the trail are not the app's link colour: inside a header, a row of
-   blue would read as a toolbar of unrelated destinations rather than as one
-   path. They are the ink colour, and hover is what says they are live. */
-.trail a {
-  color: var(--ink-dim);
-  text-decoration: none;
-  font-weight: 600;
-  border-radius: 6px;
-  padding: 2px 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.trail a:hover {
-  color: var(--ink);
-  background: var(--panel-2);
-  text-decoration: none;
-}
-.trail-here {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.trail-sep {
-  color: var(--ink-faint);
-  user-select: none;
-}
+   The half of D-036 that mattered — pressing the brand could move you into a
+   different project with nothing on screen saying so — is impossible since
+   D-039 removed projects, not merely unlabelled.
 
-/* Off screen until focused, then the first thing Tab reaches. */
+   What is genuinely lost: on a long page, scrolling the `<h1>` out of view
+   leaves the header saying nothing about where you are. That is a sticky
+   section header when it starts to hurt, not a breadcrumb repeating a title
+   that is already on screen. */
+
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -454,7 +841,7 @@ h2 {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  padding: var(--space-5);
   margin-bottom: var(--space-3);
 }
 
@@ -548,6 +935,12 @@ h2 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Same hue as the header it decides the visibility of. A list of sixty column
+   names is easier to find a column in when the types are separable at a glance,
+   and this is the third surface that already knew the answer. */
+.picker-row .meta {
+  color: var(--type, var(--ink-faint));
+}
 
 /* One form field. The card around it fills the page; the input keeps a
    readable measure, because a password box the width of a 1900px monitor is
@@ -593,33 +986,115 @@ h2 {
   min-height: 1em;
 }
 
+/* A status, and always a word. The dot beside it is redundant on purpose:
+   colour is never the only difference (NFR-UX.3), so the dot is what you
+   notice and the word is what you read. */
+/* `min-height: 0` because a `.pill` may be a `<button>` — the type badge on a
+   profile card is one — and the base `button` rule sets `--control-min`, which
+   is the floor for a *standalone* control and three times too tall for a badge.
+   The floor that applies here is SC 2.5.8's 24px, set on the badge itself. */
 .pill {
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--text-meta);
-  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  padding: 2px 10px;
   color: var(--ink-dim);
+  white-space: nowrap;
 }
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: currentcolor;
+  flex: 0 0 auto;
+}
+/* The steady state: this dataset is ready to open. It was cyan filled at 12%
+   and edged at 30% — the accent used as a ground rather than as ink. Neutral
+   since 2026-08-25: `ready` is the ordinary outcome, and the same argument that
+   keeps `--ok` out of this palette applies to it. The dot and the word carry
+   the state; the hue was adding a third copy of it. */
 .pill.ok {
   color: var(--ink);
-  border-color: var(--edge);
+  background: var(--veil);
+  border-color: var(--veil-edge);
+}
+.pill.ok::before {
+  background: var(--ink-dim);
+}
+/* A label rather than a state: the file's format, the kind of thing a column
+   type is. No dot — the dot on the pills above means *this is a status, and it
+   is currently this one*, and `CSV` is not a status. Mono for the same reason
+   a column's type is mono: the machine worked it out. */
+/* As a button: the same badge, and a target that clears SC 2.5.8.
+   `--target-min` and not `--control-min` — see the token for which is which. */
+button.pill.tag {
+  min-height: var(--target-min);
+  cursor: pointer;
+}
+button.pill.tag:hover {
+  border-color: color-mix(in srgb, var(--type, var(--ink)) 70%, transparent);
+}
+.pill.tag {
+  font-family: var(--mono);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  border-color: var(--line);
+}
+.pill.tag::before {
+  content: none;
+}
+/* The same recipe as `.pill.ok`: hue as ink, and the same hue at 12% behind it
+   and 34% around it. A saturated fill would make twenty-four badges the loudest
+   thing on the page, which is the opposite of what a type label is for.
+
+   `--type` is **inherited** rather than set here, which is the whole of what
+   moved on 2026-08-26. It comes from the profile card this badge sits in (see
+   *a card in its type's colour* further down), and that is what lets the badge
+   and the bars below it be one colour without the component naming the type
+   twice. The fallback is `--ink-dim`, the colour the badge had before any of
+   this — so a badge outside a typed card, and `Upload` renders one for the
+   file's format, reads as an ordinary tag rather than losing its colour. */
+.pill.tag {
+  color: var(--type, var(--ink-dim));
+}
+.card.profile[data-type] .pill.tag {
+  background: color-mix(in srgb, var(--type, transparent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--type, var(--line)) 34%, transparent);
 }
 
+/* Still arriving. Amber, because it is the hue that means *not yet*, and it
+   already means that everywhere else in this stylesheet. */
+.pill.working {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: transparent;
+}
 
 /* ------------------------------------------------------- scrollbars ------ */
 
-/* One rule for every surface that scrolls, applied by selector rather than by
-   remembering. `color-scheme: dark` already tells the browser which palette to
-   draw; this also makes the bar thin and quiet, because at the width Windows
-   uses by default it competes with whatever it is attached to.
-   Added after the column picker shipped with a pale native bar — the grid had
-   been styled and the panel had not, which is what happens when a rule lives
-   next to one of the things it should cover. */
-.grid-wrap,
-.column-picker,
-.workarea,
-.menu {
+/* **One rule for every surface that scrolls, and no list to keep up to date.**
+   `color-scheme: dark` already tells the browser which palette to draw; this
+   makes the bar thin and quiet, because at the width Windows uses by default
+   it competes with whatever it is attached to.
+
+   ⚠️ This was an enumerated selector list, and it was wrong twice for the same
+   reason. Its own comment said so the first time — *the grid had been styled
+   and the panel had not, which is what happens when a rule lives next to one
+   of the things it should cover* — and then the agent log, the answer panel
+   and the canvas shipped with pale native bars because nobody added three more
+   selectors. `scrollbar-width` and `scrollbar-color` **inherit**, so stating
+   them once at the root covers every scroller that exists and every one
+   written later. */
+:root {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
 }
@@ -630,23 +1105,14 @@ h2 {
 .menu {
   overscroll-behavior: contain;
 }
-.grid-wrap::-webkit-scrollbar,
-.column-picker::-webkit-scrollbar,
-.workarea::-webkit-scrollbar,
-.menu::-webkit-scrollbar {
+*::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-.grid-wrap::-webkit-scrollbar-track,
-.column-picker::-webkit-scrollbar-track,
-.workarea::-webkit-scrollbar-track,
-.menu::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
-.grid-wrap::-webkit-scrollbar-thumb,
-.column-picker::-webkit-scrollbar-thumb,
-.workarea::-webkit-scrollbar-thumb,
-.menu::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background: var(--line);
   border-radius: 999px;
   /* A transparent border inset with `background-clip` makes the thumb read as a
@@ -654,10 +1120,7 @@ h2 {
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-.grid-wrap::-webkit-scrollbar-thumb:hover,
-.column-picker::-webkit-scrollbar-thumb:hover,
-.workarea::-webkit-scrollbar-thumb:hover,
-.menu::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
   background: var(--ink-faint);
   background-clip: padding-box;
 }
@@ -700,8 +1163,7 @@ table.grid thead th {
   border-right: 1px solid var(--line-soft);
   padding: 0;
   text-align: left;
-  vertical-align: top;
-  overflow-wrap: anywhere;
+  vertical-align: middle;
 }
 
 /* The header carries the column name and the logical type, and the type is a
@@ -725,22 +1187,42 @@ table.grid thead th {
 .colhead:hover {
   background: var(--panel);
 }
+/* A marquee, like every other name in this product that came out of a file.
+   Truncation was the alternative and it is worse here than most places:
+   `temperature_c` and `temperature_f` both end up as `temperatur…`, so the one
+   thing a preview header exists to tell you is the thing that gets cut. It only
+   moves for names that actually overflow, and pointing at one stops it. */
 .colhead .name {
   font-weight: 600;
-  display: block;
 }
 .colhead .meta {
   display: flex;
   gap: 6px;
   align-items: center;
-  margin-top: 3px;
+  margin-top: 2px;
 }
+/* The type, in the type's colour — the same fact the profile card's badge
+   carries, in the same hue, so a column reads the same on both tabs.
+
+   This comment used to argue the opposite: *"the mono face already says the
+   machine worked this out, the colour tier says it is not the column's name,
+   neither needs a hue"*. That was true while the hues did not exist. Since
+   D-042 they do, and a product that colours a type on one tab and greys it out
+   on the other has two vocabularies for one idea.
+
+   Full strength, not the softened `--paint` the charts use: this is a label,
+   and the hues were solved to 8:1 on `--panel-2`, which is exactly what a table
+   head is. The fallback keeps an untyped column at the tier it had before.
+
+   `font-weight: 400` because `<th>` is bold by default and this span was
+   inheriting it — the label meant to sit *under* the column name was being set
+   heavier than the name at 700 against 600, and the dim colour was left
+   fighting its own type. */
 .colhead .type {
   font-family: var(--mono);
-  font-size: var(--text-meta);
-  /* The mono face already says "the machine worked this out". The colour tier
-     says "and it is not the column's name". Neither needs a hue. */
-  color: var(--ink-faint);
+  font-size: var(--colhead-type);
+  font-weight: 400;
+  color: var(--type, var(--ink-faint));
 }
 
 /* The type picker. The current type used to be labelled "· current" against a
@@ -758,43 +1240,140 @@ table.grid thead th {
   margin: 0;
   box-shadow: var(--shadow-popup);
 }
+/* Hung from its right edge instead, because left-aligned it would have run past
+   whatever clips it. `TypeMenu` measures once on open and decides; the choice
+   cannot be made in CSS because it depends on where the trigger happens to be.
+
+   In the grid this matters more than it looks: the panel is 260px under a
+   column that can be 96px, and `.grid-wrap` scrolls rather than clips — so the
+   old behaviour did not hide the overflow, it **grew the scrollable width**,
+   and opening the menu on the last column gave the table somewhere new to
+   scroll to. */
+.type-popup.flipped {
+  left: auto;
+  right: 0;
+}
+/* Opened upwards, for the same reason and on the other axis: a card on the last
+   row put `boolean` 33px below the bottom of the window. `TypeMenu` only sets
+   this when there is actually room above — see the component for why that
+   condition is not optional. */
+.type-popup.above {
+  top: auto;
+  bottom: 100%;
+}
+
+/* The badge on a profile card is the trigger for one of these, so it needs a
+   containing block that is the badge rather than the whole header row. */
+.type-anchor {
+  position: relative;
+  flex: 0 0 auto;
+}
+/* And on a card the menu hangs from the badge's *right* edge by default, where
+   in the grid it hangs from the left. Not an inconsistency — the badge sits at
+   the right edge of its card, so left-aligned a 260px panel opens almost
+   entirely over the **next** card, and a menu floating over a different column
+   than the one you clicked is worse than one that is merely off-centre. The
+   overflow flip in `TypeMenu` still applies on top of this; it just has nothing
+   left to correct here. */
+.type-anchor .type-popup {
+  left: auto;
+  right: 0;
+}
 
 .type-menu {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+/* Every option in its own hue — the fourth surface to read `--type`, and the
+   one that most obviously should have been reading it: this menu is a list of
+   nothing *but* types, three centimetres under a header badge already wearing
+   one of them.
+
+   `border: 1px solid transparent` on every option so the current one can take a
+   real border without moving the row a pixel when it does. */
 .type-menu button {
   text-align: left;
   background: none;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 6px;
   padding: 6px 10px;
-  color: var(--ink-dim);
+  color: var(--type, var(--ink-dim));
 }
+/* Hover keeps the hue and adds a ground. It used to replace the colour with
+   `--ink`, which would now mean pointing at an option is how you stop being
+   able to see what type it is. */
 .type-menu button:hover:not(.current) {
   background: var(--panel-2);
-  color: var(--ink);
 }
+/* The type you are on, in the recipe `.pill.tag` already uses: hue as ink, the
+   same hue at 14% behind it and 34% around it.
+
+   It was a filled white chip until 2026-08-26, and that was the one row in the
+   menu with no colour on it — the type you are currently reading the column as
+   was the only one you could not identify by hue. Inverting it also said *this
+   row is a different kind of thing*, and it is not: it is a type, like the four
+   above and below it.
+
+   Three channels still separate it — a ground, a border, and the weight — and
+   `aria-current` carries the same fact to anyone who cannot see any of them
+   (NFR-UX.3: never colour only). Measured at 7.1:1 against its own chip, well
+   clear of the 4.5:1 floor, and within 0.08 across the five. */
 .type-menu button.current {
-  background: var(--ink);
-  color: var(--bg);
+  background: color-mix(in srgb, var(--type, var(--ink)) 14%, transparent);
+  border-color: color-mix(in srgb, var(--type, var(--ink)) 34%, transparent);
+  color: var(--type, var(--ink));
   font-weight: 700;
 }
 
-/* `table-layout: fixed` shares the width evenly and `overflow-wrap` keeps a
-   long value inside its own cell instead of pushing the table past the page. */
 /* Hairlines, both directions. At `--line` weight a sixty-column preview reads
    as a cage rather than as a table — which is the whole reason the border
-   tokens split into three. */
+   tokens split into three.
+
+   **One line per row, and that is the change of 2026-08-26.** These cells wrapped
+   (`overflow-wrap: anywhere`), so `Central Java` took two lines while `Jakarta`
+   took one and the rows came out 29px, 29px, 47px, 47px, 47px, 29px — measured,
+   on the file this was looked at with. A preview is read *down* a column, and a
+   column whose rows are different heights cannot be read down at all: the eye
+   loses which row it is on somewhere around the fourth value.
+
+   So a value that does not fit is clipped, and the whole value is in the cell's
+   `title`. Not a marquee, and the reason is arithmetic rather than taste — ten
+   rows by twenty-four columns is 240 of them, each with an observer and a
+   measurement, and 240 things sliding at once is not a table anybody can read.
+   The marquee is for names, which are identities and are few; a cell is one
+   value among thousands. */
 table.grid td {
   border-bottom: 1px solid var(--line-soft);
   border-right: 1px solid var(--line-soft);
   padding: 5px var(--colhead-pad-x);
   font-family: var(--mono);
   font-size: var(--text-data);
-  vertical-align: top;
-  overflow-wrap: anywhere;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+
+/* Numbers right, everything else left — and the header goes with its column, or
+   the two disagree about where the column is.
+
+   Not a preference. A preview's job is to let someone spot the value that is
+   wrong, and left-aligned `88400.00` above `307500.00` hides an order of
+   magnitude behind a ragged edge; right-aligned, the longer number is visibly
+   longer. The face is already monospace so the digits were always going to
+   line up — they just had nothing to line up against.
+
+   Driven by `logical_type`, so a numerical column that happens to hold a stray
+   `N/A` (§11.8.4 says it can) still right-aligns with the rest of its column.
+   That is correct: alignment describes the column, not the cell. */
+table.grid td.numeric,
+table.grid th[data-type="numerical"] .colhead {
+  text-align: right;
+}
+table.grid th[data-type="numerical"] .colhead .meta {
+  justify-content: flex-end;
 }
 table.grid td.null {
   color: var(--ink-faint);
@@ -907,8 +1486,8 @@ body.resizing .resize-handle {
    says "working" without claiming a position. */
 .upload-progress:indeterminate {
   background:
-    linear-gradient(90deg, transparent 0%, var(--ink) 50%, transparent 100%) 0 0 / 40% 100%
-      no-repeat,
+    linear-gradient(90deg, transparent 0%, var(--ink) 50%, transparent 100%) 0
+      0 / 40% 100% no-repeat,
     var(--panel-2);
   animation: upload-sweep 1.4s ease-in-out infinite;
 }
@@ -926,20 +1505,66 @@ body.resizing .resize-handle {
   }
 }
 
+/* Two dashed pixels, not one, and no fill until you interact — the mockup
+   draws the drop zone as an outline on the page rather than as a panel sitting
+   on it, which is what keeps a target this large from dominating the screen. */
 .drop {
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7) var(--space-5);
   text-align: center;
   color: var(--ink-dim);
-  background: var(--panel);
+  background: transparent;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
-/* The drop zone under a dragged file. Weight, not hue: the dashed edge goes
-   solid and gains a tier, which is the same move every other "this is live"
-   state on the page makes. */
+.drop:hover {
+  border-color: var(--edge);
+  background: var(--veil);
+}
+
+/* The disc holding the upload glyph. It grows on hover — the one thing in this
+   stylesheet that moves, and it is 48px sitting alone rather than a card in a
+   grid, so nothing is displaced by it. `prefers-reduced-motion` flattens it
+   along with everything else. */
+.drop .disc {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--panel);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.drop:hover .disc {
+  transform: scale(1.1);
+}
+.drop h2 {
+  margin: 0;
+  font-size: var(--text-title);
+  color: var(--ink);
+}
+.drop .lede {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-dim);
+}
+/* The drop zone under a dragged file. The dashed edge goes solid *and* goes
+   bright — weight and value together, because this is the one moment on the
+   screen where the user is mid-gesture and needs the answer at a glance.
+   It used to add hue as the third signal; the two that remain are the two that
+   carry it. */
 .drop.over {
   border-style: solid;
-  border-color: var(--ink-dim);
+  border-color: var(--ink);
+  background: var(--veil);
   color: var(--ink);
 }
 
@@ -984,11 +1609,85 @@ table.plain td {
 }
 
 /* One line, cut rather than wrapped, with the full value left in `title`. */
+/* Text too long for the box it is in.
+
+   Clipped with an ellipsis when it fits, and looping leftward when it does not.
+   `.slides` is added by `Ellipsis.tsx` only when the text really is wider than
+   its host, so a name that fits never moves — and the `title` is still there
+   for a pointer that waits rather than one that moves on.
+
+   **It runs on its own; hovering stops it.** WCAG SC 2.2.2 is Level A and asks
+   for a mechanism to pause content that moves by itself. Pointing at a name is
+   that mechanism, and it is the one a reader wants anyway. What it is not is
+   *discoverable*, and it does not exist on a touch screen — recorded as owed
+   rather than claimed as met. `prefers-reduced-motion` removes the movement
+   entirely, which is SC 2.3.3 and is not negotiable. */
+/* `display: block` is load-bearing, not tidiness. `clientWidth` is 0 on an
+   inline element, and this is used on a `<span>` in the value bars — so an
+   inline host would report a width of zero, nothing would ever look too wide
+   for it, and nothing would ever move. */
 .ellipsis {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+.ellipsis .ellipsis-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.ellipsis .ellipsis-run {
+  white-space: nowrap;
+}
+/* Two runs in a row, sliding left by exactly one of them plus the gap. At the
+   end of the cycle the second copy stands where the first began, so restarting
+   is invisible — one direction, no bounce, no seam.
+
+   Safe only because every box above this is pinned; see the `minmax(0, 1fr)`
+   note on `.cards`. Without that, this widened the grid instead of scrolling
+   inside it. */
+.ellipsis.slides .ellipsis-text {
+  display: inline-flex;
+  gap: var(--marquee-gap);
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  animation: marquee var(--marquee-time) linear infinite;
+}
+/* Hovering stops it, which is the mechanism SC 2.2.2 asks for and also the
+   thing a reader actually wants: point at the name you are trying to read and
+   it holds still. */
+.ellipsis.slides:hover .ellipsis-text {
+  animation-play-state: paused;
+}
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--marquee-shift, 0px)));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* SC 2.3.3. With the movement gone the text goes back to being clipped with
+     an ellipsis, and the `title` on every one of these still gives the whole
+     name on hover. The second run is hidden rather than left standing beside
+     the first, where it would read as the name written twice. */
+  .ellipsis.slides .ellipsis-text {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: none;
+  }
+  .ellipsis.slides .ellipsis-run + .ellipsis-run {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------- first screen (§14.5) --- */
@@ -996,58 +1695,71 @@ table.plain td {
 /* The empty state is the one screen where a first-time user decides whether
    this product is worth their file. It gets a narrower measure and a single
    focal point, rather than the two equal-weight headings it used to have. */
-.start {
-  max-width: 760px;
-}
-.start h1 {
-  font-size: var(--text-hero);
-  margin-bottom: 2px;
-}
+/* `.start` was a whole second layout for this page — its own headline, its own
+   760px measure, its own arrangement — shown to accounts with no data. It is
+   gone: the page has one shape now, and only the contents of the grid change.
+   The cost of the old arrangement was paid by the person least able to afford
+   it, since a first-time user met the layout that had been designed least and
+   then watched it rearrange itself the moment they uploaded anything. */
 
-/* The order, stated before it is walked. A sequence someone has to infer is a
-   sequence they infer wrongly. */
-.steps {
-  list-style: none;
-  counter-reset: step;
-  padding: 0;
-  margin: 18px 0 6px;
-}
-.steps li {
-  counter-increment: step;
-  position: relative;
-  padding: 6px 0 6px 32px;
-  color: var(--ink-dim);
-}
-.steps li::before {
-  content: counter(step);
-  position: absolute;
-  left: 0;
-  top: 6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  color: var(--ink-faint);
-  font-size: var(--text-meta);
-  display: grid;
-  place-items: center;
-}
+/* The numbered `Confirm → Check → Browse` list lived here. It stated the order
+   before it was walked (§14.3) on an account with no data, and the owner
+   removed it on sight: three lines of instruction across the top of a screen
+   whose one control is a drop zone the size of the viewport. The sequence is
+   still true, and it is still described in §14.3 — it is simply not narrated
+   to someone who has not yet done the first step. */
 
+/* One, two, three — the mockup's explicit breakpoints rather than `auto-fill`.
+   They are not the same thing: `auto-fill` with a 260px minimum puts seven
+   columns on a wide monitor, and a dataset card carrying a 24px filename is
+   not a tile you want seven of across. Capped at three, the cards keep the
+   proportions they were drawn at. */
+/* `minmax(0, 1fr)`, not `1fr`.
+
+   A grid track sized `1fr` still refuses to go below its content's min-content
+   width, and a card holding an unbreakable 90-character filename has a
+   min-content width of ninety characters. The track grew, the row overflowed
+   the page, and the two cards beside it were squeezed into a column one letter
+   wide. `minmax(0, ...)` is what says *the track decides, not the text* — and
+   it is the whole reason a marquee is possible at all: the box has to be fixed
+   before anything can slide inside it. */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+@media (min-width: 768px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 /* A dataset is a link, not a table row. The previous version rendered names as
    plain cells, so returning to this screen left you looking at your own data
    with no way into it. */
-a.card.dataset,
+/* `gap` here is the space between the card's three *blocks* — the icon row,
+   the body, and the foot. It was landing between every child of the sample
+   cards, which have their name, their description and their pill as three
+   loose children, so a 24px rhythm meant for blocks was pushing a name away
+   from the sentence describing it. The sample card now has the same three
+   blocks the dataset card does. */
 div.card.dataset,
 button.card.sample {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
+  /* Belt to the grid's braces. A flex item's automatic minimum size is its
+     content, so without this the card refuses to be narrower than the longest
+     name it holds even when the track is willing. */
+  min-width: 0;
+  /* Tighter than the generic card since 2026-08-25. A card holding two lines
+     of text does not need the padding of one holding a histogram. */
+  padding: var(--space-4);
   text-align: left;
   margin: 0;
   color: var(--ink);
@@ -1061,12 +1773,342 @@ button.card.sample {
      of wrapping. */
   overflow-wrap: anywhere;
 }
-a.card.dataset:hover {
-  text-decoration: none;
+div.card.dataset,
+button.card.sample {
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
-a.card.dataset:hover,
+/* Two things move and the card itself does not. Lifting a card on hover is
+   the obvious move and the wrong one here: a grid of them shifting under the
+   pointer reads as unstable, and this screen is a list you scan. So the edge
+   brightens a tier and a shadow appears *underneath* — the card looks lifted
+   without occupying a different position.
+
+   `:has(.card-open)`, not a bare `:hover`. The card was an `<a>` until the
+   delete button arrived and made it a `<div>` — at which point `a.card.dataset`
+   matched nothing and the hover simply stopped, silently, because CSS that
+   selects nothing is not an error. The overlay is now what says *this card
+   opens something*, so the effect keys off its presence: a dataset with no
+   version does not light up, and neither does one in the middle of asking
+   whether it should be deleted. */
+.card.dataset:has(.card-open):hover,
 button.card.sample:hover:not(:disabled) {
-  border-color: var(--ink-dim);
+  border-color: var(--edge);
+  box-shadow: var(--shadow-card);
+}
+/* The name took the accent under the pointer until 2026-08-25 — it answered
+   "which one am I about to open" without the whole card changing colour.
+
+   With the accent off this screen there is nowhere for that rule to go: the
+   card's resting colour is already `--ink`, so brightening the name to `--ink`
+   is a rule that reads as an effect and produces none. Deleted rather than
+   left saying something untrue. Hover is two signals now, not three — the edge
+   brightens a tier and a shadow appears underneath. */
+.card .name {
+  font-weight: 600;
+}
+
+/* The card's first row: a tile carrying the shape of the file's format. The
+   mockup pairs it with a `⋮` on the right that opens nothing — omitted here,
+   because there is no dataset action in the API for it to open. */
+.card .type-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  border: 1px solid var(--line-soft);
+  color: var(--ink-dim);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+/* The filename, at the size the mockup sets it. Large for a card, and
+   deliberately so: it is the only thing on it that answers "which one". */
+.card .dataset-name {
+  font-size: var(--text-title);
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+  transition: color 0.15s ease;
+}
+
+/* Rows and columns, mono, with a dot between them rather than a middot glyph —
+   a 4px disc lines up between two numbers in a way punctuation does not. */
+.card .specs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--mono);
+  font-size: var(--text-body);
+  color: var(--ink-dim);
+  margin-top: var(--space-1);
+}
+.card .specs .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  flex: 0 0 auto;
+}
+
+/* `margin-top: auto` pins this to the bottom, so cards in a row line up with
+   each other however long the filenames above them are. Since 2026-08-25 the
+   only thing that lands here is the `No version` pill, on the few cards that
+   have one — an ordinary card has no foot at all. */
+.card .card-foot {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--ink-dim);
+}
+
+/* The format tile beside the name rather than above it. Stacked, the two were
+   separated by a 24px block gap and the tile read as its own row of content;
+   side by side it reads as what it is — a label on the name. */
+/* A fixed height, and it is the point rather than a detail.
+
+   A card that grows when you ask to delete it makes the row grow, which makes
+   every neighbour grow — a grid rearranging itself around a question you have
+   not answered yet. So the card is one size in both states, and the
+   confirmation is built to fit rather than the card built to hold it. */
+.card.dataset {
+  position: relative;
+  height: 96px;
+  justify-content: center;
+}
+.card.dataset .card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow: hidden;
+  /* Room for the delete control, which floats over the right edge. Without it
+     a long name slides under the button instead of stopping short of it. */
+  padding-right: 30px;
+}
+
+/* The whole card opens the dataset. Empty on purpose: it is named by
+   `aria-label`, and anything inside it would sit under the text it covers. */
+.card-open {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 0;
+}
+.card-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Delete. Quiet at rest — it is on every card, and a bin drawn at full strength
+   twenty times over reads as a screen asking to be emptied. It brightens to the
+   exception hue only under the pointer, which is where it becomes an offer. */
+/* Back in the corner, and small. It was briefly centred and 64px square to
+   match the tile; a bin that size opposite a name reads as an invitation, and
+   nothing on a list of files should invite deletion. Small and out of the way
+   is the right weight for it — it is still 28px, which clears the 24px floor
+   WCAG SC 2.5.8 sets for a touch target. */
+.card-delete {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-faint);
+}
+.card.dataset:hover .card-delete,
+.card-delete:focus-visible {
+  border-color: var(--line);
+}
+.card-delete:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+/* The question, in the place of the thing it is about — and inside the same
+   box, which is the constraint everything here follows from.
+
+   It floated over the card first (`position: absolute; inset: 0`) and the
+   buttons went out through the bottom edge on a long filename. Then it went
+   into flow and the card grew, which fixed the clipping by moving the problem:
+   a grid where one card is taller than its neighbours the moment you consider
+   deleting it. The card is a fixed size now, so this has to fit — two rows,
+   and the name is the only part allowed to take the space that is left. */
+.card-confirm {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-3);
+  min-width: 0;
+  height: 100%;
+  font-size: var(--text-meta);
+}
+.card-confirm p {
+  margin: 0;
+  color: var(--ink-dim);
+}
+.card-confirm .ask {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+/* The words around the name must not shrink, and saying so is not belt and
+   braces. The card sets `overflow-wrap: anywhere` for filenames, that inherits,
+   and it makes the min-content width of `Delete` **one character** — so flex
+   shrank it and the word came out down the side of the card in five rows. */
+.card-confirm .ask > span:not(.confirm-name) {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* The name in the face the rest of the interface uses for things that came out
+   of a file. `flex: 1` and `min-width: 0` are what let it be the part that
+   gives: long ones slide, short ones sit still, and neither pushes the `?`
+   onto a second line. */
+.card-confirm .confirm-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  color: var(--ink);
+}
+.card-confirm .error-text {
+  color: var(--danger);
+}
+
+/* The dataset page's title and its one action, on one line. The heading is the
+   part that gives — it is a marquee, so a long name slides inside whatever is
+   left rather than pushing the button off the edge. */
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.title-row h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Quiet until pointed at, like the bin on a card: this sits under a page title
+   and must not compete with it for the eye. */
+.quiet-danger {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-faint);
+  border-color: var(--line);
+  background: transparent;
+}
+.quiet-danger:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+
+/* The question about something irreversible.
+
+   This was `.banner.danger-banner`, in the flow under the page title, on the
+   argument that a page has room to ask properly. It did — until the name in the
+   middle of its sentence was 200 characters long and there was nothing in the
+   box to stop it. The dialog is in the top layer, so nothing it does can reach
+   the page's width again.
+
+   `max-width` in two parts: a comfortable measure for the sentence, and a
+   viewport clamp so the panel never touches the edges on a narrow window. */
+.confirm-dialog {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--ink);
+  padding: 0;
+  width: min(420px, calc(100vw - 2 * var(--space-5)));
+  box-shadow: var(--shadow-popup);
+}
+/* Dimmed rather than blacked out. The ground is already `#000`, so an opaque
+   backdrop would make the page behind vanish instead of recede, and part of
+   what a modal says is *this is on top of what you were doing*. */
+.confirm-dialog::backdrop {
+  background: var(--scrim);
+}
+.confirm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+.confirm-panel h2 {
+  margin: 0;
+  font-size: var(--text-body);
+}
+.confirm-panel p {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: var(--text-meta);
+}
+/* The name, on a line of its own — which is the whole of the fix. It is a
+   block in a column, so its width is the panel's, and `Ellipsis` slides
+   whatever does not fit instead of pushing the panel wider. */
+.confirm-subject {
+  font-family: var(--mono);
+  font-size: var(--text-meta);
+  color: var(--ink);
+}
+.confirm-panel .error-text {
+  color: var(--danger);
+}
+.confirm-panel .row {
+  margin-top: var(--space-2);
+}
+
+/* The one button in this interface that destroys something. Outlined rather
+   than filled: a solid red block is the most prominent thing on the screen, and
+   the most prominent thing on a screen should not be the irreversible one. */
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: transparent;
+}
+button.danger:hover:not(:disabled) {
+  color: var(--accent-ink);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.card.dataset .card-id {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* 36px, and it was 64 for about ten minutes on 2026-08-26.
+
+   64 is the card's height less its padding, which made the space around the
+   tile identical on all four sides — geometrically exactly what was asked for,
+   and too heavy on the screen: a tile that size is the first thing the eye
+   lands on, and the first thing on a dataset card should be its name. Symmetry
+   is worth having and it is not worth that. */
+.card.dataset .type-icon {
+  width: 36px;
+  height: 36px;
+}
+/* The upload time joins the figures instead of holding a row of its own, and
+   changes face to say it is a different kind of fact: the counts are measured,
+   the age is context. */
+.card .specs .ago {
+  font-family: var(--sans);
+  color: var(--ink-faint);
 }
 div.card.dataset {
   cursor: default;
@@ -1085,9 +2127,8 @@ div.card.dataset {
   border-color: var(--line);
 }
 
-/* The caret alone. The project's name is beside it in the trail and is a link
-   to that project — see `Trail` for why leaving and switching are two controls
-   and not one chip. */
+/* The caret alone, which is all that is left of a control that used to sit
+   beside a project name. Both the name and the picker went with D-039. */
 .picker.caret {
   padding: 4px 6px;
   color: var(--ink-faint);
@@ -1195,50 +2236,6 @@ div.card.dataset {
   min-width: 0;
 }
 
-/* ------------------------------------------------------ theme picker ------ */
-
-/* One row in the account menu, not a region in the shell (D-037). The ground
-   belongs to whoever is reading, so it belongs to the account. */
-.theme-picker {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2);
-}
-.theme-label {
-  font-size: var(--text-meta);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  font-weight: 600;
-}
-.theme-options {
-  display: flex;
-  gap: var(--space-1);
-}
-.theme-option {
-  flex: 1;
-  padding: var(--space-1) var(--space-2);
-  min-height: 0;
-  font-size: var(--text-meta);
-  background: none;
-  border-color: var(--line);
-  color: var(--ink-dim);
-}
-.theme-option:hover:not(:disabled) {
-  background: var(--panel);
-  color: var(--ink);
-}
-/* Pressed is inverted, like every other "this one is chosen" on the page —
-   the type menu's current entry and the pinned column use the same move.
-   `aria-pressed` carries it for anyone who cannot see the inversion. */
-.theme-option.on {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bg);
-  font-weight: 600;
-}
-
 /* ------------------------------------------------------- small utilities -- */
 
 /* These exist so that JSX carries no numbers. Each is named for the job it
@@ -1303,10 +2300,3146 @@ div.card.dataset {
   margin-left: auto;
 }
 
+/* A little air before a pill that follows a name. Without it the pill sits
+   against the last letter and reads as part of the word. */
+.push-sm {
+  margin-left: var(--space-3);
+}
+
 /* The row-number column is always the first sticky one, and always at the
    origin. Its *width* stays in TypeScript as `ROWNUM_WIDTH`, because every pin
    offset is computed from it — a copy here would be a second source of truth
    for a number the layout arithmetic depends on. */
 table.grid .sticky-col:first-child {
   left: 0;
+}
+
+/* ------------------------------------------------- motion & section head -- */
+
+/* Every transition in this stylesheet is a colour or a shadow, and none of
+   them moves anything. That is deliberate — but "small enough not to bother
+   anyone" is not a judgement this file gets to make on someone else's behalf,
+   and the OS setting is the answer they already gave. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* A section heading with something on the far right of it — a count, a link to
+   the rest. The two sit on the same baseline rather than being centred against
+   each other, because one is a heading and one is not, and centring them makes
+   the smaller of the two look mispositioned. */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: var(--space-6) 0 var(--space-3);
+}
+.section-head h2 {
+  margin: 0;
+}
+
+/* The row inside a card that holds its name and its status. `min-width: 0` on
+   the name so a long filename ellipsises instead of pushing the pill off the
+   card. */
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.card-top .name {
+  min-width: 0;
+}
+
+/* Numbers about the data, set in the mono face — row counts, column counts,
+   sizes. Mono because these are figures you compare down a column of cards,
+   and proportional digits make that harder than it needs to be. */
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--mono);
+  font-size: var(--text-meta);
+  color: var(--ink-faint);
+}
+.card-meta .sep {
+  color: var(--line);
+  user-select: none;
+}
+
+/* A caps label: section eyebrows, column headings in a plain table. The
+   tracking is a token because small capitals set without it read as a block. */
+.caps {
+  font-size: var(--text-meta);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ------------------------------------------------------------- avatar ----- */
+
+/* The mockup puts a photograph here. Nothing in this system has one — there is
+   no avatar field, no upload for it, and a generated face would be a picture of
+   a person who does not exist standing in for one who does. The initial is
+   drawn from the address the account menu is already labelled with, so it is
+   the same fact in a smaller space. */
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-body);
+  font-weight: 600;
+  flex: 0 0 auto;
+  user-select: none;
+}
+
+/* The header's right-hand cluster: avatar, then the caret that opens the menu.
+   Two elements rather than one control, exactly as the mockup draws them —
+   the avatar is an image, the caret is the button. */
+.account-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+/* A menu row with a glyph in front of it. */
+.menu-item.with-icon {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* Sign out is the only destructive thing in the menu, and the mockup colours it
+   so. The word says it too. */
+.menu-item.danger {
+  color: var(--danger);
+}
+.menu-item.danger:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--panel);
+}
+
+/* --------------------------------------------------------- sample card ---- */
+
+/* A bundled dataset, drawn as the same object a real one is. §14.5 requires
+   something on this screen that proves the product works before anyone hands
+   it a file — and the most convincing version of that is a card identical to
+   the ones they will have once they do. */
+.card.sample .description {
+  color: var(--ink-dim);
+  margin: var(--space-2) 0 0;
+}
+/* Uppercase and quiet: it labels the card rather than telling you anything
+   about the data, so it must not compete with the sentence above it. */
+.card.sample .card-foot {
+  font-size: var(--text-meta);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+/* ------------------------------------------------- upload confirm panel ---- */
+
+/* The file being confirmed, named once and at a size that says it is the
+   subject of the panel rather than a caption on it. */
+.confirm-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--line-soft);
+}
+.confirm-head .filename {
+  font-size: var(--text-lead);
+  font-weight: 600;
+  min-width: 0;
+}
+
+/* Every control on one bottom edge.
+   `align-items: end` is what does it: the labels above the fields differ in
+   nothing here, but they did not have to — a grid that aligns on the *end* of
+   each cell keeps the inputs level however tall the thing above them grows. A
+   flex row could not, which is why the four controls used to sit at four
+   different heights. */
+.confirm-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: end;
+  gap: var(--space-4);
+}
+@media (min-width: 900px) {
+  .confirm-controls {
+    grid-template-columns: minmax(200px, 1.4fr) auto auto auto;
+  }
+}
+.confirm-controls .labelled {
+  gap: var(--space-2);
+  min-width: 0;
+}
+.confirm-controls input,
+.confirm-controls select {
+  width: 100%;
+}
+
+/* A checkbox in a box, so it weighs the same as the selects beside it. Left as
+   a real `<input type="checkbox">` — `accent-color` gives it the palette
+   without any of the markup a custom control would need, and a custom one
+   would have to re-earn the keyboard behaviour this already has. */
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease;
+}
+.check:hover {
+  border-color: var(--edge);
+}
+.check:has(input:checked) {
+  border-color: var(--accent-veil-edge);
+  background: var(--accent-veil);
+}
+.check input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* The preview table sits between the controls and the commit button, and it is
+   the largest thing on the panel — so it gets the air a section deserves
+   rather than the gap between two form fields. */
+.confirm-controls + .grid-wrap {
+  margin-top: var(--space-2);
+}
+
+/* --------------------------------------------------------- account page ---- */
+
+/* Full width, like every other page in the app.
+   This carried `max-width: 760px` for about an hour. It fixed the arrangement
+   it was aimed at — fields capped at 420px stranded in the left fifth of a
+   full-width card — and introduced a worse one: a settings panel occupying
+   half the window while the drop zone one route away spans all of it. Two
+   pages, two page widths, for no reason a reader could see.
+
+   The measure belongs on the *fields*, and it is `.field-row` below that
+   supplies it: three columns, so the width is used rather than stretched
+   into. */
+.settings .field {
+  max-width: none;
+}
+.settings input {
+  width: 100%;
+}
+
+/* Fields side by side once there is room for them.
+   A password box is aimed at, not read, so the argument for a narrow measure
+   is the opposite of the one for prose: a short box is easier to hit than a
+   long one, and three short boxes across is easier than three long ones
+   stacked. Below 900px they stack, because at that width side-by-side inputs
+   are each too narrow to show what has been typed. */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .field-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Who is signed in, as one row: initial, address, and the day it started. */
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.identity .mono {
+  flex: 1;
+  min-width: 0;
+}
+.identity .faint {
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------- profile cards ---- */
+
+/* One card per column, wrapping. Not a horizontal scroller: the value of this
+   tab is scanning *all* the columns, and a row you push sideways through shows
+   four at a time. A twelve-column file should be one glance. */
+/* Items stretch — the default, and stated here because it was once overridden.
+   Three of the eight card shapes (`constant`, `empty`, `unsupported`) draw a
+   note and no summary line, so they are one line shorter than every other card
+   by construction. Pinned to the top of the row they sat visibly short in an
+   otherwise even grid. Stretching costs nothing on the cards that already
+   match, and it fixes any future short card without anybody noticing it. */
+.profile-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.card.profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin: 0;
+}
+
+/* ------------------------------------------- a card in its type's colour ----
+
+   The five hues were a *label* colour: they lived on the badge and stopped
+   there, so a screen of cards was one wall of cyan charts with five coloured
+   stickers on it. They now reach the thing the eye actually lands on, because
+   the chart is where a type is worth telling apart at a glance.
+
+   Three custom properties do the whole job, and every rule below reads them
+   instead of naming a hue:
+
+     --paint  what a bar is made of
+     --lit    how much of the paint shows at rest, and on hover
+
+   `--type` is set once per type, and the single finish rule under it is the only
+   place a hue becomes a bar. There were two finishes and a `--bloom` between
+   them until the product owner picked one; the rule below says what happened to
+   the other. */
+/* **Five surfaces read these**, and the note that stood here predicted the
+   moment it now describes.
+
+   It read: *"four is the point at which a shared `.typed` class starts being
+   worth more than the explicitness, and a fifth surface is where that trade
+   flips."* The fifth arrived — the column panel (§11.7) — so the list of
+   selectors collapsed into one class rather than growing to five apiece.
+
+   `.typed` and not a bare `[data-type]`: a bare attribute selector would hand a
+   hue to any element that ever carries `data-type` for another reason. The
+   class is a component saying *I am about a column of this type*, which is a
+   claim, where the attribute alone is only a value.
+
+   What moved with it is what the guard asks. `test_every_logical_type_reaches_
+   this_surface` used to ask *does the stylesheet style this type on this
+   surface*; it now asks *does this component carry the class* — one question
+   per surface instead of five, and a much harder thing to get half-right. */
+.typed[data-type="numerical"] {
+  --type: var(--type-numerical);
+}
+.typed[data-type="categorical"] {
+  --type: var(--type-categorical);
+}
+.typed[data-type="text"] {
+  --type: var(--type-text);
+}
+.typed[data-type="date"] {
+  --type: var(--type-date);
+}
+.typed[data-type="boolean"] {
+  --type: var(--type-boolean);
+}
+
+/* **Pastel, all five.** The hue walked 35% of the way to `--ink`, in OKLab and
+   not in sRGB for the reason the hues themselves are placed in OKLCH: an sRGB
+   mix toward white drags lightness and chroma unevenly and comes out muddy at
+   exactly the point a pastel has to stay clean.
+
+   **35% and not 55%, which is where this started and where it was wrong.** A
+   pastel loses chroma twice over — once mixing toward the ink, and again when
+   the opacity composites it back down toward the ground. At 55% the indigo bars
+   drew at 0.043 chroma, and on screen they were grey: the card said CATEGORICAL
+   in indigo and then drew a chart the same colour as every other card. The paint
+   was the right hue the whole time. Looking at it in a browser is the only thing
+   that said otherwise — every threshold in `test_design_tokens.py` was green,
+   because they all measure contrast and none of them measured chroma.
+
+   **There was a neon finish beside this one for a few hours on 2026-08-26** —
+   the hue at full strength with the logo's bloom behind it, 8px, on
+   `numerical`, `boolean` and `text` — offered so the product owner could choose
+   between two finishes with both on screen at once. He chose pastel, so neon is
+   *gone* rather than commented out: a rule nothing selects is indistinguishable
+   from a rule whose turn has not come, which is the failure
+   `test_no_rule_qualifies_a_card_with_an_element_it_is_not` exists to catch. The
+   recipe is written down in D-044 if it is ever wanted back.
+
+   **0.66 / 0.88 outlived the reason it was chosen, and keeps the numbers.**
+   They were solved to make pastel exactly as loud as neon, and with neon gone
+   nothing is being matched any more. They stay because they are what was on
+   screen when the choice was made — moving them now would hand back something
+   other than what was picked. What still argues for muting at all is the older
+   reason: ten bars at full strength is a block of colour rather than ten bars.
+   5.4:1 on the card and 4.9:1 on the track, against a 3:1 floor for non-text
+   content (SC 1.4.11), so there is room either way if it is ever revisited. */
+/* The pastel finish, and it applies wherever a typed surface draws a chart —
+   the profile card and the column panel both. `.typed` rather than
+   `.card.profile` since the panel arrived: the panel's histogram is the same
+   figure twice the height, and it would have fallen back to `--accent` while
+   the card beside it wore the column's colour. */
+.typed[data-type="numerical"],
+.typed[data-type="categorical"],
+.typed[data-type="text"],
+.typed[data-type="date"],
+.typed[data-type="boolean"] {
+  --paint: color-mix(in oklab, var(--type) 65%, var(--ink));
+  --lit: 0.66;
+  --lit-hover: 0.88;
+}
+
+/* The card's own edge, tinted. 22% is deliberately near the floor: this is
+   twenty-four cards at once, and an edge that announces itself twenty-four
+   times is noise rather than information. It should read as *these two are not
+   the same kind of thing* and nothing louder. `--line` is 1.67:1 against the
+   card ground; the tint takes it to 2.44:1, so this makes the boundary slightly
+   easier to see than the untinted one, not harder. */
+.card.profile[data-type] {
+  border-color: color-mix(in srgb, var(--type) 22%, var(--line));
+}
+.card.profile .col-name {
+  font-size: var(--text-body);
+  font-weight: 600;
+  font-family: var(--mono);
+  margin: 0;
+  min-width: 0;
+}
+
+/* Nulls and unique — the two facts true of any column, whatever it holds. */
+.col-facts {
+  display: flex;
+  gap: var(--space-5);
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fact strong {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+/* The visual sits in a fixed box so cards line up whatever shape they carry.
+   Without it a histogram card and a three-value card differ in height, and a
+   grid of them reads as a ragged pile rather than a set.
+
+   `.col-note` is deliberately **not** in this group: it is the only shape whose
+   card carries no summary line under it, so it is the one that has to absorb
+   the leftover height. See its own rule below. */
+.histogram,
+.value-bars,
+.col-samples {
+  height: 64px;
+  margin: 0;
+}
+
+.histogram {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+/* `--paint` rather than `--accent`, which is the change of 2026-08-26. The
+   accent means *you can act on this* everywhere else in this stylesheet, and a
+   chart is not something you act on — so every histogram on the page was
+   wearing the one hue already spent on something else. The fallbacks keep a
+   card with no type (`unsupported`) drawing exactly what it drew before.
+
+   Still not opaque. Ten bars at full strength is a block of colour rather than
+   ten bars, and `--lit` is where each finish says how much of itself to show. */
+.histogram .bar {
+  flex: 1;
+  min-width: 0;
+  background: var(--paint, var(--accent));
+  border-radius: 2px 2px 0 0;
+  opacity: var(--lit, 0.55);
+  transition: opacity 0.15s ease;
+}
+.histogram:hover .bar {
+  opacity: var(--lit-hover, 0.85);
+}
+/* Many buckets, no gaps, and no rounded caps either: at a bar and a bit wide,
+   a 2px radius is most of the bar. */
+.histogram[data-dense] {
+  gap: 0;
+}
+.histogram[data-dense] .bar {
+  border-radius: 0;
+}
+/* **Dim the rest, rather than brighten the one.** Lifting the hovered bar from
+   0.88 to 1 was the first attempt and it was invisible in Chrome — `--lit-hover`
+   had already raised its nineteen neighbours to within a hair of it. Pulling
+   the others down is a difference you can see without looking for it, and it is
+   what every chart that answers a pointer does. */
+/* **Both selectors carry the `:has()`, and that is not redundancy.**
+   `:has()` takes the specificity of its most specific argument, so
+   `.histogram:has(.bar[data-lit="true"]) .bar` scores (0,4,0) while a plain
+   `.histogram .bar[data-lit="true"]` scores (0,3,0) — the dimming rule beat the
+   lighting rule and every bar went down together, the hovered one included.
+   Chrome showed it; nothing else could have. */
+.histogram:has(.bar[data-lit="true"]) .bar {
+  opacity: 0.3;
+}
+.histogram:has(.bar[data-lit="true"]) .bar[data-lit="true"] {
+  opacity: 1;
+}
+
+.value-bars {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.value-bars li {
+  display: grid;
+  grid-template-columns: minmax(0, 5rem) 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+}
+.value-bars .label {
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.value-bars .track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--line-soft);
+  overflow: hidden;
+}
+/* The track behind this one stays neutral. It is the part the value did *not*
+   reach, and painting it in the type's hue would say both halves of the bar
+   mean the same kind of thing. */
+.value-bars .fill {
+  display: block;
+  height: 100%;
+  background: var(--paint, var(--accent));
+  opacity: var(--lit, 0.75);
+  transition: opacity 0.15s ease;
+}
+.value-bars:hover .fill {
+  opacity: var(--lit-hover, 0.9);
+}
+.value-bars .count {
+  color: var(--ink-faint);
+}
+
+/* Example values, for the columns where a distribution would be a lie.
+
+   A text card has no chart, so without this it would be the one type whose hue
+   stopped at its badge. The rule down the left is what it gets instead, and it
+   earns the space twice: it carries the finish, and it says *these three lines
+   are quoted out of the file* — which is what they are, and which the card had
+   no way of saying before.
+
+   Still a pseudo-element rather than `border-left`. It was one so the neon
+   bloom could sit on the rule alone; neon is gone, and it stays a pseudo-element
+   because `border-left` would have to be re-added to the box's width arithmetic
+   for nothing in return. */
+.col-samples {
+  list-style: none;
+  position: relative;
+  padding: 0 0 0 var(--space-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  font-size: var(--text-meta);
+  color: var(--ink-dim);
+}
+.col-samples::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--paint, var(--line));
+  opacity: var(--lit, 1);
+}
+
+/* What a card says instead of drawing something misleading.
+
+   `flex: 1` rather than the fixed 64px its siblings get. A note card has no
+   summary line beneath it, so a fixed box would leave that line's worth of dead
+   space at the bottom of the stretched card. Growing into it keeps the dashed
+   frame centred and the card the same height as its neighbours. */
+.col-note {
+  flex: 1;
+  min-height: 64px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-faint);
+  font-size: var(--text-meta);
+  padding: 0 var(--space-3);
+}
+.col-note p {
+  margin: 0;
+}
+
+/* Pushed to the bottom of the card, so every summary in a row sits on one
+   baseline. Today the cards that carry one are all the same height and this
+   changes nothing; it decides where the slack goes the day one of them is
+   taller — under the shape, not floating in the middle of the card. */
+/* The `min` / `med` / `max` captions, and the unit after them. Sans rather
+   than mono so they read as words beside the figures, and one step dimmer so a
+   glance lands on the numbers first. */
+.col-summary .tick {
+  font-family: var(--sans);
+  font-size: 0.9em;
+  color: var(--ink-faint);
+}
+
+.col-summary {
+  margin: 0;
+  margin-top: auto;
+  font-size: var(--text-meta);
+  color: var(--ink-dim);
+}
+
+/* ------------------------------------------------------------ analysis ----
+
+   The Analysis tab: a composer that stays put, and a grid of results that
+   keeps its order. Nothing in it runs yet — see `AnalysisBoard.tsx`. */
+.analysis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Sticky at the top of the scroll, not pinned to the foot of the window. A bar
+   at the foot is a chat composer, and §14.1 names the mental model as the thing
+   this product is not.
+
+   **A band, and flush.** It was a floating card at `top: var(--space-3)`, which
+   left a 12px strip of scrollport above it and a 24px strip down each side —
+   the workarea's own padding — and results slid through all three. Twelve
+   pixels of another card's dashed edge crossing above a pinned toolbar reads as
+   a z-index accident rather than as depth.
+
+   So the offsets bleed over `.workarea`'s padding on three sides: the inline
+   margins reach both edges, and `top` goes **negative by the same 24px**.
+
+   That last one is not a hack, though it looks like one. A sticky `top: 0`
+   settles against the scrollport's *content* box, which is inset by the scroll
+   container's padding — measured, not assumed: at `top: 0` the band came to
+   rest exactly 24px down, with three result slots visible above it. The offset
+   has to cancel that padding to reach the edge.
+
+   Negative on `top` only, never on `margin-top`: a negative margin moves the
+   element in normal flow and would drag it up over the tab strip when nothing
+   is scrolled, which is a different bug wearing this one's fix. A sticky offset
+   changes nothing until the element sticks.
+
+   Losing the card is not a cost. A toolbar pinned to the top of a scroll is a
+   band in every interface that has one, and the field inside it keeps its own
+   border — the shape that reads as *type here* was never the panel around it. */
+.composer {
+  position: sticky;
+  top: calc(-1 * var(--space-5));
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-inline: calc(-1 * var(--space-5));
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.composer .ask {
+  flex: 1;
+  min-width: 0;
+  /* Grown from JavaScript as it is typed into, so it never scrolls inside
+     itself; `resize: none` because a drag handle would fight that. */
+  resize: none;
+  overflow: hidden;
+  min-height: var(--control-min);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+/* The two doors, at the same weight on purpose — INV-1 and P2 both turn on the
+   manual one being a peer of the prompt rather than a fallback beside it. */
+.composer-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+/* A square holding one glyph. Both composer buttons are one, which is what
+   keeps them peers: the argument against an unlabelled manual door was never
+   that glyphs are bad, it was that a symbol beside a word is the quieter of the
+   two — and `Ask` is a symbol now as well.
+
+   `--control-min` on both axes, because these are standalone controls and that
+   is the floor this stylesheet sets for one. The word each of them lost is
+   still its accessible name.
+
+   Sized rather than padded, which is why the coarse-pointer block further down
+   has to name this rule explicitly: that block raises `padding`, and a square
+   with `padding: 0` and a fixed width does not grow when its padding does. A
+   text button reaches 44 by being padded; these reach it by being resized. */
+button.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-min);
+  min-width: var(--control-min);
+  height: var(--control-min);
+  padding: 0;
+}
+/* Its own coarse block, **here** rather than in the one up at the top of the
+   file, and that placement is the whole point.
+
+   The first attempt put it there, 2,400 lines above the rule it has to beat. At
+   equal specificity the later rule wins — so the base 32px won and the touch
+   size applied to nothing, which is exactly the defect
+   `test_the_coarse_pointer_padding_can_actually_win` exists to describe. It was
+   caught by the guard written for it in the same sitting, one minute after
+   being introduced, which is the only reason it is a note rather than a bug.
+
+   Sized rather than padded: a square with `padding: 0` and a fixed width does
+   not grow when a padding rule fires. A text button reaches 44 by being padded;
+   these reach it by being resized. */
+@media (pointer: coarse) {
+  button.icon-button {
+    width: var(--control-coarse);
+    min-width: var(--control-coarse);
+    height: var(--control-coarse);
+  }
+}
+
+/* ------------------------------------------------------------- an answer ---
+
+   One turn, and the reader has to be able to tell a verified answer from an
+   unverified one **without reading carefully**. `data-grounded` is on the
+   block rather than a class on the warning, so the whole answer changes
+   character rather than growing a badge somebody can skim past. */
+/* **The answer is prose, not a panel inside a panel.** It used to sit in its
+   own bordered box inside the floating card, which drew a second frame around
+   something that already had one. The box moved to the receipt, where it earns
+   its keep: that *is* a distinct thing from the sentence above it. */
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* **No crate around the chips.** The box was a frame inside a frame inside a
+   frame — card, receipt, chip — and the chips already have edges of their own.
+
+   The grounded signal it used to carry has not gone: the head's mark is the
+   one that says whether the answer passed its citation check (§12.5 rule 3),
+   and it is the copy a reader sees whether the card is open or collapsed. */
+.receipt {
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--space-3);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tool-chip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-full);
+  background: var(--panel);
+  color: var(--ink-dim);
+  cursor: default;
+  font-size: var(--text-meta);
+  min-height: var(--control-min);
+}
+
+.tool-chip:hover,
+.tool-chip:focus-visible {
+  color: var(--ink);
+  border-color: var(--accent-veil-edge);
+  background: var(--panel-2);
+}
+
+/* **Fixed, so the scroller it lives in cannot clip it.** The receipt sits
+   inside `.float-body`, and an absolutely positioned tooltip would be cut off
+   the moment it opened near the bottom of a long answer. `pointer-events` off
+   because a tooltip under the cursor that summoned it takes the pointer away
+   from the chip and flickers itself out of existence. */
+.tool-args {
+  position: fixed;
+  z-index: 20;
+  max-width: min(26rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-2);
+  box-shadow: var(--shadow-popup);
+  color: var(--ink-dim);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.narrative {
+  margin: 0;
+  line-height: 1.6;
+}
+.banner.warn {
+  border-color: color-mix(in oklab, var(--warn) 45%, var(--line));
+  background: color-mix(in oklab, var(--warn) 12%, var(--panel));
+  color: var(--ink);
+}
+.banner.warn ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+/* The receipt (INV-5). Monospace for the id because it is a thing to compare
+   and to copy, never a thing to read. */
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--space-3);
+}
+.steps li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-meta);
+}
+.step-args {
+  color: var(--ink-dim);
+}
+
+/* Folded, because a refused proposal is a debugging fact rather than an answer
+   — but present, because a turn that went nowhere should be explainable
+   without opening a log. */
+.rejections summary {
+  cursor: pointer;
+  font-size: var(--text-meta);
+}
+.rejections ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-meta);
+  color: var(--ink-dim);
+}
+
+.analysis-note {
+  margin: 0;
+  font-size: var(--text-meta);
+}
+
+/* Twelve columns, and every result declares its span. Masonry was the
+   alternative and it packs by pulling later items up into earlier columns —
+   result 7 above result 5 — which reorders an analysis that is chronological by
+   nature. A ragged bottom edge per row is the price, and here it is the right
+   price: each figure is its own object, unlike the preview's rows of like
+   values where uneven heights break the downward scan. */
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-4);
+  /* Not `stretch`, which is the default and which would give every figure in a
+     row the height of the tallest one — widths would vary and heights would
+     not, and varying size is the requirement. A one-number result is 132px
+     because that is what it needs; making it 232px to square off the row is
+     the same instinct masonry serves, and it was already turned down. */
+  align-items: start;
+}
+.result-slot[data-span="3"] {
+  grid-column: span 3;
+}
+.result-slot[data-span="4"] {
+  grid-column: span 4;
+}
+.result-slot[data-span="6"] {
+  grid-column: span 6;
+}
+.result-slot[data-span="12"] {
+  grid-column: span 12;
+}
+/* Below this the twelve-column arithmetic stops meaning anything — a span of 3
+   is 180px, which is narrower than the profile card this project already
+   decided was the floor for a readable figure. One rule, because the spans are
+   in the stylesheet rather than inline; that is the whole reason they are. */
+@media (max-width: 900px) {
+  .result-slot[data-span] {
+    grid-column: span 12;
+  }
+}
+
+/* A slot, and it must read as a slot. Dashed like `.col-note`, which is this
+   stylesheet's existing way of saying *there is deliberately nothing drawn
+   here* — and never a chart with invented numbers, which §14.5 forbids for the
+   reason P3 exists. */
+.result-slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  color: var(--ink-faint);
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+}
+.slot-label {
+  font-size: var(--text-meta);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+}
+.slot-span {
+  font-family: var(--mono);
+  font-size: var(--colhead-type);
+  opacity: 0.7;
+}
+
+/* -------------------------------------------------------- column panel ----
+
+   One column, in depth (§11.7). A dialog rather than a side panel, and it
+   navigates — §11.7.6(f) argued for a panel because *"a modal forces you to
+   close before looking at another column"*, so this answers the objection
+   rather than the preference: ← and → walk the columns without it closing.
+
+   `min(1080px, …)` because seven quantiles, two lists of extremes and a
+   histogram do not fit a side panel's width, which is the one thing a dialog
+   buys over the shape §11.7.6(f) asked for. */
+/* **The dialog is the table, not the card (D-058).**
+
+   It used to be both — border, radius, background and shadow all lived here,
+   and `.panel-body` inside it carried the deal animation. So what moved when
+   you stepped a column was the *contents*, sliding inside a frame that never
+   went anywhere: the card was the one thing on screen that stayed still. The
+   chrome moved down to `.panel-body`, which is now the card in every sense
+   including the one that matters — it is what the animation picks up.
+
+   Why the chrome could not simply be animated where it was: the deck's
+   chevrons are children of this dialog (they have to be, or the `::backdrop`
+   scrim paints over them), and a transformed element becomes the containing
+   block for its `position: fixed` descendants. Animating the dialog would drag
+   the chevrons along with the card, which is the opposite of what they are
+   for. As a full-viewport layer it is never transformed, and they hold still.
+
+   `position: fixed; inset: 0` rather than `100vw`/`100vh`, which include the
+   scrollbar's width and would give this a scrollbar of its own.
+
+   The empty area around the card is now part of the dialog, so a click there
+   still has `event.target === dialog` and still closes — the same test the
+   handler always made, now with more room to make it in. */
+.column-panel {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: hidden;
+}
+/* `[open]` is load-bearing: an unqualified `display: grid` would beat the UA
+   sheet's `dialog:not([open]) { display: none }` and leave the layer sitting
+   over the page while closed. */
+.column-panel[open] {
+  display: grid;
+  place-items: center;
+}
+.column-panel::backdrop {
+  background: var(--scrim);
+}
+/* **The card itself** (D-058): the border somebody sees, the box that moves.
+
+   A header that does not scroll and a scroller under it, and nothing overflows
+   here — `.panel-scroll` does that, which is what keeps the scrollbar out of
+   the header.
+
+   `160px` of width rather than two gutters of `--space-5`: the deck's chevrons
+   live beside the card, and they need somewhere to be that is not on top of
+   the table. 80px a side holds a 36px control with air around it. */
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, calc(100vw - 160px));
+  max-height: calc(100vh - 2 * var(--space-5));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-popup);
+  overflow: hidden;
+}
+/* `min-height: 0` is what allows a flex child to be shorter than its content
+   and therefore scroll at all; the default `auto` minimum would make this as
+   tall as the table and the card would grow instead of the box. */
+.panel-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+/* **A sibling of the scroller, not a sticky child of it.**
+
+   Sticky kept the name and the way out on screen, and it also kept them inside
+   the scrollport — so the scrollbar ran the full height of the card, past a
+   header that does not scroll. Out here it holds still for the same reason it
+   did before (on a 24-column sweep the header is the only thing telling you
+   where you are), the negative margins that used to cancel the body's padding
+   are gone, and the bar starts where the scrolling does. */
+.panel-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.panel-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.panel-name h2 {
+  margin: 0;
+  font-size: var(--text-lead);
+  min-width: 0;
+}
+.panel-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 0 0 auto;
+}
+
+/* **Close, without a box.** Every other control in this product wears a
+   border because it is one of several a reader has to find; this one is at the
+   corner every reader already looks at, and a frame around it only adds a
+   second rectangle inside a rectangle. Red on hover rather than always:
+   `--danger` means *this will destroy something* everywhere else in the
+   stylesheet, and closing a panel destroys nothing until you commit to it. */
+.panel-close {
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  color: var(--ink-faint);
+  font-size: var(--text-body);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+.panel-close:hover,
+.panel-close:focus-visible {
+  color: var(--danger);
+}
+.panel-close:active {
+  transform: scale(0.92);
+}
+
+/* **The deck's controls, not the card's.** Fixed to the viewport and vertically
+   centred, so they hold still while the card under them is dealt away and
+   replaced — which is what makes the two gestures read as *one deck, many
+   cards* rather than as *this card has arrows*.
+
+   A `showModal()` dialog and its children share the top layer, so `fixed` here
+   resolves against the viewport as usual. It stays true only while nothing
+   between them and the viewport is transformed, which is why the deal animation
+   lives on `.panel-body` and not on the dialog. */
+.deck-step {
+  position: fixed;
+  top: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--ink-faint);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+.deck-step[data-side="previous"] {
+  left: 30px;
+}
+.deck-step[data-side="next"] {
+  right: 30px;
+}
+.deck-step:hover:not(:disabled),
+.deck-step:focus-visible:not(:disabled) {
+  color: var(--ink);
+  background: color-mix(in oklab, var(--panel-2) 70%, transparent);
+}
+/* Kept in place rather than hidden at the ends of the deck: a control that
+   disappears takes the layout with it, and the reader loses the anchor they
+   were aiming at. */
+.deck-step:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+/* **Dealt, not slid.** The rotation is the whole difference: a card that only
+   translates reads as a pane sliding, and a card that turns on the way in reads
+   as one being laid down off a deck. It comes from the side it was taken from,
+   so ‹ and › do not feel like the same gesture.
+
+   Since D-058 this rule picks up the **bordered box**, not its contents — the
+   shadow lifts and settles with it, which is most of what makes a rectangle
+   read as a card rather than as a panel. That is also why the numbers here are
+   larger than they were: at 44px and 1.5° inside a frame that never moved, the
+   motion had nothing to be a motion *of*.
+
+   `--deal-from` carries the sign; the keyframes are written once. */
+.panel-body {
+  animation: deal 280ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  transform-origin: 50% 120%;
+}
+.panel-body[data-dealt="next"] {
+  --deal-from: 1;
+}
+.panel-body[data-dealt="previous"] {
+  --deal-from: -1;
+}
+/* `transform-origin` below the card is what turns the rotation into a pivot
+   rather than a spin: the far edge travels while the near edge barely does,
+   which is how a card behaves when it is laid down by one corner. */
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--deal-from, 1) * 90px))
+      rotate(calc(var(--deal-from, 1) * 4deg)) scale(0.96);
+    box-shadow: none;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    box-shadow: var(--shadow-popup);
+  }
+}
+/* SC 2.3.3: motion that is decoration must be possible to turn off, and the
+   panel loses nothing without it — the card simply appears. */
+@media (prefers-reduced-motion: reduce) {
+  .panel-body {
+    animation: none;
+  }
+}
+
+/* The sentence §11.7.7 writes out of the same numbers below it. Set larger
+   than the figures it summarises: it is the one line most readers will take. */
+.narrative {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--ink-dim);
+  line-height: 1.6;
+}
+
+.panel-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.panel-group h3 {
+  margin: 0;
+  font-size: var(--text-meta);
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+/* Wraps rather than scrolls: eight statistics on a wide screen are one row,
+   and on a narrow one they are two — neither needs a decision from anybody. */
+.panel-group .facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+}
+.panel-group .fact strong {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+.panel-group .fact.wide {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.value-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-meta);
+  color: var(--ink-dim);
+  min-width: 0;
+}
+
+/* Taller than the card's, because this is the figure rather than a sparkline —
+   the card answers *is there something here*, the panel answers *what shape*. */
+.histogram.tall {
+  height: 200px;
+}
+.value-bars.tall {
+  height: auto;
+  gap: var(--space-2);
+}
+.value-bars.tall li {
+  grid-template-columns: minmax(0, 12rem) 1fr auto;
+}
+
+/* ---------------------------------------------------- descriptive table ----
+
+   §11.7.3's statistics as a **table**, at the top of the numerical panel, and
+   the shape is the point rather than a preference. Twenty-two figures laid out
+   as flowing label/value chips is a paragraph of numbers: nothing lines up, so
+   comparing `p75` to `p95` means finding them first. In a table the values
+   share a right edge and a monospace advance, so a column of figures can be
+   read down as a column — which is the only way anybody reads `describe()`.
+
+   Seven small tables in a grid rather than one tall one. One table of
+   twenty-two rows is 620px before the first chart, which puts every figure
+   below the fold on the screen size NFR-UX.4 guarantees; seven groups at
+   `auto-fit` are three across on this dialog's 1080px and one across when it
+   is narrow, and nobody has to choose.
+
+   The rule under each caption carries the column's own hue. It is the quietest
+   place in the table that can hold it — a value in the type colour would be a
+   figure claiming to mean something by being coloured, which is the mistake
+   `--paint` was separated from `--accent` to stop. */
+/* **A rail down the left, and one four-column field beside it (D-054).**
+
+   Two layouts came before this and both were rejected by looking at them.
+   `grid-template-columns: repeat(auto-fit, …)` made a grid row as tall as its
+   tallest cell, so `Percentiles` at seven rows left 190px of nothing under
+   `Central tendency`. Multi-column flow fixed the void and left the real
+   problem: seven independent tables, each setting its own height, so **no row
+   in one column lined up with any row in another** — and `Uniqueness`, last in
+   the flow, sat alone in the fifth column. It read as five lists, which is
+   what it was.
+
+   What makes this a table is that **every band shares one four-column field**.
+   `median` sits under `variance` sits under `Q1` sits under `p5`, because all
+   four columns are `1fr` of the same width in every band. The rail shares one
+   `max-content` track the same way, via `display: contents` — each band hands
+   its two children up to the outer grid, so seven bands agree on a rail width
+   without any of them knowing about the others.
+
+   The rail's left edge carries the column's hue. It is the quietest place in
+   the table that can hold it: a *value* in the type colour would be a figure
+   claiming to mean something by being coloured, which is the mistake `--paint`
+   was separated from `--accent` to stop. */
+.stat-table {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--space-5);
+  row-gap: var(--space-4);
+}
+.stat-band {
+  display: contents;
+}
+.stat-rail {
+  margin: 0;
+  padding: 3px 0 0 var(--space-3);
+  border-left: 2px solid var(--paint, var(--accent));
+  white-space: nowrap;
+}
+.stat-cells {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: var(--space-5);
+  row-gap: var(--space-2);
+}
+/* Four fixed columns and not `auto-fit`, which would give a two-cell band two
+   wide columns and a seven-cell band four narrow ones — and alignment across
+   bands is the entire point. Two columns below the width where four stop
+   holding a label and a figure without collision. */
+@media (max-width: 900px) {
+  .stat-cells {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* **Two fixed tracks, not `space-between` across the whole column.**
+
+   `space-between` pushed the label to one end of a 230px cell and the figure to
+   the other, which left about 150px of nothing between `mean` and its number —
+   a pair that reads as two unrelated words no matter what rule is drawn under
+   it. The tracks here are sized to the widest label and the widest figure the
+   table actually holds, so the gap is what is left over inside 140px rather
+   than inside 230px.
+
+   The slack does not disappear, it **moves**: each cell packs to the left of
+   its column and the leftover falls at the column's right edge, where it reads
+   as spacing between groups instead of as a hole inside one. And because every
+   cell in every band declares the same two tracks, the figures still land on
+   one right edge across the whole table — which is the thing the rail layout
+   was built for.
+
+   A figure wider than its track spills into that leftover rather than into the
+   next column, so an unusually long value is untidy and never illegible. */
+.stat-cells .cell {
+  display: grid;
+  grid-template-columns: 3.75rem 5rem;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  width: max-content;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--line-soft);
+  min-width: 0;
+}
+.stat-cells .cell span {
+  font-size: var(--text-meta);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+/* `tabular-nums` belongs here even though the face is already monospace: it is
+   what keeps the figures aligned if the stack ever falls back past JetBrains
+   Mono, which it does on a machine that built without network (see the debt
+   table on `next/font`). */
+.stat-cells .cell strong {
+  font-size: var(--text-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* ------------------------------------------------------ figures, one axis ---
+
+   Histogram, boxplot and ECDF stacked at one width over one domain, so a peak
+   in the first sits above the box that contains it and the point where the
+   bars thin out sits above the whisker cap that says where the fence fell.
+   Three cards side by side would each be true and none of them would answer a
+   question raised by the others. */
+.figures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  /* One line between the figures the reader counts with and the figures the
+     reader looks at. Without it the legend simply follows the last row of the
+     table and the panel reads as one long list of unrelated things. */
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--space-4);
+}
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+.chart-note,
+.chart-axis {
+  font-size: var(--text-meta);
+  color: var(--ink-faint);
+}
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--space-2);
+}
+
+/* The keys, not labels on the lines. On Titanic's `Fare` the mean sits at 6%
+   of the axis and the median at 3% — two labels drawn where their lines are
+   would land on top of each other, and their being that close is the thing the
+   reader is meant to notice. */
+.chart-legend {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+.chart-legend .key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.chart-legend .key::before {
+  content: "";
+  width: 16px;
+  border-top: 2px solid var(--ink);
+}
+/* Median solid, mean dashed — and that pairing is forced rather than picked.
+   The boxplot below draws its median as the solid line every boxplot draws,
+   so the histogram's median has to be solid too or one column would have two
+   medians drawn two ways within 60px of each other.
+
+   **Both are written out**, although solid is what the base rule already gives.
+   Saying `median is solid` by *not* writing a rule makes it depend on the base
+   staying solid — and it makes `.median` a class no selector mentions, which is
+   how `test_every_class_a_component_names_is_defined_by_the_stylesheet` found
+   it. A pairing that matters should be visible in the stylesheet as a pair. */
+.chart-legend .key.mean::before {
+  border-top-style: dashed;
+}
+.chart-legend .key.median::before {
+  border-top-style: solid;
+}
+
+/* Reference lines over the bars, in `--ink` rather than in the type's hue:
+   they are an annotation *about* the data, and painting them the same colour
+   as the bars would file them as more of it. */
+.histogram .marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--ink);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+.histogram .marker.mean {
+  border-left-style: dashed;
+}
+/* Written out for the same reason as the legend keys above: the pair should be
+   a pair in the stylesheet, not one rule and one absence. */
+.histogram .marker.median {
+  border-left-style: solid;
+}
+
+/* ---------------------------------------------------------- text panel ----
+
+   Two derived distributions side by side (D-070). A column of fixed-width
+   codes puts one spike in both; prose spreads in both; a column of URLs is
+   long in characters and one word wide. Side by side, that difference is one
+   glance — stacked, it is two scrolls and a memory. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-5);
+}
+/* Half the panel's headline height: neither of these is the figure, they are
+   the pair. */
+.histogram.short {
+  height: 96px;
+}
+
+/* The cloud (D-073). Font size carries the count, which is the weak encoding
+   the figure was refused for twice, so nothing else here is allowed to be
+   weak: rank drives the same colour ramp the bars and the ring use, hover
+   goes white like every other figure on the panel, and no word is rotated. */
+.cloud-wrap {
+  position: relative;
+}
+.cloud {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* No `font-size` here. It arrives as a presentation attribute per word, and a
+   CSS declaration would beat every one of them. */
+.cloud text {
+  font-family: var(--sans);
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  fill: color-mix(in oklab, var(--paint, var(--accent)) calc(var(--step, 1) * 100%), var(--panel));
+  cursor: default;
+}
+/* `:not([data-lit])` excludes the hovered word from the dim rule itself, which
+   is the trap this stylesheet fell into twice: `:has()` takes its argument's
+   specificity, so a dim rule written to cover everything covers the lit one
+   too and outranks the rule meant to light it. */
+.cloud:has(text[data-lit]) text:not([data-lit]) {
+  opacity: 0.24;
+}
+.cloud text[data-lit] {
+  fill: var(--ink);
+}
+
+/* The vocabulary, in three columns of one width each. `auto-fit` folds it to
+   two and then to one, and a column that has nothing to show says so rather
+   than leaving a hole — a single-token column has no pairs. */
+.terms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-5);
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--space-4);
+}
+.terms-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+/* A column with nothing to show says `none`, and the grid row is as tall as
+   the longest column beside it — so left at the top the word sits in the
+   corner of a large empty box and reads like the start of a list that failed
+   to load. Centred in the space it actually occupies, it reads as the answer
+   to that column. */
+.terms-column > .chart-note {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+
+/* The bars inside a terms column are the shared `.value-bars`, which fixes a
+   height so profile cards line up. Here they are a list and the list is as
+   long as it is. */
+.terms-column .value-bars {
+  height: auto;
+}
+.terms-column .value-bars li {
+  grid-template-columns: minmax(0, 8rem) 1fr auto;
+}
+/* Ranked, the same way the frequency table and the ring are: the commonest
+   term is the strongest, and the ramp says so without a second colour. */
+.terms-column .value-bars .fill {
+  background: color-mix(in oklab, var(--paint, var(--accent)) calc(var(--step, 1) * 100%), var(--panel));
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ rug ---
+
+   One hairline per distinct value, on the same axis as the histogram above it
+   (D-074). Positioned rather than laid out: two values 0.3% of the axis apart
+   have to sit 0.3% apart, and any flow layout would space them evenly and draw
+   a lattice that is not there.
+
+   The type's paint, like every other figure on this panel. It was `--ink-dim`
+   for one revision on the argument that three figures in one colour on one
+   axis read as one figure with three parts — which is true of the histogram,
+   the box and the curve, and they have shared a colour since D-051 without
+   anybody minding. A neutral strip in the middle of a green panel does not
+   read as a separate idea, it reads as unfinished. */
+.rug {
+  position: relative;
+  height: 26px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.rug .tick {
+  position: absolute;
+  top: 4px;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--paint, var(--accent));
+  /* The count arrives as a custom property rather than as an inline `opacity`,
+     so the dim and lit rules below can win by specificity instead of by
+     `!important`. */
+  opacity: var(--weight, 1);
+}
+/* Full height and the type's colour, so the hovered value is findable in a
+   comb of four hundred. `:not([data-lit])` keeps the lit tick out of the dim
+   rule's own selector rather than relying on order. */
+.rug:has(.tick[data-lit]) .tick:not([data-lit]) {
+  opacity: 0.18;
+}
+.rug .tick[data-lit] {
+  top: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  opacity: 1;
+}
+
+/* ------------------------------------------------------- calendar heatmap --
+
+   Weeks across, weekdays down, one cell per day (D-074).
+
+   **The grid sizes itself from its own span.** `aspect-ratio: weeks / 7` makes
+   the cells square at whatever width the panel gives it, and `max-width` caps
+   a short span so a thirteen-week column draws small square cells at the left
+   rather than thirteen enormous ones across the panel. The month strip carries
+   the same cap and the same track count, so its labels stay over their weeks. */
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Room for the weekday labels, which hang out of the plot to the left. */
+  padding-left: 2.4rem;
+}
+/* Only the grid, so `top: n%` on a label resolves against the seven rows and
+   nothing else. A wrapper holding the month strip too would make 100% mean
+   something the rows have no share in. */
+.cal-plot {
+  position: relative;
+  max-width: calc(var(--weeks) * 15px);
+}
+.cal-day {
+  position: absolute;
+  right: calc(100% + var(--space-2));
+  height: calc(100% / 7);
+  display: flex;
+  align-items: center;
+  font-size: var(--text-meta);
+  line-height: 1;
+  color: var(--ink-faint);
+}
+.cal-grid {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 1px;
+  max-width: calc(var(--weeks) * 15px);
+}
+.cal-grid span {
+  border-radius: 1px;
+  background: var(--line-soft);
+}
+/* Zero is drawn, not left out. A day inside the span holding nothing is the
+   finding this figure exists for, and a gap rendered as nothing looks like the
+   edge of the data rather than a hole in it. */
+.cal-grid span[data-level="0"] {
+  background: color-mix(in oklab, var(--line-soft) 55%, var(--panel));
+}
+.cal-grid span[data-level="1"] {
+  background: color-mix(in oklab, var(--paint, var(--accent)) 30%, var(--panel));
+}
+.cal-grid span[data-level="2"] {
+  background: color-mix(in oklab, var(--paint, var(--accent)) 52%, var(--panel));
+}
+.cal-grid span[data-level="3"] {
+  background: color-mix(in oklab, var(--paint, var(--accent)) 76%, var(--panel));
+}
+.cal-grid span[data-level="4"] {
+  background: var(--paint, var(--accent));
+}
+/* White on hover, the same as every other figure on this panel. An outline
+   rather than a fill, because replacing the colour would erase the one thing
+   the cell is there to say while the reader is looking straight at it. */
+.cal-grid span[data-lit] {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}
+.cal-months {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 1px;
+  max-width: calc(var(--weeks) * 15px);
+  font-size: var(--text-meta);
+  line-height: 1;
+  color: var(--ink-faint);
+  overflow: hidden;
+}
+.cal-months span {
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------- date panel ----
+
+   The timeline's grain switch (D-069). Every grain arrives in one bundle under
+   one `computation_id`, so these buttons are **display only** — none of them
+   can produce a number the panel did not already have, and none of them
+   changes a fingerprint. */
+.grain {
+  padding: 2px var(--space-2);
+  min-height: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-faint);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.grain:hover {
+  color: var(--ink-dim);
+}
+.grain[data-on="true"] {
+  color: var(--ink);
+  border-color: color-mix(in oklab, var(--paint, var(--accent)) 55%, transparent);
+}
+
+/* The three cyclic distributions, side by side. Laid out in one row rather
+   than stacked because that is what makes them a *set*: `weekdays only` and
+   `piles up in Q4` should be one glance, not three scrolls. `auto-fit` drops to
+   two across when the hour cycle is absent, and to one on a narrow panel. */
+.cycles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-5);
+  border-top: 1px solid var(--line-soft);
+  padding-top: var(--space-4);
+}
+.cycle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+/* Each stem is a full-height hit area with a bar at the bottom of it, so a
+   short bar is as easy to point at as a tall one — pointing at the *category*
+   is the gesture, and its height is the answer rather than the target. */
+.cycle .bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 88px;
+  cursor: crosshair;
+}
+.cycle .stem {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.cycle .stem .bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  background: var(--paint, var(--accent));
+  opacity: var(--lit, 0.66);
+  transition: opacity 0.15s ease;
+}
+.cycle .bars:has(.stem[data-lit="true"]) .stem .bar {
+  opacity: 0.3;
+}
+.cycle .bars:has(.stem[data-lit="true"]) .stem[data-lit="true"] .bar {
+  opacity: 1;
+}
+/* One slot per bar whether or not it prints a label, so the labels that do
+   print stay under the bars they name. */
+.cycle .ticks {
+  display: flex;
+  gap: 2px;
+}
+.cycle .ticks span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+  text-align: center;
+  white-space: nowrap;
+}
+.cycle .ticks span[data-shown="false"] {
+  visibility: hidden;
+}
+
+/* The one figure in the summary that is not merely a figure: when fewer values
+   parse than the column holds, every number under it is computed from a
+   fraction, and `--danger` is what this stylesheet says about a fact that makes
+   what follows partial. Same colour, same reason, as the empty-column line. */
+.stat-cells .cell[data-alarm] strong,
+.stat-cells .cell[data-alarm] span {
+  color: var(--danger);
+}
+
+/* ------------------------------------------------ completeness in order ----
+
+   missingno's matrix for one column, laid horizontally (D-056). Slots are flex
+   children with no gap between them, so a run of complete rows reads as one
+   solid block and a gap reads as a gap — which is the whole grammar of that
+   figure. The track behind them is what stops a column that goes missing at
+   row 900 from looking like a strip that was never drawn. */
+.presence {
+  position: relative;
+  display: flex;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--line-soft);
+  overflow: hidden;
+  cursor: crosshair;
+}
+/* Opacity is set inline, per slot, from the share of that run which is present
+   — so there is deliberately no `opacity` here to be overridden. Highlighting
+   the hovered slot goes through a cursor line for the same reason. */
+.presence .slot {
+  flex: 1;
+  min-width: 0;
+  /* Mixed to `--lit` rather than painted solid, so a complete column opens the
+     panel at the same strength as the histogram below it. At full `--paint` it
+     was the loudest thing on screen — a bright bar announcing that there is
+     nothing to report. The inline opacity per slot multiplies with this, so a
+     slot that is three-fifths present lands at three-fifths of the muted hue. */
+  background: color-mix(in oklab, var(--paint, var(--accent)) calc(var(--lit, 0.66) * 100%), transparent);
+}
+.presence-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--ink);
+  transform: translateX(-0.5px);
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------- boxplot ----
+
+   Whiskers stop at the most extreme value still inside the fence, which is
+   why the server sends `whisker_low` / `whisker_high` at all. The dashed
+   hairline beyond each cap is where the outliers reach — on `Fare` it covers
+   87% of the axis while the box covers 5%, which is the whole story of that
+   column in one line. */
+.boxplot {
+  position: relative;
+  height: 44px;
+}
+.boxplot > span {
+  position: absolute;
+  pointer-events: none;
+}
+.boxplot .tail {
+  top: 50%;
+  height: 0;
+  border-top: 1px dashed var(--paint, var(--accent));
+  opacity: 0.55;
+}
+.boxplot .whisker {
+  top: 50%;
+  height: 0;
+  border-top: 2px solid var(--paint, var(--accent));
+  opacity: var(--lit-hover, 0.9);
+  transform: translateY(-1px);
+}
+.boxplot .cap {
+  top: 25%;
+  bottom: 25%;
+  width: 0;
+  border-left: 2px solid var(--paint, var(--accent));
+  opacity: var(--lit-hover, 0.9);
+  transform: translateX(-1px);
+}
+/* `min-width` so a column whose quartiles nearly touch still draws a box
+   rather than nothing at all. */
+.boxplot .box {
+  top: 6px;
+  bottom: 6px;
+  min-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--paint, var(--accent));
+  opacity: var(--lit, 0.66);
+}
+.boxplot .mid {
+  top: 2px;
+  bottom: 2px;
+  width: 0;
+  border-left: 2px solid var(--ink);
+  transform: translateX(-1px);
+}
+/* The landmark under the pointer, by the same rule as the histogram: what
+   changes is the *rest*. Opacity rather than colour, because the parts already
+   carry the column's hue and a second colour would be a second meaning. */
+/* Qualified the same way and for the same reason — see the histogram above. */
+.boxplot:has([data-lit="true"]) > span {
+  opacity: 0.25;
+}
+.boxplot:has([data-lit="true"]) > span[data-lit="true"] {
+  opacity: 1;
+}
+.boxplot .mid[data-lit="true"] {
+  border-left-width: 3px;
+}
+.boxplot {
+  cursor: crosshair;
+}
+.histogram,
+.curve-wrap {
+  cursor: crosshair;
+}
+/* Brighter while it is reading out a landmark, so a line that changes under
+   the pointer looks like it answered rather than like it drifted. */
+.chart-note[data-lit="true"] {
+  color: var(--ink-dim);
+}
+/* **A column with nothing in it** (D-064). `--danger` is the stylesheet's
+   *this failed, or will destroy something* — and an empty column is not a
+   warning about the future, it is a fact that makes every analysis downstream
+   of it empty too. Set at body size rather than meta: this line is the panel's
+   only content, and it should not be read as a footnote to a grey bar. */
+.chart-note[data-empty] {
+  color: var(--danger);
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------- composition ------
+
+   The frequency table and the ring, side by side (D-063). The bar column had
+   the full width of the panel and almost nothing to do with it — on `rating`
+   the five bars differ by 2.3 percentage points across a thousand pixels. Half
+   of that width now holds the figure that answers a different question.
+
+   `auto` for the ring so it keeps its size and the table takes what is left;
+   the bars shrink with the table, which is the point.
+
+   **Centred, not top-aligned.** Whichever of the two is shorter is centred
+   against the other: a four-row table beside a 240px ring left most of the
+   ring's height empty next to nothing, and an eleven-row table leaves the ring
+   floating at the top of it. One rule covers both. */
+.composition {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-6);
+  align-items: center;
+
+  /* **The two neutrals, defined once for the bar and the arc, and measured.**
+
+     `--line` stood here and failed in the table: a `false` bar at #383846 on a
+     track at #22222c is about 1.5:1, so a filled bar read as an empty one. It
+     worked in the ring only because a ring has no track behind it.
+
+     Both figures below were swept in Chrome against the real tokens rather
+     than guessed. `--tone-rest` at 50% is **3.44:1** against the track and
+     `--tone-other` at 90% is **3.19:1** against `--tone-rest`, which is the
+     3:1 SC 1.4.11 asks of graphical objects that have to be told apart.
+
+     ⚠️ **The cost is at the top of the scale, and it is real.** Three neutral
+     steps plus a white highlight do not fit on one dark ground with 3:1
+     between every pair: `--tone-other` sits only **1.27:1** from `--ink`, so
+     hovering a *neither* slice changes its fill barely at all. Two other
+     signals fire at the same moment — the table row takes `--panel-2` and the
+     ring's hub swaps to that class's figures — and the case is rare. If it
+     stops being rare, the answer is the one D-042 already wrote down for a
+     colour budget that has run out: **another channel**, a line or a pattern,
+     not another step of grey. */
+  --tone-rest: color-mix(in oklab, var(--ink) 50%, var(--panel));
+  --tone-other: color-mix(in oklab, var(--ink) 90%, var(--panel));
+}
+@media (max-width: 900px) {
+  .composition {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* A row of the frequency table whose class is not on the ramp: a boolean's
+   `false`, and a value that is neither. Same two tones the ring uses, so a row
+   and its arc are one colour and the join needs no legend. */
+.freq tr[data-tone="rest"] .fill {
+  background: var(--tone-rest);
+}
+.freq tr[data-tone="other"] .fill {
+  background: var(--tone-other);
+}
+
+.donut {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 240px;
+  margin: 0;
+}
+.donut svg {
+  display: block;
+  width: 240px;
+  height: 240px;
+  grid-area: 1 / 1;
+}
+/* Same mix as the table's bars, so a slice and its row are one colour and the
+   join needs no legend. The hairline between wedges is the panel showing
+   through, which keeps two adjacent ranks from reading as one region. */
+.donut .slice {
+  fill: color-mix(in oklab, var(--paint, var(--accent)) calc(var(--step, 1) * 100%), var(--panel));
+  stroke: var(--panel);
+  stroke-width: 2;
+  cursor: default;
+  transition: filter 0.15s ease;
+}
+/* **Two tones off the ramp.** `rest` is what is left once the thing being
+   counted is counted: the categories a top-N table did not show, and a
+   boolean's `false`. Neither is wrong and neither is lesser — but a ring where
+   every arc is coloured makes a reader decide which colour means which, and one
+   coloured arc against a neutral one reads as *this much of it* without a
+   legend.
+
+   `other` is a value that belongs to no class at all, which on a boolean column
+   means a word that is neither true nor false (§11.8.4). Lighter than `rest`
+   and still neutral: it has to be told apart from `false`, and it is a fact
+   rather than a warning (D-041). */
+.donut .slice[data-tone="rest"] {
+  fill: var(--tone-rest);
+}
+.donut .slice[data-tone="other"] {
+  fill: var(--tone-other);
+}
+
+/* **A column with one category is a ring, so it is drawn as one.** A wedge
+   covering the whole turn has coincident endpoints and an arc between two
+   identical points draws nothing — and clamping it a hair short leaves a seam
+   at twelve o'clock that is not a boundary between anything.
+
+   A stroked circle at the mean radius, as thick as the band, is the same shape
+   without the seam. It inverts which property carries the colour, which is why
+   it needs its own rules rather than the ones above. `stroke-width` belongs
+   here and not on the element: a CSS declaration beats a presentation
+   attribute, so `strokeWidth="44"` in the markup would lose to the 2px on
+   `.slice`. */
+.donut .slice.whole {
+  fill: none;
+  stroke: color-mix(in oklab, var(--paint, var(--accent)) calc(var(--step, 1) * 100%), var(--panel));
+  stroke-width: 44;
+}
+/* `svg` in the selector is not decoration: `.donut .slice[data-rest="true"]`
+   above scores the same (0,3,0), and equal specificity would leave which one
+   wins to source order. With the extra element this is (0,4,0) and the
+   remainder wedge lights like every other. */
+.donut svg .slice[data-lit="true"] {
+  fill: var(--ink);
+}
+.donut svg .slice.whole[data-lit="true"] {
+  fill: none;
+  stroke: var(--ink);
+}
+.donut .pin {
+  fill: var(--panel);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+/* The hole is the readout, and it is a `figcaption` rather than a floating
+   label: a label beside a wedge has to dodge the wedge, and a ring was going to
+   have a hole anyway. */
+.donut .hub {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  /* Inside a 132px hole. `3,000 · 34.4%` is about 109px of monospace and wrapped
+     to two lines at 104px; the chord across a circle this size is still 130px
+     ten pixels off centre, so the text has the room. */
+  width: 116px;
+  text-align: center;
+  pointer-events: none;
+}
+.donut .hub strong {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+.donut .hub span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-meta);
+  color: var(--ink-faint);
+}
+
+/* ------------------------------------------------------ frequency table ----
+
+   §11.7.3's categorical table (D-060), and the bar is a **column inside it**
+   rather than a chart beside it. The frequency table and the sorted bar chart
+   are the same ten rows; drawing them as two blocks would repeat every label
+   and put the same comparison on screen twice.
+
+   The bar column takes the slack, so the figures beside it keep one right
+   edge whatever the categories are called. */
+.freq {
+  width: 100%;
+  border-collapse: collapse;
+}
+.freq th {
+  padding: 0 var(--space-4) var(--space-2) 0;
+  text-align: right;
+  font-size: var(--text-meta);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  border-bottom: 1px solid color-mix(in oklab, var(--paint, var(--line)) 55%, transparent);
+}
+.freq th.name,
+.freq td.name {
+  text-align: left;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.freq th.bar,
+.freq td.bar {
+  width: 100%;
+  padding-right: var(--space-4);
+}
+.freq td {
+  padding: 5px var(--space-4) 5px 0;
+  text-align: right;
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line-soft);
+}
+.freq td.rank {
+  color: var(--ink-faint);
+  font-size: var(--text-meta);
+}
+.freq td.name {
+  font-size: var(--text-meta);
+  color: var(--ink-dim);
+}
+.freq td.count {
+  font-weight: 600;
+}
+.freq td.share {
+  color: var(--ink-dim);
+}
+/* The remainder is not a category, so it is set apart from the ones that are
+   — and it carries **no bar**, because a bar for 190 categories at once would
+   be compared against single categories on the same baseline and win for a
+   reason that means nothing. */
+.freq tr.rest td {
+  color: var(--ink-faint);
+  border-bottom: 0;
+}
+.freq tr.rest td.count {
+  font-weight: 400;
+}
+.freq .track {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--line-soft);
+  overflow: hidden;
+}
+/* **A ramp down the ranks**, mixed toward the panel rather than faded with
+   `opacity` (D-063). Two reasons: the slices of the ring beside it are drawn
+   the same way and have to sit on the same ground to match, and a colour that
+   is *mixed* stays a colour a reader can name while one that is *faded* becomes
+   the background at the bottom of the scale.
+
+   Sequential and inside one hue, because rank is **ordered**. Ten unrelated
+   hues would say the categories have none, on a table sorted by exactly that. */
+.freq .fill {
+  display: block;
+  height: 100%;
+  background: color-mix(in oklab, var(--paint, var(--accent)) calc(var(--step, 1) * 100%), var(--panel));
+  transition: filter 0.15s ease;
+}
+/* **The hovered row goes white, at every rank.** `brightness(1.45)` came first
+   and was inconsistent by construction: rank 1 is already near the top of the
+   ramp so brightening it barely moved, while rank 10 brightened is still dim —
+   the highlight was as faint as the thing it was highlighting. One flat colour
+   answers *this is the one you are pointing at* the same way everywhere, and it
+   sits outside the ramp so it cannot be confused with a rank. */
+.freq tr[data-lit="true"] .fill {
+  background: var(--ink);
+}
+.freq tbody tr[data-lit="true"] td {
+  background: var(--panel-2);
+}
+.freq tbody tr {
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------- curves ----
+
+   One implementation for two figures (D-060): the ECDF on a numerical panel
+   and the concentration curve on a categorical one. They are the same drawing
+   — a line stretched across a shared width with rules at the quarters — and
+   the classes were named `.ecdf*` only because the ECDF arrived first.
+
+   `preserveAspectRatio="none"` stretches the viewBox to the stack's width,
+   which is what puts this curve on the same axis as the two figures above it.
+   `vector-effect: non-scaling-stroke` is what stops that stretch turning a 1px
+   line into a wedge — without it the curve thickens toward the horizontal and
+   thins toward the vertical, which reads as a drawing error rather than as
+   geometry.
+
+   The tick labels sit outside the `<svg>` for the same reason: text inside a
+   stretched viewBox is stretched with it. */
+.curve-wrap {
+  position: relative;
+  height: 140px;
+}
+.curve {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Light. The area under an ECDF carries no quantity — it is there to say
+   which side of the curve is *below*, and at 0.16 it was reading as the
+   subject of the figure rather than as its ground. */
+.curve-area {
+  fill: var(--paint, var(--accent));
+  opacity: 0.1;
+}
+.curve-line {
+  fill: none;
+  stroke: var(--paint, var(--accent));
+  stroke-width: 2;
+  stroke-linejoin: round;
+  opacity: var(--lit-hover, 0.9);
+}
+/* `--line`, not `--line-soft`: these rules are drawn *over* the tinted area,
+   and the softer token disappeared into it completely. */
+.curve-grid {
+  stroke: var(--line);
+}
+/* **The readout that replaced the caption (D-054).**
+
+   The caption said *"50% ≤ 98,400 · 95% ≤ 428,065"* — two points on a curve
+   that has a hundred and one, and both of them already rows in the Percentiles
+   band. This answers for whichever x the pointer is on, which is the one thing
+   an ECDF does that a histogram cannot: read a **proportion** straight off,
+   rather than counting across bars.
+
+   Pointer-only, stated rather than hidden. The quartiles are in the figure's
+   accessible name and every named percentile is in the table above, so what is
+   unreachable without a pointer is the values *between* them — and there is no
+   keyboard gesture for *"somewhere around here"* that would not be a worse
+   version of reading the p-column. */
+.curve-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--ink-faint);
+  transform: translateX(-0.5px);
+  pointer-events: none;
+}
+.curve-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: 0 0 -3.5px -3.5px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  pointer-events: none;
+}
+/* Sits on the panel's own ground rather than on the tinted area, so a figure
+   read against the fill stays legible at the point the fill is densest. */
+.chart-readout {
+  position: absolute;
+  z-index: 2;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* The panel's own background behind each label, so the gridline stops where
+   the number starts instead of running under it. */
+.curve-tick {
+  position: absolute;
+  left: 0;
+  transform: translateY(50%);
+  padding-right: var(--space-2);
+  font-size: 10px;
+  color: var(--ink-faint);
+  background: var(--panel);
+  pointer-events: none;
+}
+
+
+/* The card is a way in now. An overlay button rather than a handler on the
+   `<article>`, so the type badge keeps its own click without any event
+   plumbing — the same shape the dataset card uses, and the same reason. */
+.card.profile .card-open {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+  border-radius: inherit;
+  cursor: pointer;
+}
+.card.profile {
+  position: relative;
+}
+/* Only the badge sits above the overlay, because only the badge is a control.
+
+   The first version lifted the charts too, and it made the card's largest area
+   unclickable — the histogram swallowed every press meant for the card
+   underneath. Found in Chrome, where Playwright reported the bars intercepting
+   the pointer for thirty seconds straight.
+
+   **The cost is real and worth naming:** the card's bars had `title` tooltips
+   giving each bin's range and count, and an element under the overlay shows no
+   tooltip. That is the trade for the card being a way in — and it is a good one,
+   because the panel behind the click draws the same bins twice the height with
+   the same tooltips live. */
+.card.profile .type-anchor {
+  position: relative;
+  z-index: 1;
+}
+.card.profile:has(.card-open:hover),
+.card.profile:has(.card-open:focus-visible) {
+  border-color: color-mix(in srgb, var(--type, var(--accent)) 55%, var(--line));
+}
+
+/* ---------------------------------------------------------------- tabs ----- */
+
+/* Two ways of reading one dataset, side by side.
+   The strip sits on the region boundary rather than inside a panel: a tab that
+   floats above the thing it switches reads as a filter, and these do not filter
+   anything — they change what the page is about. */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--line);
+  margin: var(--space-5) 0 var(--space-5);
+}
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink-faint);
+  font-size: var(--text-meta);
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  min-height: var(--control-min);
+  /* The underline is 2px and sits on the container's own 1px rule, so the
+     selected tab has to be able to cover it. `-1px` is a measurement, not a
+     nudge: it is exactly the border it overlaps. */
+  margin-bottom: -1px;
+}
+.tab:hover:not(:disabled) {
+  color: var(--ink);
+  background: none;
+  border-bottom-color: var(--line);
+}
+/* Selected by an underline *and* by ink, never by colour alone (NFR-UX.3). */
+.tab.on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ============================================================ workspace ===
+   Full-screen analysis: a rail that answers and remembers, a canvas that
+   holds, and a composer that floats over the canvas rather than sitting in
+   the reading order.
+
+   **Its own surface, not a wider tab.** The tab is a document you scroll; this
+   is a workspace you stay in. That is why the composer moves to the bottom
+   here: D-047 refused a bar at the foot of a *scrolling document* because it
+   reads as a chat column, and §14.1 names that mental model as the thing this
+   product is not. Over a canvas the same control is the tool you draw with.
+   Narrowed on the product owner's decision, not reversed.
+
+   Sized in `dvh` rather than `vh`: on a phone the address bar collapses on
+   scroll and `vh` does not notice, so the composer ends up under it. */
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.workspace-loading {
+  padding: var(--space-6);
+}
+
+.workspace-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line-soft);
+  flex: 0 0 auto;
+}
+
+.workspace-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-size: var(--text-meta);
+  min-height: var(--control-min);
+}
+
+.workspace-exit:hover,
+.workspace-exit:focus-visible {
+  color: var(--ink);
+}
+
+.workspace-title {
+  font-size: var(--text-body);
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The count that used to live here moved onto the log's own header: a number
+   is read next to the thing it is about, and the far corner of the window is
+   the whole screen away from the list it was counting. */
+
+.workspace-body {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------- the floating cards ---
+   Two cards over the canvas rather than one rail beside it. They answer
+   different questions -- *what does it say* and *what have I asked* -- and a
+   reader closes one without losing the other.
+
+   `.float` is the shared surface; the two differ only in where they anchor and
+   which way they grow. */
+/* **The rail the two cards share.**
+   They were anchored independently — `top` for the panel, `bottom` for the log
+   — with viewport caps that summed to 104dvh, so on a short window they
+   overlapped. A column pinned to both edges gives the log what it asks for and
+   the panel whatever is left, which is also what makes the panel grow into the
+   space a collapsed log gives back. */
+.float-rail {
+  position: absolute;
+  top: var(--space-5);
+  bottom: var(--space-5);
+  left: var(--space-5);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  /* **The cards size themselves across the rail, not to it.** `stretch` — the
+     default — made a collapsed card as wide as an open one, so a bar carrying
+     six words sat in 340px of panel. */
+  align-items: flex-start;
+  gap: var(--space-4);
+  width: clamp(260px, 24vw, 340px);
+  max-width: calc(100% - var(--space-5) * 2);
+  /* The rail is a ruler, not a surface: it must not swallow clicks meant for
+     the canvas in the gap between its two cards. */
+  pointer-events: none;
+}
+
+.float-rail > * {
+  pointer-events: auto;
+}
+
+.float {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  /* Open, a card spans the rail because that is the width its content was
+     laid out for. */
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-popup);
+  overflow: hidden;
+}
+
+/* The one row that is the whole card when it is closed, so it has to say what
+   is inside. `min-height` is the touch floor, not a look. */
+/* Collapsed, this row **is** the card, so its height is the card's height.
+   `--space-2` rather than `--space-3`: the label is one line of
+   `--text-meta`, and the floor below already guarantees a touch target — the
+   extra padding was buying nothing but a taller bar. */
+.float-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  min-height: var(--control-min);
+}
+
+.float-head:hover {
+  background: var(--panel-2);
+}
+
+.float-head-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-meta);
+}
+
+/* One drawing of the arrow, turned. Two would be two things that can disagree
+   about which way is up. */
+/* Sits with the label it counts. Tabular figures so the card does not shift
+   a pixel when the count crosses ten. */
+.float-head-count {
+  flex: 0 0 auto;
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.float-chevron {
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+  transition: transform 120ms ease;
+}
+
+.float-head[aria-expanded="false"] .float-chevron {
+  transform: rotate(-180deg);
+}
+
+/* `--space-3` rather than `--space-4`: the card is 340px wide and the head
+   above it now sits at the same inset, so the wider padding was both taller
+   than it needed to be and out of line with the row it hangs under. */
+.float-body {
+  padding: var(--space-3);
+  overflow: auto;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------- the panel ---
+   Top-left, growing down. Collapsed it is its own question — the reference
+   collapses to a `···` pill, and two dots say something is hidden without
+   saying what. */
+/* **As tall as its answer, and no taller** — then capped, so a long answer
+   does not turn the card into a column down the whole window. `flex: 0 1 auto`
+   sizes to the content and shrinks when the log leaves less room; the body
+   scrolls inside past the cap. */
+.panel-answer {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(52dvh, 560px);
+}
+
+/* And the cap lifts when the log gives its space back, which is the whole
+   point of collapsing it. `:has()` rather than a class toggled in React,
+   because *how tall may this be* is a fact about the layout and belongs where
+   the layout is described. */
+.float-rail:has(.panel-log[data-open="false"]) .panel-answer {
+  max-height: min(74dvh, 820px);
+}
+
+.panel-answer .float-body {
+  border-top: 1px solid var(--line-soft);
+}
+
+/* --------------------------------------------------------------- the log ---
+   Bottom-left, and **the header is at the bottom**: the card is anchored to
+   that corner, so the header is the part that never moves and the entries
+   stack above it. Built the other way round it would grow down out of the
+   window. */
+/* The log asks for its five rows and does not give them up: it is the shorter
+   of the two and the one whose height is a stated rule rather than a
+   consequence. */
+.panel-log {
+  flex: 0 0 auto;
+}
+
+.log-head {
+  border-top: 1px solid var(--line-soft);
+}
+
+.panel-log[data-open="false"] .log-head {
+  border-top: 0;
+}
+
+/* **Five entries, then scroll**, and the arithmetic is exact rather than
+   approximate: the row height is stated once, the entry reads it and this cap
+   multiplies it, so the two cannot drift into showing four and a sliver.
+   `max()` keeps the coarse-pointer floor — a touch target does not shrink
+   because a list wanted to be shorter. */
+.log-list {
+  --log-row: max(var(--control-min), 2.25rem);
+  --log-rows: 5;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3) var(--space-3) 0;
+  max-height: calc(var(--log-rows) * var(--log-row) + var(--space-3));
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+}
+
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-full);
+  color: var(--ink-dim);
+  cursor: pointer;
+  text-align: left;
+  /* Fixed rather than a floor, so five rows is five rows and not four and a
+     sliver. One line of `--text-meta` inside 16px of padding has room. */
+  height: var(--log-row, var(--control-min));
+}
+
+.log-entry:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+/* The selected entry is what the panel above is showing. Fill **and**
+   `aria-current`, so the connection reaches a screen reader too. */
+.log-entry[aria-current="true"] {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.log-question {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-meta);
+}
+
+/* Shown only when there is something to say. Shape, colour **and** a label --
+   never colour alone (NFR-UX.3) -- and absent on a verified answer, because a
+   mark on every row is furniture rather than a warning. */
+.log-flag {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: var(--radius-full);
+  background: var(--warn);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Verified gets no hue, and that is D-042 rather than restraint for its own
+   sake: eight positions are pinned at 360 degrees and a ninth probably does
+   not exist, so the answer has to be another channel. Here it already is —
+   **verified is the normal case**, and what needs a colour is the exception.
+   The tick is quiet; the flag is amber. */
+.float .ok {
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+}
+
+/* ----------------------------------------------------------- the canvas ---
+   A dotted ground, which says *this is a surface things go on*. That is not
+   the thing D-081 removed: it removed twenty-eight dashed **card outlines**,
+   which promised specific results that were never coming. A texture makes no
+   promise about what will land on it. */
+.canvas {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+  padding: var(--space-5);
+  padding-bottom: 120px;
+  background-image: radial-gradient(var(--line-soft) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-empty {
+  max-width: 52ch;
+  margin: var(--space-7) auto 0;
+  text-align: center;
+  font-size: var(--text-meta);
+}
+
+/* --------------------------------------------------------- the composer ---
+   Floating over the canvas, centred, and clear of the rail. `position:
+   absolute` inside `.workspace` rather than `fixed`, so it belongs to this
+   surface and not to the window. */
+.workspace-composer {
+  position: absolute;
+  left: calc(clamp(260px, 24vw, 340px) + var(--space-5) * 2);
+  right: var(--space-5);
+  bottom: var(--space-5);
+  margin-inline: auto;
+  width: min(680px, 100%);
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+  /* The same lift every floating surface in this product uses. A shadow
+     invented here would be a fourth depth nobody chose. */
+  box-shadow: var(--shadow-popup);
+}
+
+.workspace-composer .ask {
+  flex: 1;
+  border: 0;
+  background: none;
+  resize: none;
+  min-height: var(--control-min);
+  max-height: 30dvh;
+  padding: var(--space-2) 0;
+}
+
+.workspace-composer .ask:focus {
+  outline: none;
+}
+
+/* ------------------------------------------------------------ the entry ---
+   The way from the tab into the workspace. Bottom-right and floating: it is a
+   change of surface, not a step in the reading, so it should not be something
+   to scroll past on the way to an answer. */
+/* Fixed to the corner rather than sticky at the end of the flow. It is a
+   change of surface, not the last thing in the reading, so it should be in
+   the same place whatever is on screen above it. */
+.fullscreen-entry {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--panel-2);
+  color: var(--ink-dim);
+  text-decoration: none;
+  font-size: var(--text-meta);
+  min-height: var(--control-min);
+}
+
+.fullscreen-entry:hover,
+.fullscreen-entry:focus-visible {
+  color: var(--ink);
+  border-color: var(--accent-veil-edge);
+}
+
+/* The rail stacks above the canvas when there is no room beside it. The
+   composer then spans the width, because there is no rail to clear. */
+/* Narrow: the cards would cover the canvas, so they shrink to their headers'
+   width and the composer takes the full span. The reader opens one at a time,
+   which is the honest behaviour when there is not room for both. */
+@media (width < 900px) {
+  .float-rail {
+    width: calc(100% - var(--space-5) * 2);
+    /* Clear of the composer, which spans the width down here. */
+    bottom: calc(var(--space-5) + 64px);
+  }
+
+  .workspace-composer {
+    left: var(--space-5);
+    right: var(--space-5);
+    width: auto;
+  }
+}
+
+/* ============================================================= artifacts ===
+   What the tools produced, on the canvas.
+
+   **Grouped by turn, in the order the work happened.** The composer is at the
+   foot, so the newest group is nearest the box that made it, and a log entry
+   scrolls to its own group rather than filtering the others away: the reader
+   asked *take me to this*, not *show me only this*. */
+.turn {
+  margin: 0 0 var(--space-6);
+  scroll-margin-block: var(--space-5);
+  /* Clear of the floating panel on the left and the composer below. */
+  padding-left: calc(clamp(260px, 24vw, 340px) + var(--space-4));
+}
+
+.turn:last-child {
+  margin-bottom: 140px;
+}
+
+.turn-question {
+  font-size: var(--text-meta);
+  font-weight: 400;
+  margin: 0 0 var(--space-3);
+}
+
+.turn-question button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink-faint);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.turn-question button:hover {
+  color: var(--ink);
+}
+
+/* The selected group, marked where the eye already is. The log says the same
+   thing with `aria-current`; this is the other end of the same wire. */
+.turn[aria-current="true"] .turn-question button {
+  color: var(--ink);
+}
+
+.turn[aria-current="true"] .artifact {
+  border-color: var(--accent-veil-edge);
+}
+
+.turn-empty {
+  font-size: var(--text-meta);
+}
+
+/* Cards sit side by side and wrap. Not a twelve-column grid with a span per
+   result: that vocabulary is still in this file waiting for artifacts that
+   declare their own width, and until one does, guessing a span per card would
+   be inventing the number D-047 wanted the artefact to supply. */
+.turn-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+/* **Width follows the result, not the window.**
+   `flex: 1 1 380px` grew every card to fill whatever was left, so a table of
+   three narrow columns spanned the whole canvas and pushed its last column to
+   the far edge — a layout that said *this result is large* about a result that
+   is not. `flex: 0 1 auto` with `fit-content` lets each card be as wide as
+   what it holds, and the caps below stop a wide one running off. */
+.artifact {
+  flex: 0 1 auto;
+  width: fit-content;
+  min-width: min(100%, 17rem);
+  max-width: 100%;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+/* Per kind, because they stop being readable at different widths. Prose has a
+   measure; a table has as many columns as it has and scrolls inside itself
+   past the cap (`.artifact-scroll`); a chart is whatever Vega drew. */
+.artifact[data-kind="report"] {
+  max-width: min(100%, 34rem);
+}
+
+.artifact[data-kind="table"],
+.artifact[data-kind="matrix"],
+.artifact[data-kind="chart_spec"] {
+  max-width: min(100%, 56rem);
+}
+
+.artifact-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line-soft);
+  font-size: var(--text-meta);
+}
+
+.artifact-body {
+  padding: var(--space-4);
+  font-size: var(--text-meta);
+}
+
+.artifact-note {
+  margin: 0 0 var(--space-3);
+}
+
+.artifact-foot {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-meta);
+}
+
+/* Wide results scroll inside their own card. The page never scrolls sideways. */
+.artifact-scroll {
+  overflow-x: auto;
+  margin-inline: calc(var(--space-4) * -1);
+  padding-inline: var(--space-4);
+}
+
+.artifact-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--text-meta);
+}
+
+.artifact-table th,
+.artifact-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.artifact-table th {
+  color: var(--ink-dim);
+  font-weight: 400;
+}
+
+.artifact-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* A matrix is read across and down, so its numbers line up. */
+.artifact-table.matrix td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.artifact-table.matrix th[scope="row"] {
+  color: var(--ink);
+}
+
+/* A report is a ranked list with one reason per row (§11.4.1): the subject
+   leads, the reason follows on its own line so a long one does not squeeze
+   the column it belongs to. */
+.findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.findings li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.finding-subject {
+  color: var(--ink);
+}
+
+.finding-reason {
+  font-size: var(--text-meta);
+}
+
+/* Vega draws into this. A minimum height so the card does not collapse to
+   nothing while the library is still being fetched. */
+.artifact-chart {
+  min-height: 220px;
+}
+
+.artifact-chart canvas,
+.artifact-chart svg {
+  max-width: 100%;
+}
+
+/* Who wrote the answer, pinned to the foot of the card **outside the
+   scroller**, so it is still there when a long answer has been scrolled to its
+   end. The quietest thing on the card on purpose: a provenance fact, read when
+   something looks wrong and ignored otherwise. */
+.answer-model {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--text-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ------------------------------------------------------ the question ------
+   The head has to fit on one line, so a long question is cut there. Here it
+   wraps — the difference between knowing an answer belongs to *this* question
+   and guessing from its first six words. */
+.asked {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel-2);
+}
+
+.asked-text {
+  margin: 0;
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  color: var(--ink-dim);
+  /* Four lines, then the control below opens the rest. `line-clamp` needs the
+     box to stay `-webkit-box`; the standard property is set alongside it so
+     the rule stops needing a prefix the day it lands. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+.asked[data-open="true"] .asked-text {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.asked-more {
+  margin-top: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: var(--text-meta);
+}
+
+.asked-more:hover,
+.asked-more:focus-visible {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------- forgetting ----
+   NFR-PRIV.3: the sentence a person typed has to be removable. Quiet until
+   wanted — a delete on every row, always visible, is a row that reads as
+   dangerous. `:focus-within` as well as `:hover`, or it is a control only a
+   mouse can reach. */
+.log-list li {
+  position: relative;
+}
+
+.log-forget,
+.turn-forget {
+  display: grid;
+  place-items: center;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.log-forget {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.log-list li:hover .log-forget,
+.log-list li:focus-within .log-forget,
+.turn:hover .turn-forget,
+.turn:focus-within .turn-forget {
+  opacity: 1;
+}
+
+/* Never hidden from the keyboard: an opacity of zero is still focusable, and
+   a control you can tab to but cannot see is worse than one that is absent. */
+.log-forget:focus-visible,
+.turn-forget:focus-visible {
+  opacity: 1;
+}
+
+.log-forget:hover,
+.turn-forget:hover {
+  color: var(--danger, var(--warn));
+  background: var(--panel-2);
+}
+
+/* The question and its delete sit on one line, and the group is clickable, so
+   the cursor says so. */
+.turn-question {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.turn {
+  cursor: pointer;
+}
+
+/* …except where a card wants its own pointer: a chart has tooltips and a wide
+   table scrolls, and neither should read as *click to select*. */
+.turn-cards {
+  cursor: default;
+}
+
+/* ------------------------------------------------- collapsed is narrower ---
+   Collapsed, a card is one row of text and a chevron, and stretching that to
+   the full rail is a bar announcing itself in space it is not using. It sizes
+   to its label instead.
+
+   The label keeps a ceiling of its own: a long question would otherwise take
+   the card straight back to full width, which is the state this leaves. The
+   product owner rejected the reference's `···` pill — two dots say something
+   is hidden without saying what — so what is kept is the first few words,
+   which is the shortest form that still identifies the card. */
+.float[data-open="false"] {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.float[data-open="false"] .float-head-label {
+  flex: 0 1 auto;
+  max-width: 20ch;
+}
+
+/* And the canvas takes the room back when both cards are out of the way. The
+   rail is `pointer-events: none` between its cards, so nothing was catching
+   clicks there — but the indent was still reserving a column of nothing. */
+.workspace:has(.panel-answer[data-open="false"]):has(.panel-log[data-open="false"]) .turn {
+  padding-left: var(--space-5);
+}
+
+/* --------------------------------------------------- the default board ----
+   Every result this dataset has produced, in one flow. Horizontal first and
+   wrapping down: the cards already size themselves to what they hold, so a row
+   fills with as many as fit and the next one starts underneath.
+
+   `flex-start` so a short card does not stretch to the height of the tallest
+   in its row — they are separate objects, not cells of a table. */
+.board-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }

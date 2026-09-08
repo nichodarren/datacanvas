@@ -36,6 +36,25 @@ export default defineConfig({
   // honestly: the current plugin requires Vite 8 while Vitest 3 ships Vite 7,
   // so the tree carried two copies and `tsc` rejected the plugin type against
   // the config type it was passed to. One dependency fewer, one conflict fewer.
+  // Next compiles an imported image into a `StaticImageData` object — src,
+  // width, height, blurDataURL. Vite has no such loader, so the import arrives
+  // as a bare path string and `next/image` throws *missing required "width"*.
+  // The application imports the mark that way on purpose (its URL then follows
+  // its contents, which is what a cached logo needs), so the test run has to
+  // model the shape rather than the application avoiding it.
+  plugins: [
+    {
+      name: "static-image-import",
+      enforce: "pre",
+      load(id: string) {
+        const path = id.split("?")[0] ?? "";
+        if (!/\.(png|jpe?g|gif|svg|webp|avif)$/.test(path)) return null;
+        const file = path.split(/[\/]/).pop() ?? "image.png";
+        return `export default { src: "/${file}", height: 96, width: 96, blurDataURL: "" };`;
+      },
+    },
+  ],
+
   resolve: {
     // Mirrors the `@/*` path in tsconfig.json. Without it every test would
     // import through a relative path the application never uses.

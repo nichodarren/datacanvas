@@ -3,15 +3,18 @@
 This is the one place where two stores have to agree: bytes go to the object
 store, rows go to Postgres, and only one of the two can be rolled back.
 
-**The order is forced, not chosen.** INV-2 says a DatasetVersion is complete the
-moment it exists — no *pending* row filled in later, because filling it in is an
-UPDATE and the trigger refuses. But ``row_count``, ``column_count`` and
+**The order is forced, not chosen.** INV-2 says a Dataset is complete the moment
+it exists — no *pending* row filled in later, because filling it in is an UPDATE
+and the trigger refuses. But ``row_count``, ``column_count`` and
 ``content_hash`` are only knowable *after* normalization. So the files must be
 written first, and the row inserted once there is something true to insert.
 
+That is why the row is built in one place here rather than created empty and
+completed: it is the same reason the entity is one table and not two.
+
 That leaves one honest gap, stated rather than hidden: if the process dies
 between writing the Parquet and committing the transaction, the bytes survive
-with no row pointing at them. :meth:`IngestScope.discard_version` handles every
+with no row pointing at them. :meth:`IngestScope.discard_dataset` handles every
 failure this code can see; it cannot handle a power cut. Orphans are therefore a
 known debt, and the sweep that collects them belongs with the retention policy
 (NFR-SCALE.3), not here.
@@ -28,29 +31,24 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.authz.data_access import IngestScope
 from app.domain.audit import AuditAction
-from app.domain.data import Dataset, DatasetVersion, SchemaContract, SourceFile
+from app.domain.data import Dataset, SchemaContract, SourceFile
 from app.domain.enums import SourceFormat
-from app.domain.ids import DatasetId, DatasetVersionId, SourceFileId, UserId
+from app.domain.ids import DatasetId, SourceFileId, UserId
 from app.ingest.dialect import Dialect
 from app.ingest.limits import IngestRejected, check_upload_size
 from app.ingest.normalize import normalize_file
 from app.repositories.audit import AuditRepository
-from app.repositories.data import (
-    DatasetRepository,
-    DatasetVersionRepository,
-    SourceFileRepository,
-)
+from app.repositories.data import DatasetRepository, SourceFileRepository
 from app.repositories.schema import SchemaContractRepository, first_contract
 from app.schema.inference import build_columns
 from app.storage.engine import TableEngine
 
 
 @dataclass(frozen=True, slots=True)
-class CommittedVersion:
+class Committed:
     """What a successful upload produced."""
 
     dataset: Dataset
-    version: DatasetVersion
     source_file: SourceFile
     contract: SchemaContract
 
@@ -69,10 +67,10 @@ def _suffix_of(filename: str) -> str:
 
 
 class IngestService:
-    """Turns an authorized upload into a DatasetVersion.
+    """Turns an authorized upload into a Dataset.
 
     Takes an :class:`IngestScope` rather than a store, which is the whole point:
-    it has no way to name a location outside the workspace it was handed.
+    it has no way to name a location outside the account it was handed.
     """
 
     def __init__(
@@ -90,27 +88,23 @@ class IngestService:
         declared_size: int,
         fmt: SourceFormat,
         dialect: Dialect | None,
-        dataset_id: DatasetId | None,
         dataset_name: str,
         actor: UserId,
         now: datetime,
-    ) -> CommittedVersion:
-        """Store the file, normalize it, and record the version.
+    ) -> Committed:
+        """Store the file, normalize it, and record it.
 
-        ``dataset_id`` decides which of the two FR-B requirements applies:
-        ``None`` creates a new Dataset at version 1, and an existing id adds a
-        version to it (FR-B.2 — a re-upload never overwrites).
+        The signature took a ``dataset_id`` until D-043, to say *add a version to
+        this one*. FR-B.2 went with the versions: an upload is a dataset, and a
+        re-upload is another dataset.
         """
         check_upload_size(declared_size)
 
-        target = await self._resolve_dataset(dataset_id, dataset_name, now)
-        version_id = DatasetVersionId(uuid4())
+        new_id = DatasetId(uuid4())
         source_file_id = SourceFileId(uuid4())
 
-        source_uri = self._scope.source_uri(
-            target.id, version_id, source_file_id, _suffix_of(filename)
-        )
-        data_uri = self._scope.data_uri(target.id, version_id)
+        source_uri = self._scope.source_uri(new_id, source_file_id, _suffix_of(filename))
+        data_uri = self._scope.data_uri(new_id)
 
         try:
             # The original is kept verbatim (§9.2) *before* anything is parsed.
@@ -124,24 +118,23 @@ class IngestService:
                 source_path, fmt, self._scope.writable_path(data_uri), dialect
             )
 
-            version = DatasetVersion(
-                id=version_id,
-                dataset_id=target.id,
-                version_no=await DatasetVersionRepository(self._c).next_version_no(target.id),
+            record = Dataset(
+                id=new_id,
+                owner_id=self._scope.owner_id,
+                name=dataset_name,
                 content_hash=normalized.content_hash,
                 parquet_uri=str(data_uri),
                 row_count=normalized.row_count,
                 column_count=normalized.column_count,
                 byte_size=normalized.byte_size,
-                ingested_at=now,
-                ingested_by=actor,
+                created_at=now,
                 ingest_options=self._options(fmt, dialect),
             )
-            await DatasetVersionRepository(self._c).create(version)
+            await DatasetRepository(self._c).create(record)
 
             source = SourceFile(
                 id=source_file_id,
-                dataset_version_id=version_id,
+                dataset_id=new_id,
                 original_filename=filename,
                 # What we determined by parsing, not what the client claimed
                 # (D-027). Storing the claim would preserve the lie.
@@ -157,43 +150,38 @@ class IngestService:
             # cheaply, because every column was written as text (D-029).
             contract = await SchemaContractRepository(self._c).create(
                 first_contract(
-                    dataset_version_id=version_id,
+                    dataset_id=new_id,
                     columns=build_columns(
-                        self._engine.column_statistics(self._scope.reader_for(version))
+                        self._engine.column_statistics(self._scope.reader_for(record))
                     ),
                     now=now,
                 )
             )
         except Exception:
-            # Everything written for this version goes, including the verbatim
+            # Everything written for this dataset goes, including the verbatim
             # copy. The database transaction will roll back on its own; the
             # filesystem will not, and an orphaned Parquet is user data that no
             # row can authorize access to.
-            self._scope.discard_version(target.id, version_id)
+            self._scope.discard_dataset(new_id)
             raise
 
         await AuditRepository(self._c).record(
-            action=AuditAction.DATASET_VERSION_CREATED,
+            action=AuditAction.DATASET_CREATED,
             now=now,
-            workspace_id=self._scope.workspace_id,
             actor_user_id=actor,
-            target_type="dataset_version",
-            target_id=version_id,
+            target_type="dataset",
+            target_id=new_id,
             # §13.7.1: ids, counts and a hash. No filename, no column names —
             # column names are sensitive (K1) and this table cannot be deleted.
             metadata={
-                "dataset_id": str(target.id),
-                "version_no": version.version_no,
-                "row_count": version.row_count,
-                "column_count": version.column_count,
-                "content_hash": version.content_hash,
+                "row_count": record.row_count,
+                "column_count": record.column_count,
+                "content_hash": record.content_hash,
                 "format": fmt.value,
             },
         )
 
-        return CommittedVersion(
-            dataset=target, version=version, source_file=source, contract=contract
-        )
+        return Committed(dataset=record, source_file=source, contract=contract)
 
     async def delete_dataset(self, dataset_id: DatasetId, *, actor: UserId, now: datetime) -> None:
         """FR-B.6 — the files really go, not just the rows.
@@ -211,37 +199,10 @@ class IngestService:
         await AuditRepository(self._c).record(
             action=AuditAction.DATASET_DELETED,
             now=now,
-            workspace_id=self._scope.workspace_id,
             actor_user_id=actor,
             target_type="dataset",
             target_id=dataset_id,
         )
-
-    async def _resolve_dataset(
-        self, dataset_id: DatasetId | None, name: str, now: datetime
-    ) -> Dataset:
-        if dataset_id is None:
-            created = await DatasetRepository(self._c).create(
-                project_id=self._scope.project_id, name=name, now=now
-            )
-            await AuditRepository(self._c).record(
-                action=AuditAction.DATASET_CREATED,
-                now=now,
-                workspace_id=self._scope.workspace_id,
-                actor_user_id=self._scope.principal.user_id,
-                target_type="dataset",
-                target_id=created.id,
-            )
-            return created
-
-        located = await DatasetRepository(self._c).locate(dataset_id)
-        # The workspace check is not redundant with the scope: the scope proves
-        # the caller may write *here*, and this proves the dataset they named
-        # actually lives here. Without it, a member of one workspace could add a
-        # version to another workspace's dataset by naming its id.
-        if located is None or located[1] != self._scope.workspace_id:
-            raise IngestRejected("no such dataset")
-        return located[0]
 
     @staticmethod
     def _options(fmt: SourceFormat, dialect: Dialect | None) -> dict[str, object]:
@@ -256,4 +217,4 @@ class IngestService:
         return options
 
 
-__all__ = ["CommittedVersion", "IngestService"]
+__all__ = ["Committed", "IngestService"]

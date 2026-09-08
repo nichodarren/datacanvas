@@ -24,17 +24,15 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.domain.data import DatasetVersion
-from app.domain.enums import Role
+from app.domain.data import Dataset
 from app.domain.errors import AuthorizationError
-from app.domain.ids import DatasetId, DatasetVersionId, ProjectId, WorkspaceId
+from app.domain.ids import DatasetId, UserId
 from app.domain.principal import Principal
-from app.repositories.data import DatasetVersionRepository
-from app.repositories.identity import ProjectRepository
+from app.repositories.data import DatasetRepository
 from app.storage.object_store import ObjectStore
-from app.storage.uri import StorageUri, dataset_version_data_uri, source_file_uri
+from app.storage.uri import StorageUri, dataset_data_uri, source_file_uri
 
-#: Module-private. Only :func:`open_dataset_version` holds it.
+#: Module-private. Only :func:`open_dataset` holds it.
 _GRANT: Final = object()
 
 
@@ -49,16 +47,16 @@ class DataAccessDenied(AuthorizationError):
 
 @dataclass(frozen=True, slots=True)
 class DataHandle:
-    """Proof that a principal may read one DatasetVersion, plus the means to.
+    """Proof that a principal may read one Dataset, plus the means to.
 
     Carrying the store rather than a bare path is what keeps callers away from
     the filesystem: everything they can do with this handle is scoped to the
-    workspace it was opened in.
+    account it was opened in.
     """
 
     principal: Principal
-    workspace_id: WorkspaceId
-    version: DatasetVersion
+    owner_id: UserId
+    dataset: Dataset
     uri: StorageUri
     _store: ObjectStore = field(repr=False)
     _grant: object = field(repr=False)
@@ -66,7 +64,7 @@ class DataHandle:
     def __post_init__(self) -> None:
         if self._grant is not _GRANT:
             raise AuthorizationError(
-                "DataHandle cannot be constructed directly; use data_access.open_dataset_version()"
+                "DataHandle cannot be constructed directly; use data_access.open_dataset()"
             )
 
     def read(self) -> bytes:
@@ -80,38 +78,41 @@ class DataHandle:
         return self._store.exists(self.uri)
 
 
-async def open_dataset_version(
+async def open_dataset(
     principal: Principal,
-    version_id: DatasetVersionId,
+    dataset_id: DatasetId,
     *,
     connection: AsyncConnection,
     store: ObjectStore,
-    required_role: Role = Role.VIEWER,
 ) -> DataHandle:
     """Authorize, then hand back the only object that can read the data.
 
-    The lookup resolves the version and its owning workspace in **one** query.
-    Two queries would leave a gap where the version is found and the ownership
-    check is skipped because someone forgot the second call — the exact mistake
-    this design exists to prevent.
+    The lookup resolves the version and its owner in **one** query. Two queries
+    would leave a gap where the version is found and the ownership check is
+    skipped because someone forgot the second call — the exact mistake this
+    design exists to prevent.
 
-    A missing dataset and a dataset in someone else's workspace raise the same
-    error, so the caller cannot tell them apart and neither can an attacker.
+    A missing dataset and somebody else's dataset raise the same error, so the
+    caller cannot tell them apart and neither can an attacker.
+
+    ``required_role`` was a parameter here until D-039, defaulting to
+    ``viewer``. It went with FR-A.5: there is one owner, and no lesser role for
+    the argument to name. The question it guarded — *may this caller read this?*
+    — is the equality below, and it is no more skippable than it was.
     """
-    located = await DatasetVersionRepository(connection).locate(version_id)
+    located = await DatasetRepository(connection).locate(dataset_id)
     if located is None:
-        raise DataAccessDenied(str(version_id))
+        raise DataAccessDenied(str(dataset_id))
 
-    version, workspace_id = located
-    role = principal.role_in(workspace_id)
-    if role is None or not role.at_least(required_role):
-        raise DataAccessDenied(str(version_id))
+    record, owner_id = located
+    if not principal.owns(owner_id):
+        raise DataAccessDenied(str(dataset_id))
 
     return DataHandle(
         principal=principal,
-        workspace_id=workspace_id,
-        version=version,
-        uri=StorageUri.parse(version.parquet_uri),
+        owner_id=owner_id,
+        dataset=record,
+        uri=StorageUri.parse(record.parquet_uri),
         _store=store,
         _grant=_GRANT,
     )
@@ -119,18 +120,18 @@ async def open_dataset_version(
 
 @dataclass(frozen=True, slots=True)
 class IngestScope:
-    """Permission to *write* into one workspace, plus the means to.
+    """Permission to *write* into one account's namespace, plus the means to.
 
     ``DataHandle`` answers "may this principal read this dataset?". Ingest asks
-    the mirror-image question — "may this principal put bytes into this
-    workspace?" — and it needs its own answer, because a brand-new upload has no
-    DatasetVersion to open yet.
+    the mirror-image question — "may this principal put bytes here?" — and it
+    needs its own answer, because a brand-new upload has no Dataset row to open
+    yet.
 
     Writing deserves the same gate as reading. A bug that writes into the wrong
-    workspace's namespace is a tenant breach in the same way a bad read is, and
-    §10.5 leans on the path layout as a second line of defence — which only
-    holds if nothing can choose a path freely. Here nothing can: every URI this
-    hands out is built from the workspace this scope was opened for.
+    tenant's namespace is a breach in the same way a bad read is, and §10.5
+    leans on the path layout as a second line of defence — which only holds if
+    nothing can choose a path freely. Here nothing can: every URI this hands out
+    is built from the account this scope was opened for.
 
     The alternative was to let ``app/ingest/`` import the object store directly.
     That means widening the list in ``test_authz_boundaries.py`` to admit the
@@ -139,8 +140,7 @@ class IngestScope:
     """
 
     principal: Principal
-    workspace_id: WorkspaceId
-    project_id: ProjectId
+    owner_id: UserId
     _store: ObjectStore = field(repr=False)
     _grant: object = field(repr=False)
 
@@ -148,20 +148,19 @@ class IngestScope:
         if self._grant is not _GRANT:
             raise AuthorizationError(
                 "IngestScope cannot be constructed directly;"
-                " use data_access.open_project_for_ingest()"
+                " use data_access.open_account_for_ingest()"
             )
 
-    def data_uri(self, dataset_id: DatasetId, version_id: DatasetVersionId) -> StorageUri:
-        return dataset_version_data_uri(self.workspace_id, dataset_id, version_id)
+    def data_uri(self, dataset_id: DatasetId) -> StorageUri:
+        return dataset_data_uri(self.owner_id, dataset_id)
 
     def source_uri(
         self,
         dataset_id: DatasetId,
-        version_id: DatasetVersionId,
         source_file_id: UUID,
         suffix: str = "",
     ) -> StorageUri:
-        return source_file_uri(self.workspace_id, dataset_id, version_id, source_file_id, suffix)
+        return source_file_uri(self.owner_id, dataset_id, source_file_id, suffix)
 
     def writable_path(self, uri: StorageUri) -> Path:
         self._must_be_ours(uri)
@@ -171,8 +170,8 @@ class IngestScope:
         self._must_be_ours(uri)
         return self._store.write_stream(uri, reader)
 
-    def reader_for(self, version: DatasetVersion) -> DataHandle:
-        """A read handle for a version this scope just wrote.
+    def reader_for(self, record: Dataset) -> DataHandle:
+        """A read handle for a dataset this scope just wrote.
 
         Ingest has to read back what it wrote — schema inference scans the
         normalized Parquet (FR-B.3), and the engine takes a ``DataHandle`` and
@@ -181,34 +180,33 @@ class IngestScope:
         it has already proved this principal may write here, and writing is the
         stronger permission of the two.
 
-        The workspace check is not ceremony. A ``DatasetVersion`` carries its
-        own ``parquet_uri``, so without it a caller could hand over somebody
-        else's version and receive a handle to their data.
+        The ownership check is not ceremony. A ``Dataset`` carries its own
+        ``parquet_uri``, so without it a caller could hand over somebody else's
+        dataset and receive a handle to their data.
         """
-        uri = StorageUri.parse(version.parquet_uri)
+        uri = StorageUri.parse(record.parquet_uri)
         self._must_be_ours(uri)
         return DataHandle(
             principal=self.principal,
-            workspace_id=self.workspace_id,
-            version=version,
+            owner_id=self.owner_id,
+            dataset=record,
             uri=uri,
             _store=self._store,
             _grant=_GRANT,
         )
 
-    def discard_version(self, dataset_id: DatasetId, version_id: DatasetVersionId) -> None:
-        """Remove everything written for one version.
-
-        The compensation for a commit that fails after the files exist. Storage
-        is not in the database transaction, so a rollback leaves the bytes
-        behind unless something removes them — and an orphaned Parquet file is
-        user data with no row to authorize access to it.
-        """
-        self._store.delete_prefix(self.workspace_id, f"datasets/{dataset_id}/versions/{version_id}")
-
     def discard_dataset(self, dataset_id: DatasetId) -> None:
-        """Remove every version's bytes for one dataset (FR-B.6)."""
-        self._store.delete_prefix(self.workspace_id, f"datasets/{dataset_id}")
+        """Remove everything written for one dataset (FR-B.6).
+
+        Also the compensation for a commit that fails after the files exist:
+        storage is not in the database transaction, so a rollback leaves the
+        bytes behind unless something removes them — and an orphaned Parquet
+        file is user data with no row to authorize access to it.
+
+        ``discard_version`` was the second half of this until D-043, deleting
+        one version's prefix. There is one prefix per dataset now.
+        """
+        self._store.delete_prefix(self.owner_id, f"datasets/{dataset_id}")
 
     def _must_be_ours(self, uri: StorageUri) -> None:
         """A URI from somewhere else is not made ours by being passed here.
@@ -217,40 +215,35 @@ class IngestScope:
         write wherever the caller pointed — which is the check being skipped,
         just one function further along.
         """
-        if uri.workspace_id != self.workspace_id:
+        if uri.owner_id != self.owner_id:
             raise DataAccessDenied(
-                f"refusing to write to workspace {uri.workspace_id} from a scope"
-                f" opened for {self.workspace_id}"
+                f"refusing to write into the namespace of {uri.owner_id} from a"
+                f" scope opened for {self.owner_id}"
             )
 
 
-async def open_project_for_ingest(
+def open_account_for_ingest(
     principal: Principal,
-    project_id: ProjectId,
     *,
-    connection: AsyncConnection,
     store: ObjectStore,
-    required_role: Role = Role.EDITOR,
 ) -> IngestScope:
-    """Authorize an upload into a project, then hand back the only way to write.
+    """Hand back the only way to write, scoped to the caller's own account.
 
-    ``editor`` by default: §13.3 says a ``viewer`` may read and run read-only
-    tools but may not upload or delete. A viewer therefore gets the same error
-    as a stranger, and the API renders both as 404.
+    This was ``open_project_for_ingest``, and it was ``async`` because it had to
+    find a project and then the workspace behind it before it could decide
+    anything. There is nothing to look up now: an account may write into its own
+    namespace, and the caller's identity is the whole answer. No query, no
+    role, no database round trip in the middle of an authorization decision.
+
+    That reads like the check disappeared. It did not — it became trivially
+    true, which is what *the account is the tenant* means. What still cannot
+    happen is a caller choosing where the bytes land: every URI this scope hands
+    out is built from ``principal.user_id``, and ``_must_be_ours`` rejects any
+    URI that arrives from anywhere else.
     """
-    located = await ProjectRepository(connection).locate(project_id)
-    if located is None:
-        raise DataAccessDenied(str(project_id))
-
-    _, workspace_id = located
-    role = principal.role_in(workspace_id)
-    if role is None or not role.at_least(required_role):
-        raise DataAccessDenied(str(project_id))
-
     return IngestScope(
         principal=principal,
-        workspace_id=workspace_id,
-        project_id=project_id,
+        owner_id=principal.user_id,
         _store=store,
         _grant=_GRANT,
     )
@@ -260,6 +253,6 @@ __all__ = [
     "DataAccessDenied",
     "DataHandle",
     "IngestScope",
-    "open_dataset_version",
-    "open_project_for_ingest",
+    "open_account_for_ingest",
+    "open_dataset",
 ]

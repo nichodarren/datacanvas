@@ -17,12 +17,10 @@ from app.api.schemas import (
     LoginRequest,
     LogoutAllResponse,
     MeResponse,
-    ProjectResponse,
     RegisterRequest,
     RegisterResponse,
     SessionResponse,
     UserResponse,
-    WorkspaceResponse,
 )
 from app.auth.service import EmailAlreadyRegistered, InvalidCredentials, TooManyAttempts
 from app.auth.tokens import COOKIE_NAME
@@ -77,20 +75,6 @@ async def register(
     return RegisterResponse(
         user=UserResponse(
             id=result.user.id, email=result.user.email, created_at=result.user.created_at
-        ),
-        workspace=WorkspaceResponse(
-            id=result.workspace.id,
-            name=result.workspace.name,
-            is_personal=result.workspace.is_personal,
-            created_at=result.workspace.created_at,
-            role="owner",
-        ),
-        project=ProjectResponse(
-            id=result.project.id,
-            workspace_id=result.project.workspace_id,
-            name=result.project.name,
-            description=result.project.description,
-            created_at=result.project.created_at,
         ),
     )
 
@@ -211,19 +195,8 @@ async def me(auth: Auth, principal: CurrentPrincipal) -> MeResponse:
     if user is None:  # pragma: no cover — a valid principal implies a live user
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unknown user")
 
-    workspaces = await auth.workspaces.list_for_user(principal.user_id)
     return MeResponse(
         user=UserResponse(id=user.id, email=user.email, created_at=user.created_at),
-        workspaces=[
-            WorkspaceResponse(
-                id=workspace.id,
-                name=workspace.name,
-                is_personal=workspace.is_personal,
-                created_at=workspace.created_at,
-                role=str(principal.memberships[workspace.id]),
-            )
-            for workspace in workspaces
-        ],
     )
 
 

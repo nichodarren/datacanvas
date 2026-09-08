@@ -7,21 +7,13 @@ rule here is testable without freezing time.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from ._checks import ensure_aware, ensure_non_empty
-from .enums import PrivacyMode, Role, UserStatus
+from .enums import PrivacyMode, UserStatus
 from .errors import InvariantViolation
-from .ids import (
-    MembershipId,
-    OrganizationId,
-    PasswordResetTokenId,
-    ProjectId,
-    SessionId,
-    UserId,
-    WorkspaceId,
-)
+from .ids import PasswordResetTokenId, SessionId, UserId
 
 # Session lifetime (§13.2). Absolute expiry is stored per session so that
 # shortening the policy later cannot silently extend sessions already issued.
@@ -46,18 +38,6 @@ def normalize_email(raw: str) -> str:
     if "@" not in normalized:
         raise InvariantViolation(f"email must contain '@', got {raw!r}")
     return normalized
-
-
-@dataclass(frozen=True, slots=True)
-class Organization:
-    """Prepared, not implemented (§9.2). Always the single default row in MVP."""
-
-    id: OrganizationId
-    name: str
-    created_at: datetime
-
-    def __post_init__(self) -> None:
-        ensure_aware(self.created_at, "created_at")
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,26 +137,20 @@ class PasswordResetToken:
 
 
 @dataclass(frozen=True, slots=True)
-class Workspace:
-    """The isolation boundary and the policy boundary. All authorization ends here."""
+class UserPolicy:
+    """Policy governing everything the account owns (§9.2, §13.5).
 
-    id: WorkspaceId
-    organization_id: OrganizationId
-    name: str
-    created_at: datetime
-    created_by: UserId
-    is_personal: bool = False
+    This was ``WorkspacePolicy`` until D-039. The boundary it governs moved from
+    the workspace to the account; the settings did not change, and neither did
+    the reason they exist — the Privacy Gate (§13.5) reads ``llm_privacy_mode``
+    before anything leaves for an LLM in Phase 5.
 
-    def __post_init__(self) -> None:
-        ensure_aware(self.created_at, "created_at")
-        ensure_non_empty(self.name, "name")
+    Kept rather than deleted along with the workspace, because deleting it would
+    have left a Phase 5 requirement with nowhere to read from and nothing to say
+    so until Phase 5.
+    """
 
-
-@dataclass(frozen=True, slots=True)
-class WorkspacePolicy:
-    """Policy governing everything inside a workspace (§9.2, §13.5)."""
-
-    workspace_id: WorkspaceId
+    user_id: UserId
     llm_privacy_mode: PrivacyMode = PrivacyMode.BALANCED
     llm_monthly_token_budget: int | None = None
     allowed_providers: tuple[str, ...] = ()
@@ -189,47 +163,13 @@ class WorkspacePolicy:
             raise InvariantViolation("retention_versions must be at least 1")
 
 
-@dataclass(frozen=True, slots=True)
-class Membership:
-    """A user's role in one workspace. ``(user_id, workspace_id)`` is unique."""
-
-    id: MembershipId
-    user_id: UserId
-    workspace_id: WorkspaceId
-    role: Role
-    created_at: datetime
-    invited_by: UserId | None = None
-
-    def __post_init__(self) -> None:
-        ensure_aware(self.created_at, "created_at")
-
-
-@dataclass(frozen=True, slots=True)
-class Project:
-    """Unit of work; groups datasets and analyses (FR-A.4)."""
-
-    id: ProjectId
-    workspace_id: WorkspaceId
-    name: str
-    created_at: datetime
-    description: str | None = field(default=None)
-
-    def __post_init__(self) -> None:
-        ensure_aware(self.created_at, "created_at")
-        ensure_non_empty(self.name, "name")
-
-
 __all__ = [
     "PASSWORD_RESET_TTL",
     "SESSION_ABSOLUTE_TTL",
     "SESSION_IDLE_TTL",
-    "Membership",
-    "Organization",
     "PasswordResetToken",
-    "Project",
     "Session",
     "User",
-    "Workspace",
-    "WorkspacePolicy",
+    "UserPolicy",
     "normalize_email",
 ]

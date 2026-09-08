@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.domain.audit import AuditAction, AuditEvent
 from app.domain.errors import InvariantViolation
-from app.domain.ids import AuditEventId, UserId, WorkspaceId
+from app.domain.ids import AuditEventId, UserId
 from app.repositories.tables import audit_event
 
 #: Keys allowed in `metadata` (§13.7.1). An allowlist rather than a blocklist:
@@ -36,8 +36,6 @@ ALLOWED_METADATA_KEYS = frozenset(
         "reason",
         "prompt_sha256",
         "session_id",
-        "role",
-        "previous_role",
         "target_user_id",
         "revoked_count",
         "user_agent",
@@ -51,7 +49,6 @@ ALLOWED_METADATA_KEYS = frozenset(
         "column_count",
         "content_hash",
         "format",
-        "dataset_version_id",
         "derived_from",
         "changed_ordinals",
     }
@@ -67,7 +64,6 @@ class AuditRepository:
         *,
         action: AuditAction,
         now: datetime,
-        workspace_id: WorkspaceId | None = None,
         actor_user_id: UserId | None = None,
         target_type: str | None = None,
         target_id: uuid.UUID | None = None,
@@ -94,7 +90,6 @@ class AuditRepository:
             id=AuditEventId(uuid.uuid4()),
             action=action,
             at=now,
-            workspace_id=workspace_id,
             actor_user_id=actor_user_id,
             target_type=target_type,
             target_id=target_id,
@@ -106,7 +101,6 @@ class AuditRepository:
                 id=event.id,
                 action=event.action.value,
                 at=event.at,
-                workspace_id=event.workspace_id,
                 actor_user_id=event.actor_user_id,
                 target_type=event.target_type,
                 target_id=event.target_id,

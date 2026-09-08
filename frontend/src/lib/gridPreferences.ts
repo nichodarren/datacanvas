@@ -55,6 +55,19 @@ export interface GridPreferences {
   hidden: string[];
   pinned: string[];
   widths: Record<string, number>;
+
+  /**
+   * How far down the file the reader had got, and how far across.
+   *
+   * **Both optional, and that is what keeps `SCHEMA_VERSION` at 1.** The
+   * version guards against a field whose *meaning* changes; a field that was
+   * not there before has no meaning to contradict, and an entry written before
+   * this existed still restores the right columns and simply opens at the top.
+   * Bumping the version would have thrown away every hidden set in every
+   * browser to add a convenience.
+   */
+  rows?: number;
+  scrollLeft?: number;
 }
 
 interface StoredPreferences extends GridPreferences {
@@ -91,28 +104,45 @@ function isPreferences(value: unknown): value is StoredPreferences {
   );
 }
 
-export function loadGridPreferences(versionId: string): GridPreferences | null {
+export function loadGridPreferences(datasetId: string): GridPreferences | null {
   const store = storage();
   if (!store) return null;
   try {
-    const raw = store.getItem(PREFIX + versionId);
+    const raw = store.getItem(PREFIX + datasetId);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     // Anything can be written to a key by anything. A shape check here is the
     // difference between ignoring junk and rendering a grid from it.
     if (!isPreferences(parsed)) return null;
-    return { hidden: parsed.hidden, pinned: parsed.pinned, widths: parsed.widths };
+    return {
+      hidden: parsed.hidden,
+      pinned: parsed.pinned,
+      widths: parsed.widths,
+      // Read defensively rather than trusted: these two are the only fields
+      // here that are fed straight back into a DOM measurement, and a `rows`
+      // of `-1` or a string would become a request for a negative page.
+      rows: typeof parsed.rows === "number" ? parsed.rows : undefined,
+      scrollLeft:
+        typeof parsed.scrollLeft === "number" ? parsed.scrollLeft : undefined,
+    };
   } catch {
     return null;
   }
 }
 
-export function saveGridPreferences(versionId: string, preferences: GridPreferences): void {
+export function saveGridPreferences(
+  datasetId: string,
+  preferences: GridPreferences,
+): void {
   const store = storage();
   if (!store) return;
   try {
-    const entry: StoredPreferences = { ...preferences, v: SCHEMA_VERSION, at: Date.now() };
-    store.setItem(PREFIX + versionId, JSON.stringify(entry));
+    const entry: StoredPreferences = {
+      ...preferences,
+      v: SCHEMA_VERSION,
+      at: Date.now(),
+    };
+    store.setItem(PREFIX + datasetId, JSON.stringify(entry));
     prune(store);
   } catch {
     // Quota, private mode, disabled storage. The grid still works; it just
@@ -144,7 +174,10 @@ function prune(store: Storage): void {
   });
 
   survivors.sort((a, b) => a.at - b.at);
-  for (const entry of survivors.slice(0, Math.max(0, survivors.length - MAX_ENTRIES))) {
+  for (const entry of survivors.slice(
+    0,
+    Math.max(0, survivors.length - MAX_ENTRIES),
+  )) {
     store.removeItem(entry.key);
   }
 }

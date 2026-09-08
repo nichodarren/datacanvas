@@ -1,9 +1,22 @@
 """Data identity entities (DESIGN.md §9.2).
 
-``DatasetVersion`` and ``SchemaContract`` carry INV-2 and INV-3. These classes
-are frozen, which stops mutation inside this process; the database enforces the
+``Dataset`` and ``SchemaContract`` carry INV-2 and INV-3. These classes are
+frozen, which stops mutation inside this process; the database enforces the
 same rule with triggers (§9.2, §13.7). Two layers on purpose — a frozen
 dataclass says nothing about what a stray ``UPDATE`` can do.
+
+## One entity where there were two (D-043)
+
+``DatasetVersion`` was folded into ``Dataset`` on 2026-08-25. What was removed
+is the ability for one dataset to have a *second* version; what was kept, and
+had to be, is that the bytes never change once committed.
+
+The distinction is the whole of the change. §9.4 builds every fingerprint from
+the identity of the data it read, and INV-6 — same fingerprint, same result —
+holds only while that identity means the same bytes forever. Merging the two
+entities keeps that; making a dataset writable would have ended it. So the
+trigger that used to guard ``dataset_version`` now guards ``dataset``, and
+re-uploading a file is a new dataset rather than a new version of one.
 """
 
 from __future__ import annotations
@@ -13,59 +26,45 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from ._checks import ensure_aware, ensure_non_empty
-from .enums import ColumnRole, LogicalType
+from .enums import LogicalType
 from .errors import InvariantViolation
-from .ids import (
-    DatasetId,
-    DatasetVersionId,
-    ProjectId,
-    SchemaContractId,
-    SourceFileId,
-    UserId,
-)
+from .ids import DatasetId, SchemaContractId, SourceFileId, UserId
 
 
 @dataclass(frozen=True, slots=True)
 class Dataset:
-    """Logical identity of "a dataset" over time. Holds no data itself."""
+    """A dataset and the bytes it is. Immutable (INV-2).
 
-    id: DatasetId
-    project_id: ProjectId
-    name: str
-    created_at: datetime
-
-    def __post_init__(self) -> None:
-        ensure_aware(self.created_at, "created_at")
-        ensure_non_empty(self.name, "name")
-
-
-@dataclass(frozen=True, slots=True)
-class DatasetVersion:
-    """Immutable (INV-2). Only created or deleted, never updated.
+    Only created or deleted, never updated.
 
     ``parquet_uri`` is a ``storage://`` reference, never a filesystem path: the
-    only thing allowed to resolve it into something readable is the object store,
-    and only when handed a ``DataHandle`` (§13.3.1 L3).
+    only thing allowed to resolve it into something readable is the object
+    store, and only when handed a ``DataHandle`` (§13.3.1 L3).
+
+    ``ingested_by`` is gone with the merge, and its absence is worth a line.
+    It existed when a workspace had members and the uploader could differ from
+    the owner; since D-039 made the account the tenant they are always the same
+    person, so the column was a copy of ``owner_id`` under another name. Who did
+    what is still recorded — in ``audit_event``, which is where it belongs and
+    which outlives the rows it describes (§13.7).
     """
 
-    id: DatasetVersionId
-    dataset_id: DatasetId
-    version_no: int
+    id: DatasetId
+    owner_id: UserId
+    name: str
     content_hash: str
     parquet_uri: str
     row_count: int
     column_count: int
     byte_size: int
-    ingested_at: datetime
-    ingested_by: UserId
+    created_at: datetime
     ingest_options: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        ensure_aware(self.ingested_at, "ingested_at")
+        ensure_aware(self.created_at, "created_at")
+        ensure_non_empty(self.name, "name")
         ensure_non_empty(self.content_hash, "content_hash")
         ensure_non_empty(self.parquet_uri, "parquet_uri")
-        if self.version_no < 1:
-            raise InvariantViolation("version_no starts at 1")
         for name, value in (
             ("row_count", self.row_count),
             ("column_count", self.column_count),
@@ -84,7 +83,7 @@ class SourceFile:
     """
 
     id: SourceFileId
-    dataset_version_id: DatasetVersionId
+    dataset_id: DatasetId
     original_filename: str
     mime_detected: str
     byte_size: int
@@ -104,7 +103,6 @@ class ColumnSpec:
     ordinal: int
     physical_type: str
     logical_type: LogicalType
-    role: ColumnRole | None = None
     format_hint: str | None = None
     null_markers: tuple[str, ...] = ()
     detection_confidence: float = 1.0
@@ -133,14 +131,21 @@ class ColumnSpec:
 
 @dataclass(frozen=True, slots=True)
 class SchemaContract:
-    """Versioned interpretation of a DatasetVersion. Never updated (INV-3).
+    """Versioned interpretation of a Dataset. Never updated (INV-3).
 
     ``version_no`` 1 is always pure auto-detection; every user correction
     produces a new version whose ``derived_from`` points at its predecessor.
+
+    **This versioning stayed when dataset versioning went** (D-043), and the
+    asymmetry is deliberate rather than an oversight. Data is a fact and does
+    not change; its *interpretation* is a judgement somebody can be wrong about
+    and later correct. A correction that edited the contract in place would make
+    every Computation underneath it unexplainable — which is why §9.4 folds
+    ``schema_contract_id`` into the fingerprint alongside the dataset.
     """
 
     id: SchemaContractId
-    dataset_version_id: DatasetVersionId
+    dataset_id: DatasetId
     version_no: int
     columns: tuple[ColumnSpec, ...]
     created_at: datetime
@@ -177,7 +182,6 @@ class SchemaContract:
 __all__ = [
     "ColumnSpec",
     "Dataset",
-    "DatasetVersion",
     "SchemaContract",
     "SourceFile",
 ]

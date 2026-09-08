@@ -1,4 +1,7 @@
-"""Identity and tenancy repositories.
+"""Identity repositories.
+
+"Tenancy" left the title with D-039: the tenant is the account, so there is no
+separate set of rows describing who owns what.
 
 Rows are mapped to domain objects by hand (D-021). It is repetitive, and it is
 the reason ``domain/`` has no idea a database exists. An explicit mapping breaks
@@ -15,35 +18,21 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.domain.enums import PrivacyMode, Role, UserStatus
+from app.domain.enums import PrivacyMode, UserStatus
 from app.domain.identity import (
-    Membership,
     PasswordResetToken,
-    Project,
     Session,
     User,
-    Workspace,
-    WorkspacePolicy,
+    UserPolicy,
     normalize_email,
 )
-from app.domain.ids import (
-    MembershipId,
-    OrganizationId,
-    PasswordResetTokenId,
-    ProjectId,
-    SessionId,
-    UserId,
-    WorkspaceId,
-)
+from app.domain.ids import PasswordResetTokenId, SessionId, UserId
 from app.repositories.tables import (
     app_user,
     login_attempt,
-    membership,
     password_reset_token,
-    project,
+    user_policy,
     user_session,
-    workspace,
-    workspace_policy,
 )
 
 
@@ -68,38 +57,6 @@ def _to_session(row: Row[tuple[object, ...]]) -> Session:
         revoked_at=row.revoked_at,
         user_agent=row.user_agent,
         ip_created=row.ip_created,
-    )
-
-
-def _to_workspace(row: Row[tuple[object, ...]]) -> Workspace:
-    return Workspace(
-        id=WorkspaceId(row.id),
-        organization_id=OrganizationId(row.organization_id),
-        name=row.name,
-        created_at=row.created_at,
-        created_by=UserId(row.created_by),
-        is_personal=row.is_personal,
-    )
-
-
-def _to_membership(row: Row[tuple[object, ...]]) -> Membership:
-    return Membership(
-        id=MembershipId(row.id),
-        user_id=UserId(row.user_id),
-        workspace_id=WorkspaceId(row.workspace_id),
-        role=Role(row.role),
-        created_at=row.created_at,
-        invited_by=UserId(row.invited_by) if row.invited_by else None,
-    )
-
-
-def _to_project(row: Row[tuple[object, ...]]) -> Project:
-    return Project(
-        id=ProjectId(row.id),
-        workspace_id=WorkspaceId(row.workspace_id),
-        name=row.name,
-        description=row.description,
-        created_at=row.created_at,
     )
 
 
@@ -298,201 +255,49 @@ class SessionRepository:
         return result.rowcount
 
 
-class WorkspaceRepository:
+class UserPolicyRepository:
+    """One row per account (§9.2, §13.5).
+
+    This was ``WorkspaceRepository.get_policy`` plus the half of ``create``
+    that made a policy row. It is its own repository now because it is the only
+    thing left of that file's tenancy half, and folding it into
+    ``UserRepository`` would put "who you are" and "what you are allowed to send
+    to an LLM" behind the same object — two questions with different reasons to
+    change.
+    """
+
     def __init__(self, connection: AsyncConnection) -> None:
         self._c = connection
 
-    async def create(
-        self,
-        *,
-        organization_id: OrganizationId,
-        name: str,
-        created_by: UserId,
-        now: datetime,
-        is_personal: bool = False,
-        policy: WorkspacePolicy | None = None,
-    ) -> tuple[Workspace, WorkspacePolicy]:
-        """A workspace without a policy is a workspace with undefined LLM egress.
+    async def create(self, *, user_id: UserId) -> UserPolicy:
+        """The defaults, written explicitly.
 
-        Creating both together is why this returns a pair: there is no moment,
-        not even inside a transaction, when one exists without the other.
+        Every column has a server default, so this could insert nothing but the
+        id. It does not: a row whose values live only in the DDL is a row nobody
+        can read the policy of without opening a migration.
         """
-        created = Workspace(
-            id=WorkspaceId(uuid.uuid4()),
-            organization_id=organization_id,
-            name=name,
-            created_at=now,
-            created_by=created_by,
-            is_personal=is_personal,
-        )
         await self._c.execute(
-            sa.insert(workspace).values(
-                id=created.id,
-                organization_id=created.organization_id,
-                name=created.name,
-                created_at=created.created_at,
-                created_by=created.created_by,
-                is_personal=created.is_personal,
+            sa.insert(user_policy).values(
+                user_id=user_id,
+                llm_privacy_mode=PrivacyMode.BALANCED.value,
+                allowed_providers=[],
             )
         )
+        return UserPolicy(user_id=user_id)
 
-        effective = policy or WorkspacePolicy(workspace_id=created.id)
-        effective = WorkspacePolicy(
-            workspace_id=created.id,
-            llm_privacy_mode=effective.llm_privacy_mode,
-            llm_monthly_token_budget=effective.llm_monthly_token_budget,
-            allowed_providers=effective.allowed_providers,
-            retention_versions=effective.retention_versions,
-        )
-        await self._c.execute(
-            sa.insert(workspace_policy).values(
-                workspace_id=effective.workspace_id,
-                llm_privacy_mode=effective.llm_privacy_mode.value,
-                llm_monthly_token_budget=effective.llm_monthly_token_budget,
-                allowed_providers=list(effective.allowed_providers),
-                retention_versions=effective.retention_versions,
-            )
-        )
-        return created, effective
-
-    async def get(self, workspace_id: WorkspaceId) -> Workspace | None:
+    async def get(self, user_id: UserId) -> UserPolicy | None:
         row = (
-            await self._c.execute(sa.select(workspace).where(workspace.c.id == workspace_id))
-        ).one_or_none()
-        return _to_workspace(row) if row else None
-
-    async def get_policy(self, workspace_id: WorkspaceId) -> WorkspacePolicy | None:
-        row = (
-            await self._c.execute(
-                sa.select(workspace_policy).where(workspace_policy.c.workspace_id == workspace_id)
-            )
+            await self._c.execute(sa.select(user_policy).where(user_policy.c.user_id == user_id))
         ).one_or_none()
         if row is None:
             return None
-        return WorkspacePolicy(
-            workspace_id=WorkspaceId(row.workspace_id),
+        return UserPolicy(
+            user_id=UserId(row.user_id),
             llm_privacy_mode=PrivacyMode(row.llm_privacy_mode),
             llm_monthly_token_budget=row.llm_monthly_token_budget,
             allowed_providers=tuple(row.allowed_providers),
             retention_versions=row.retention_versions,
         )
-
-    async def list_for_user(self, user_id: UserId) -> list[Workspace]:
-        rows = await self._c.execute(
-            sa.select(workspace)
-            .join(membership, membership.c.workspace_id == workspace.c.id)
-            .where(membership.c.user_id == user_id)
-            .order_by(workspace.c.created_at)
-        )
-        return [_to_workspace(row) for row in rows]
-
-
-class MembershipRepository:
-    def __init__(self, connection: AsyncConnection) -> None:
-        self._c = connection
-
-    async def grant(
-        self,
-        *,
-        user_id: UserId,
-        workspace_id: WorkspaceId,
-        role: Role,
-        now: datetime,
-        invited_by: UserId | None = None,
-    ) -> Membership:
-        created = Membership(
-            id=MembershipId(uuid.uuid4()),
-            user_id=user_id,
-            workspace_id=workspace_id,
-            role=role,
-            created_at=now,
-            invited_by=invited_by,
-        )
-        await self._c.execute(
-            sa.insert(membership).values(
-                id=created.id,
-                user_id=created.user_id,
-                workspace_id=created.workspace_id,
-                role=created.role.value,
-                created_at=created.created_at,
-                invited_by=created.invited_by,
-            )
-        )
-        return created
-
-    async def get(self, user_id: UserId, workspace_id: WorkspaceId) -> Membership | None:
-        row = (
-            await self._c.execute(
-                sa.select(membership).where(
-                    membership.c.user_id == user_id,
-                    membership.c.workspace_id == workspace_id,
-                )
-            )
-        ).one_or_none()
-        return _to_membership(row) if row else None
-
-    async def list_for_workspace(self, workspace_id: WorkspaceId) -> list[tuple[Membership, str]]:
-        """Members with their email addresses, oldest first.
-
-        The email is joined in because a member list showing only UUIDs is a
-        member list nobody can act on.
-        """
-        rows = await self._c.execute(
-            sa.select(membership, app_user.c.email)
-            .join(app_user, app_user.c.id == membership.c.user_id)
-            .where(membership.c.workspace_id == workspace_id)
-            .order_by(membership.c.created_at)
-        )
-        return [(_to_membership(row), row.email) for row in rows]
-
-    async def count_owners(self, workspace_id: WorkspaceId) -> int:
-        """Used to refuse the change that would leave a workspace unadministrable."""
-        value = await self._c.scalar(
-            sa.select(sa.func.count())
-            .select_from(membership)
-            .where(
-                membership.c.workspace_id == workspace_id,
-                membership.c.role == Role.OWNER.value,
-            )
-        )
-        return int(value or 0)
-
-    async def set_role(self, user_id: UserId, workspace_id: WorkspaceId, role: Role) -> None:
-        await self._c.execute(
-            sa.update(membership)
-            .where(
-                membership.c.user_id == user_id,
-                membership.c.workspace_id == workspace_id,
-            )
-            .values(role=role.value)
-        )
-
-    async def revoke(self, user_id: UserId, workspace_id: WorkspaceId) -> None:
-        """Removes access only. Nothing the member created is touched.
-
-        Their datasets and analyses belong to the workspace, not to them.
-        Deleting somebody's work because their access ended would be a
-        surprising thing for a tool to decide on its own.
-        """
-        await self._c.execute(
-            sa.delete(membership).where(
-                membership.c.user_id == user_id,
-                membership.c.workspace_id == workspace_id,
-            )
-        )
-
-    async def roles_for_user(self, user_id: UserId) -> dict[WorkspaceId, Role]:
-        """Everything a Principal needs about tenancy, in one query.
-
-        One query on purpose: an authorization decision that fans out into
-        several round-trips is one that eventually gets cached wrongly.
-        """
-        rows = await self._c.execute(
-            sa.select(membership.c.workspace_id, membership.c.role).where(
-                membership.c.user_id == user_id
-            )
-        )
-        return {WorkspaceId(row.workspace_id): Role(row.role) for row in rows}
 
 
 class PasswordResetRepository:
@@ -601,64 +406,6 @@ class PasswordResetRepository:
         return result.rowcount
 
 
-class ProjectRepository:
-    def __init__(self, connection: AsyncConnection) -> None:
-        self._c = connection
-
-    async def create(
-        self,
-        *,
-        workspace_id: WorkspaceId,
-        name: str,
-        now: datetime,
-        description: str | None = None,
-    ) -> Project:
-        created = Project(
-            id=ProjectId(uuid.uuid4()),
-            workspace_id=workspace_id,
-            name=name,
-            description=description,
-            created_at=now,
-        )
-        await self._c.execute(
-            sa.insert(project).values(
-                id=created.id,
-                workspace_id=created.workspace_id,
-                name=created.name,
-                description=created.description,
-                created_at=created.created_at,
-            )
-        )
-        return created
-
-    async def get(self, project_id: ProjectId) -> Project | None:
-        row = (
-            await self._c.execute(sa.select(project).where(project.c.id == project_id))
-        ).one_or_none()
-        return _to_project(row) if row else None
-
-    async def locate(self, project_id: ProjectId) -> tuple[Project, WorkspaceId] | None:
-        """The project and its workspace together, for the authorization layer.
-
-        ``Project`` already carries ``workspace_id``, so this looks redundant —
-        it is not. Returning the pair makes the shape identical to
-        ``DatasetVersionRepository.locate`` and to ``DatasetRepository.locate``,
-        which is what lets every authorization entry point read the same way.
-        A caller that has to remember *which* of three lookups also gives them
-        the workspace is a caller who will eventually remember wrong.
-        """
-        found = await self.get(project_id)
-        return None if found is None else (found, found.workspace_id)
-
-    async def list_for_workspace(self, workspace_id: WorkspaceId) -> list[Project]:
-        rows = await self._c.execute(
-            sa.select(project)
-            .where(project.c.workspace_id == workspace_id)
-            .order_by(project.c.created_at)
-        )
-        return [_to_project(row) for row in rows]
-
-
 class LoginAttemptRepository:
     """Rate limiting state (§13.2). Postgres rather than Redis — see §19.2."""
 
@@ -701,10 +448,8 @@ class LoginAttemptRepository:
 
 __all__ = [
     "LoginAttemptRepository",
-    "MembershipRepository",
     "PasswordResetRepository",
-    "ProjectRepository",
     "SessionRepository",
+    "UserPolicyRepository",
     "UserRepository",
-    "WorkspaceRepository",
 ]

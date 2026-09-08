@@ -82,16 +82,16 @@ export default function LoginPage() {
           <input
             type="password"
             name="password"
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            autoComplete={
+              mode === "login" ? "current-password" : "new-password"
+            }
             required
             minLength={mode === "register" ? 12 : undefined}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
           {mode === "register" ? (
-            <span className="faint hint">
-              At least 12 characters.
-            </span>
+            <span className="faint hint">At least 12 characters.</span>
           ) : null}
         </label>
 
@@ -111,7 +111,9 @@ export default function LoginPage() {
             setError(null);
           }}
         >
-          {mode === "login" ? "Create an account instead" : "I already have an account"}
+          {mode === "login"
+            ? "Create an account instead"
+            : "I already have an account"}
         </button>
       </form>
     </div>

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import BinaryIO, Final, Protocol, runtime_checkable
 
 from app.domain.errors import DomainError
-from app.domain.ids import WorkspaceId
+from app.domain.ids import UserId
 from app.storage.uri import StorageUri
 
 #: Copy size for streaming writes. Bounded work per iteration is the reason
@@ -51,9 +51,9 @@ class ObjectStore(Protocol):
 
     def delete(self, uri: StorageUri) -> None: ...
 
-    def delete_prefix(self, workspace_id: WorkspaceId, key_prefix: str) -> None: ...
+    def delete_prefix(self, owner_id: UserId, key_prefix: str) -> None: ...
 
-    def delete_workspace(self, workspace_id: WorkspaceId) -> None: ...
+    def delete_owner(self, owner_id: UserId) -> None: ...
 
     def local_path(self, uri: StorageUri) -> Path:
         """A real path DuckDB can read.
@@ -150,7 +150,7 @@ class FilesystemObjectStore:
         """Missing is success. Deletion is required to be idempotent (FR-B.6)."""
         self._resolve(uri).unlink(missing_ok=True)
 
-    def delete_prefix(self, workspace_id: WorkspaceId, key_prefix: str) -> None:
+    def delete_prefix(self, owner_id: UserId, key_prefix: str) -> None:
         """Remove a subtree — one dataset, or one version of it (FR-B.6).
 
         The prefix is validated by building a :class:`StorageUri` from it, so
@@ -158,14 +158,14 @@ class FilesystemObjectStore:
         by hand here would be a second implementation of a rule that already
         has one, and the two would eventually disagree.
         """
-        target = self._resolve(StorageUri(workspace_id=workspace_id, key=key_prefix))
+        target = self._resolve(StorageUri(owner_id=owner_id, key=key_prefix))
         if self._root not in target.parents:
             raise StorageError(f"refusing to delete outside the store root: {target}")
         shutil.rmtree(target, ignore_errors=True)
 
-    def delete_workspace(self, workspace_id: WorkspaceId) -> None:
-        """Remove everything belonging to one workspace (NFR-PRIV.3)."""
-        target = (self._root / "workspaces" / str(workspace_id)).resolve()
+    def delete_owner(self, owner_id: UserId) -> None:
+        """Remove everything belonging to one account (NFR-PRIV.3)."""
+        target = (self._root / "users" / str(owner_id)).resolve()
         if self._root not in target.parents:
             raise StorageError(f"refusing to delete outside the store root: {target}")
         shutil.rmtree(target, ignore_errors=True)

@@ -44,6 +44,10 @@ dependencies = [
     # extra brings psycopg_pool; async connections are pointless without it.
     "sqlalchemy>=2.0",
     "psycopg[binary,pool]>=3.2",
+    # Moved out of the dev group with D-076: the LLM layer speaks to four
+    # providers over HTTP, so this is what the product runs on rather than
+    # what its tests use.
+    "httpx>=0.28",
     "alembic>=1.16",
     "argon2-cffi>=25.1",
     "loguru>=0.7",

@@ -2,9 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Ellipsis } from "@/components/Ellipsis";
+import { TypeMenu } from "@/components/TypeMenu";
 import { useDisclosure } from "@/hooks/useDisclosure";
-import { LOGICAL_TYPES, type ColumnSpec, type SchemaContract, api } from "@/lib/api";
-import { loadGridPreferences, saveGridPreferences } from "@/lib/gridPreferences";
+import { type ColumnSpec, type SchemaContract, api } from "@/lib/api";
+import {
+  loadGridPreferences,
+  saveGridPreferences,
+} from "@/lib/gridPreferences";
 
 /** What the first screen shows. Deliberately small: a glance, not a session. */
 const INITIAL_ROWS = 10;
@@ -17,6 +22,19 @@ const INITIAL_ROWS = 10;
  * first screen stays a glance; asking for more should actually give you more.
  */
 const MORE_ROWS = 50;
+
+/**
+ * The most rows a remembered position will reopen with.
+ *
+ * A reader who clicked *Show more* twenty times gets those thousand rows back;
+ * one who spent an afternoon paging does not get a dataset-sized request every
+ * time they open the tab. The cap is on the **opening**, not on paging: the
+ * button still works from wherever it lands.
+ */
+const RESTORE_ROWS = 1000;
+
+/** How long after the last scroll the position is written. */
+const SCROLL_SETTLE_MS = 250;
 
 /**
  * The narrowest a column may be before the table scrolls instead.
@@ -32,8 +50,15 @@ const MORE_ROWS = 50;
  * design was approved on, which is the opposite of the promise.
  *
  * The floor is the longest word the header must hold on one line:
- * `categorical` at 11px monospace is about 73px, and `.colhead` spends 20 on
- * padding. 96 clears it.
+ * `categorical`, eleven monospace characters, 72.6px at 11px — and `.colhead`
+ * spends 20 on padding, so 96 clears it by 3.4.
+ *
+ * **At 12px that same word is 79.2px and does not clear it**, which is what was
+ * on screen until 2026-08-26: `categorica` on one line and `l` on the next, on
+ * every categorical column. The size is `--colhead-type` now, and
+ * `test_preview_grid_layout.py` does this arithmetic rather than this comment
+ * asserting it — the comment was right when it was written and had no way to
+ * notice when the type scale moved underneath it.
  */
 const MIN_COLUMN_WIDTH = 96;
 
@@ -108,14 +133,12 @@ const RESIZE_STEP = 16;
  * spent its time removing.
  */
 export function PreviewGrid({
-  workspaceId,
-  versionId,
+  datasetId,
   totalRows,
   contract,
   onContractChanged,
 }: {
-  workspaceId: string;
-  versionId: string;
+  datasetId: string;
   totalRows: number;
   contract: SchemaContract;
   onContractChanged: (next: SchemaContract) => void;
@@ -178,12 +201,31 @@ export function PreviewGrid({
   /** Header cells, so a column can be measured at the moment it is pinned. */
   const headers = useRef(new Map<string, HTMLTableCellElement>());
 
+  /** The scroll container, read when the position is saved and written when
+   *  it is restored. */
+  const wrap = useRef<HTMLDivElement | null>(null);
+
+  /** A position waiting for rows to exist before it can be applied. Cleared
+   *  once used, so a later scroll to 0 is not undone by it. */
+  const pendingScroll = useRef(0);
+
+  /** Debounce for the scroll writes. Deliberately **not** cleared on unmount:
+   *  switching tabs unmounts this grid, and a pending write that lands a
+   *  moment later is exactly the position we want kept. It touches
+   *  `localStorage` and no React state, so there is nothing to leak. */
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   /**
-   * Whether stored preferences have been consulted yet.
+   * Whether the grid is ready to be remembered: preferences consulted **and**
+   * the opening page landed.
    *
    * The save effect must not fire before this flips, or the defaults computed
    * on first render would immediately overwrite the choices being loaded — the
    * grid would remember exactly one thing: that it forgot.
+   *
+   * It used to flip as soon as the preferences were read, which was too early
+   * once a row count joined them: `rows.length` is 0 while the opening request
+   * is in flight, and 0 is not a position but the absence of one.
    */
   const restored = useRef(false);
 
@@ -193,19 +235,38 @@ export function PreviewGrid({
   // it there would make the server's HTML disagree with the client's first
   // render, which React reports as a hydration error.
   useEffect(() => {
-    const stored = loadGridPreferences(versionId);
-    if (stored) {
-      setHidden(new Set(stored.hidden));
-      setPinned(new Set(stored.pinned));
-      setWidths(stored.widths);
-    }
-    restored.current = true;
-  }, [versionId]);
-
-  useEffect(() => {
     if (!restored.current) return;
-    saveGridPreferences(versionId, { hidden: [...hidden], pinned: [...pinned], widths });
-  }, [versionId, hidden, pinned, widths]);
+    remember();
+    // `rows.length` and not `rows`: a new array with the same length is the
+    // same position, and the identity changes on every page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasetId, hidden, pinned, widths, rows.length]);
+
+  // After the rows exist, because scrolling a container narrower than its
+  // content is a no-op and the content is the rows.
+  useEffect(() => {
+    const target = pendingScroll.current;
+    if (target <= 0 || rows.length === 0) return;
+    pendingScroll.current = 0;
+    wrap.current?.scrollTo({ left: target });
+  }, [rows.length]);
+
+  /**
+   * Write everything the grid should reopen with.
+   *
+   * `scrollLeft` is read from the node rather than held in state on purpose: a
+   * horizontal scroll fires continuously, and a `useState` behind it would
+   * re-render the whole table on every frame of a drag.
+   */
+  function remember(): void {
+    saveGridPreferences(datasetId, {
+      hidden: [...hidden],
+      pinned: [...pinned],
+      widths,
+      rows: rows.length,
+      scrollLeft: Math.round(wrap.current?.scrollLeft ?? 0),
+    });
+  }
 
   // Always the file's own order. Reordering was built and then removed at the
   // owner's direction: the arrows were two more controls on every row of a
@@ -241,7 +302,10 @@ export function PreviewGrid({
 
   const tableMinWidth =
     ROWNUM_WIDTH +
-    columns.reduce((total, column) => total + (widths[column.name] ?? MIN_COLUMN_WIDTH), 0);
+    columns.reduce(
+      (total, column) => total + (widths[column.name] ?? MIN_COLUMN_WIDTH),
+      0,
+    );
 
   function toggle(name: string) {
     setHidden((current) => {
@@ -276,14 +340,19 @@ export function PreviewGrid({
       // watching it closely.
       const measured = headers.current.get(name)?.offsetWidth;
       if (measured) {
-        setWidths((sizes) => (sizes[name] ? sizes : { ...sizes, [name]: measured }));
+        setWidths((sizes) =>
+          sizes[name] ? sizes : { ...sizes, [name]: measured },
+        );
       }
       return next;
     });
   }
 
   function resize(name: string, width: number) {
-    setWidths((current) => ({ ...current, [name]: Math.max(MIN_COLUMN_WIDTH, Math.round(width)) }));
+    setWidths((current) => ({
+      ...current,
+      [name]: Math.max(MIN_COLUMN_WIDTH, Math.round(width)),
+    }));
   }
 
   /**
@@ -298,31 +367,59 @@ export function PreviewGrid({
       setBusy(true);
       setError(null);
       try {
-        const result = await api.rows(workspaceId, versionId, offset, limit);
+        const result = await api.rows(datasetId, offset, limit);
         setFileColumns(result.columns);
-        setRows((current) => (offset === 0 ? result.rows : [...current, ...result.rows]));
+        setRows((current) =>
+          offset === 0 ? result.rows : [...current, ...result.rows],
+        );
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Could not load rows.");
+        setError(
+          cause instanceof Error ? cause.message : "Could not load rows.",
+        );
       } finally {
         setBusy(false);
       }
     },
-    [workspaceId, versionId],
+    [datasetId],
   );
 
+  // Restoring and the opening fetch are **one** effect, because they are one
+  // decision: how many rows to ask for is the first thing the stored entry
+  // says. As two effects the fetch would have to run on the default before the
+  // stored count arrived, and the grid would page twice on every open.
   useEffect(() => {
-    void fetchFrom(0, INITIAL_ROWS);
-  }, [fetchFrom]);
+    const stored = loadGridPreferences(datasetId);
+    let opening = INITIAL_ROWS;
+    if (stored) {
+      setHidden(new Set(stored.hidden));
+      setPinned(new Set(stored.pinned));
+      setWidths(stored.widths);
+      opening = Math.min(RESTORE_ROWS, Math.max(INITIAL_ROWS, stored.rows ?? 0));
+      pendingScroll.current = Math.max(0, stored.scrollLeft ?? 0);
+    }
+    // **After the page lands, not before.** `rows.length` is 0 until it does,
+    // and 0 is not a position — it is the absence of one. Flipping this on the
+    // way in let the save effect write `rows: 0` over the stored 110 while the
+    // request for those 110 was still open; StrictMode then re-ran this effect,
+    // read the 0 it had just written, and asked for 10. The second answer
+    // arrived last and replaced the first. The grid remembered exactly one
+    // thing: that it forgot.
+    void fetchFrom(0, opening).then(() => {
+      restored.current = true;
+    });
+  }, [datasetId, fetchFrom]);
 
   async function changeType(column: ColumnSpec, logicalType: string) {
     if (logicalType === column.logical_type) return;
     try {
-      const next = await api.correctSchema(workspaceId, versionId, [
+      const next = await api.correctSchema(datasetId, [
         { name: column.name, logical_type: logicalType },
       ]);
       onContractChanged(next);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not change the type.");
+      setError(
+        cause instanceof Error ? cause.message : "Could not change the type.",
+      );
     }
   }
 
@@ -371,7 +468,18 @@ export function PreviewGrid({
           on and column sixty of a wide file cannot be read at all without a
           mouse. `region` + a name is what stops it being an unlabelled box in
           the landmark list it just joined. */}
-      <div className="grid-wrap" tabIndex={0} role="region" aria-label="Data preview">
+      <div
+        className="grid-wrap"
+        ref={wrap}
+        tabIndex={0}
+        role="region"
+        aria-label="Data preview"
+        onScroll={() => {
+          if (!restored.current) return;
+          if (settle.current) clearTimeout(settle.current);
+          settle.current = setTimeout(remember, SCROLL_SETTLE_MS);
+        }}
+      >
         {/* `width: 100%` while the columns fit, `min-width` once they do not.
             That single pair is the whole conditional-scrollbar rule: a
             twelve-column file looks exactly as it did with scrolling removed,
@@ -407,9 +515,7 @@ export function PreviewGrid({
               // file, not a record — so the offset is the key.
               // eslint-disable-next-line react/no-array-index-key
               <tr key={index}>
-                <td className="rownum sticky-col">
-                  {index + 1}
-                </td>
+                <td className="rownum sticky-col">{index + 1}</td>
                 {columns.map((column) => {
                   // By name, never by position. `columns` is the visible subset;
                   // `row` is indexed by the file. See `fileColumns`.
@@ -428,7 +534,9 @@ export function PreviewGrid({
                     return (
                       <td
                         key={column.name}
-                        className={[pinned, "missing"].filter(Boolean).join(" ")}
+                        className={[pinned, "missing"]
+                          .filter(Boolean)
+                          .join(" ")}
                         style={sticky}
                         title="This column is not present in the rows the server returned."
                       >
@@ -437,7 +545,17 @@ export function PreviewGrid({
                     );
                   }
 
-                  const className = [pinned, cell ? "" : "null"].filter(Boolean).join(" ");
+                  const className = [
+                    pinned,
+                    cell ? "" : "null",
+                    // Alignment is a property of the column, not of the value
+                    // in it — so it is decided from the contract and applied to
+                    // every cell including the nulls, rather than sniffed from
+                    // whether this particular string happens to parse.
+                    column.logical_type === "numerical" ? "numeric" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
                   return cell === null || cell === "" ? (
                     // An empty cell and a null cell are different facts, and a
                     // blank space says neither.
@@ -445,7 +563,12 @@ export function PreviewGrid({
                       null
                     </td>
                   ) : (
-                    <td key={column.name} className={className} style={sticky} title={cell}>
+                    <td
+                      key={column.name}
+                      className={className}
+                      style={sticky}
+                      title={cell}
+                    >
                       {cell}
                     </td>
                   );
@@ -461,12 +584,16 @@ export function PreviewGrid({
           that tells you there is nothing left to look for. */}
       <div className="row">
         {rows.length < totalRows ? (
-          <button type="button" disabled={busy} onClick={() => void fetchFrom(rows.length, MORE_ROWS)}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void fetchFrom(rows.length, MORE_ROWS)}
+          >
             {busy ? "Loading…" : "View more"}
           </button>
         ) : null}
         <span className="faint hint">
-          {rows.length.toLocaleString()} of {totalRows.toLocaleString()} rows
+          {rows.length.toLocaleString("en")} of {totalRows.toLocaleString("en")} rows
         </span>
       </div>
     </div>
@@ -501,13 +628,43 @@ export function PreviewGrid({
  */
 function PinIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+      focusable="false"
+    >
       {/* The column that stays. */}
       <rect x="0" y="1" width="2.5" height="10" rx="1" fill="currentColor" />
       {/* The ones that go past it. */}
-      <rect x="5" y="2" width="7" height="1.5" rx="0.75" fill="currentColor" opacity="0.45" />
-      <rect x="5" y="5.25" width="7" height="1.5" rx="0.75" fill="currentColor" opacity="0.45" />
-      <rect x="5" y="8.5" width="7" height="1.5" rx="0.75" fill="currentColor" opacity="0.45" />
+      <rect
+        x="5"
+        y="2"
+        width="7"
+        height="1.5"
+        rx="0.75"
+        fill="currentColor"
+        opacity="0.45"
+      />
+      <rect
+        x="5"
+        y="5.25"
+        width="7"
+        height="1.5"
+        rx="0.75"
+        fill="currentColor"
+        opacity="0.45"
+      />
+      <rect
+        x="5"
+        y="8.5"
+        width="7"
+        height="1.5"
+        rx="0.75"
+        fill="currentColor"
+        opacity="0.45"
+      />
     </svg>
   );
 }
@@ -568,7 +725,11 @@ function ColumnPicker({
       {columns.map((column) => {
         const isHidden = hidden.has(column.name);
         return (
-          <div key={column.name} className="picker-row">
+          <div
+            key={column.name}
+            className="picker-row typed"
+            data-type={column.logical_type}
+          >
             <label>
               <input
                 type="checkbox"
@@ -581,9 +742,7 @@ function ColumnPicker({
                   accessible name is the two spans run together — `qtyinteger` —
                   which is what a screen reader reads out. A white space-only
                   text node is not rendered as a flex item, so nothing moves. */}
-              <span className="faint mono meta">
-                {column.logical_type}
-              </span>
+              <span className="faint mono meta">{column.logical_type}</span>
             </label>
             {/* A toggle button, not a second checkbox. Two checkboxes on one
                 row would read as two halves of the same choice, and these are
@@ -650,7 +809,11 @@ function ColumnHeader({
    * floated over the data until you clicked the same header again or picked a
    * type, which meant a keyboard user could open it and had no way out.
    */
-  const menu = useDisclosure<HTMLTableCellElement, HTMLButtonElement, HTMLDivElement>();
+  const menu = useDisclosure<
+    HTMLTableCellElement,
+    HTMLButtonElement,
+    HTMLDivElement
+  >();
 
   /**
    * Drag the right edge to set this column's width.
@@ -669,7 +832,8 @@ function ColumnHeader({
     const startX = event.clientX;
     const startWidth = cell.current?.offsetWidth ?? MIN_COLUMN_WIDTH;
 
-    const onMove = (moved: PointerEvent) => onResize(startWidth + moved.clientX - startX);
+    const onMove = (moved: PointerEvent) =>
+      onResize(startWidth + moved.clientX - startX);
     const onUp = () => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
@@ -717,7 +881,9 @@ function ColumnHeader({
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
     const current = cell.current?.offsetWidth ?? MIN_COLUMN_WIDTH;
-    onResize(current + (event.key === "ArrowRight" ? RESIZE_STEP : -RESIZE_STEP));
+    onResize(
+      current + (event.key === "ArrowRight" ? RESIZE_STEP : -RESIZE_STEP),
+    );
   }
 
   return (
@@ -727,7 +893,12 @@ function ColumnHeader({
         menu.container.current = node;
         registerRef(node);
       }}
-      className={pinnedAt === undefined ? undefined : "sticky-col"}
+      // The stylesheet turns this into `--type`, which the type label below
+      // reads and which decides whether the column aligns right. The component
+      // states the fact; the hue and the alignment that follow from it are the
+      // stylesheet's business, the same arrangement the profile cards use.
+      data-type={column.logical_type}
+      className={pinnedAt === undefined ? "typed" : "typed sticky-col"}
       style={{
         position: pinnedAt === undefined ? "relative" : "sticky",
         left: pinnedAt,
@@ -748,7 +919,9 @@ function ColumnHeader({
         aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight"
         title={`Change how ${column.name} is read · Shift+← / Shift+→ to resize`}
       >
-        <span className="name">{column.name}</span>
+        <Ellipsis className="name" title={column.name}>
+          {column.name}
+        </Ellipsis>
         <span className="meta">
           <span className="type">{column.logical_type}</span>
         </span>
@@ -769,35 +942,23 @@ function ColumnHeader({
         title="Drag to resize · double-click to reset"
       />
 
-      {/* The panel's shadow was written inline and differed from `.menu`'s in
-          the last digit of its alpha — two popups, two shadows, one of them a
-          difference nobody chose and nobody could see. It is a class now, so
-          there is one. */}
+      {/* The menu itself lives in `TypeMenu`, shared with the profile card's
+          badge. It used to be written out here, and the panel's shadow with it
+          — inline, and differing from `.menu`'s in the last digit of its alpha:
+          two popups, two shadows, a difference nobody chose and nobody could
+          see. */}
       {menu.open ? (
-        <div ref={menu.panel} id={menu.panelId} className="card type-popup">
-          <div className="type-menu">
-            {LOGICAL_TYPES.map((type) => (
-              <button
-                key={type}
-                type="button"
-                className={type === column.logical_type ? "current" : ""}
-                // The current type is marked by colour instead of the words
-                // "· current" that used to trail it. `aria-current` carries the
-                // same fact to anyone who cannot see the colour, so dropping
-                // the label costs nothing there (NFR-UX.3).
-                aria-current={type === column.logical_type}
-                onClick={() => {
-                  // Focus goes back to the header rather than being dropped on
-                  // a button that is about to unmount.
-                  menu.close(true);
-                  onPick(type);
-                }}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-        </div>
+        <TypeMenu
+          panelRef={menu.panel}
+          panelId={menu.panelId}
+          current={column.logical_type}
+          onPick={(type) => {
+            // Focus goes back to the header rather than being dropped on a
+            // button that is about to unmount.
+            menu.close(true);
+            onPick(type);
+          }}
+        />
       ) : null}
     </th>
   );

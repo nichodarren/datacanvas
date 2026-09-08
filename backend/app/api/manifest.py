@@ -49,7 +49,13 @@ ROUTES: tuple[RouteSpec, ...] = (
     # Public by necessity: whoever needs these has lost their password.
     RouteSpec("POST", "/auth/password-reset", RouteClass.PUBLIC),
     RouteSpec("POST", "/auth/password-reset/confirm", RouteClass.PUBLIC),
-    # --- authenticated, not tied to one workspace ------------------------
+    # --- authenticated, and pointing at nothing but the caller -----------
+    #
+    # The line between this class and TENANT_SCOPED moved with D-039, and it is
+    # worth stating where it sits now. It was *does the path contain a
+    # workspace id*. It is now **does the path contain an id belonging to
+    # somebody**. Routes below take no id at all, so the session decides which
+    # account they act on and there is nowhere for a caller to point.
     RouteSpec("GET", "/auth/me", RouteClass.AUTHENTICATED),
     RouteSpec("POST", "/auth/logout", RouteClass.AUTHENTICATED),
     RouteSpec("POST", "/auth/logout-all", RouteClass.AUTHENTICATED),
@@ -59,9 +65,6 @@ ROUTES: tuple[RouteSpec, ...] = (
     RouteSpec("GET", "/auth/sessions", RouteClass.AUTHENTICATED),
     RouteSpec("DELETE", "/auth/sessions/{session_id}", RouteClass.AUTHENTICATED),
     RouteSpec("POST", "/auth/password", RouteClass.AUTHENTICATED),
-    # Lists only the caller's own workspaces, so it is authenticated rather
-    # than tenant-scoped: there is no id in the path to point elsewhere.
-    RouteSpec("GET", "/workspaces", RouteClass.AUTHENTICATED),
     # D-025: reads a prefix, answers, keeps nothing. There is no stored resource
     # for it to belong to, so there is nothing to scope. The classification is
     # the decision — if this route ever starts retaining an upload, it becomes
@@ -70,109 +73,105 @@ ROUTES: tuple[RouteSpec, ...] = (
     # A catalogue of what the server ships (FR-B.5). Identical for everyone and
     # naming nobody's data, so there is nothing to scope it to.
     RouteSpec("GET", "/samples", RouteClass.AUTHENTICATED),
+    # The caller's own datasets. This was tenant-scoped as
+    # `/workspaces/{id}/projects/{id}/datasets`; both ids are gone, and with
+    # them any way to ask for somebody else's list.
+    RouteSpec("GET", "/datasets", RouteClass.AUTHENTICATED),
+    RouteSpec("POST", "/datasets", RouteClass.AUTHENTICATED),
+    RouteSpec("POST", "/datasets/samples", RouteClass.AUTHENTICATED),
     # --- tenant-scoped ---------------------------------------------------
-    RouteSpec("GET", "/workspaces/{workspace_id}", RouteClass.TENANT_SCOPED, resource="workspace"),
+    #
+    # Every route here takes the id of a row somebody owns, so every one of them
+    # can be *pointed at another account* — which is exactly what the sweep
+    # does. Six routes rather than the fourteen before D-039, and that is a
+    # smaller attack surface rather than a smaller test: nothing that could be
+    # aimed elsewhere stopped being swept.
+    #
+    # Five after D-043, for the same reason: `POST /datasets/{id}/versions` was
+    # the sixth, and it addressed a thing that no longer exists. Every id that
+    # can still be aimed somewhere is still aimed there below.
     RouteSpec(
         "GET",
-        "/workspaces/{workspace_id}/projects",
+        "/datasets/{dataset_id}",
         RouteClass.TENANT_SCOPED,
-        resource="workspace",
+        resource="dataset",
+    ),
+    RouteSpec(
+        "GET",
+        "/datasets/{dataset_id}/schema",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
+    ),
+    RouteSpec(
+        "GET",
+        "/datasets/{dataset_id}/profile",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
+    ),
+    RouteSpec(
+        "GET",
+        "/datasets/{dataset_id}/columns/{column}/profile",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
+    ),
+    # One copilot turn (§12.3). Tenant-scoped for the ordinary reason — it
+    # opens a dataset — and the sweep generated from this list is what proves
+    # a turn cannot be run against somebody else's data.
+    RouteSpec(
+        "POST",
+        "/datasets/{dataset_id}/ask",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
+        # Without this the sweep posts nothing, Pydantic answers 422 before the
+        # handler runs, and the route looks like it leaks a distinguishable
+        # status to a non-member. It does not — but a guard that cannot tell
+        # the difference is a guard nobody will trust the next time it fires.
+        sample_body={"question": "what is in this data?"},
+    ),
+    # One computation's result, for the canvas to draw. Tenant-scoped twice
+    # over: the dataset is opened through the gate, and the computation is then
+    # looked up *within* that dataset rather than filtered after the fact.
+    RouteSpec(
+        "GET",
+        "/datasets/{dataset_id}/computations/{computation_id}",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
+    ),
+    # The conversation log. Tenant-scoped like everything else that reads a
+    # dataset: a history is a list of questions somebody asked about their own
+    # data, and it is opened through the same gate rather than beside it.
+    RouteSpec(
+        "GET",
+        "/datasets/{dataset_id}/history",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
+    ),
+    RouteSpec(
+        "GET",
+        "/datasets/{dataset_id}/rows",
+        RouteClass.TENANT_SCOPED,
+        resource="dataset",
     ),
     RouteSpec(
         "POST",
-        "/workspaces/{workspace_id}/projects",
+        "/datasets/{dataset_id}/schema",
         RouteClass.TENANT_SCOPED,
-        resource="workspace",
-        sample_body={"name": "swept"},
-    ),
-    RouteSpec(
-        "GET",
-        "/workspaces/{workspace_id}/projects/{project_id}",
-        RouteClass.TENANT_SCOPED,
-        resource="project",
-    ),
-    RouteSpec(
-        "GET",
-        "/workspaces/{workspace_id}/members",
-        RouteClass.TENANT_SCOPED,
-        resource="workspace",
-    ),
-    RouteSpec(
-        "POST",
-        "/workspaces/{workspace_id}/members",
-        RouteClass.TENANT_SCOPED,
-        resource="workspace",
-        sample_body={"email": "swept@example.com", "role": "viewer"},
-    ),
-    RouteSpec(
-        "PATCH",
-        "/workspaces/{workspace_id}/members/{member_user_id}",
-        RouteClass.TENANT_SCOPED,
-        resource="member",
-        sample_body={"role": "viewer"},
-    ),
-    RouteSpec(
-        "DELETE",
-        "/workspaces/{workspace_id}/members/{member_user_id}",
-        RouteClass.TENANT_SCOPED,
-        resource="member",
-    ),
-    RouteSpec(
-        "GET",
-        "/workspaces/{workspace_id}/dataset-versions/{version_id}",
-        RouteClass.TENANT_SCOPED,
-        resource="dataset_version",
-    ),
-    RouteSpec(
-        "GET",
-        "/workspaces/{workspace_id}/dataset-versions/{version_id}/schema",
-        RouteClass.TENANT_SCOPED,
-        resource="dataset_version",
-    ),
-    RouteSpec(
-        "GET",
-        "/workspaces/{workspace_id}/dataset-versions/{version_id}/rows",
-        RouteClass.TENANT_SCOPED,
-        resource="dataset_version",
-    ),
-    RouteSpec(
-        "POST",
-        "/workspaces/{workspace_id}/dataset-versions/{version_id}/schema",
-        RouteClass.TENANT_SCOPED,
-        resource="dataset_version",
+        resource="dataset",
         sample_body={"columns": [{"name": "seeded", "logical_type": "categorical"}]},
     ),
     RouteSpec(
-        "GET",
-        "/workspaces/{workspace_id}/projects/{project_id}/datasets",
-        RouteClass.TENANT_SCOPED,
-        resource="project",
-    ),
-    RouteSpec(
-        "POST",
-        "/workspaces/{workspace_id}/projects/{project_id}/datasets",
-        RouteClass.TENANT_SCOPED,
-        resource="project",
-        sample_files={"file": ("swept.csv", b"a,b\n1,2\n", "text/csv")},
-        sample_form={"name": "swept"},
-    ),
-    RouteSpec(
-        "POST",
-        "/workspaces/{workspace_id}/projects/{project_id}/datasets/samples",
-        RouteClass.TENANT_SCOPED,
-        resource="project",
-        sample_body={"key": "titanic"},
-    ),
-    RouteSpec(
-        "POST",
-        "/workspaces/{workspace_id}/projects/{project_id}/datasets/{dataset_id}/versions",
+        "DELETE",
+        "/datasets/{dataset_id}",
         RouteClass.TENANT_SCOPED,
         resource="dataset",
-        sample_files={"file": ("swept.csv", b"a,b\n1,2\n", "text/csv")},
     ),
+    # Forgetting one question. Tenant-scoped like every other read or write of
+    # a dataset's conversation, and NFR-PRIV.3 is why it exists at all: the
+    # sentence a person typed has to be removable, which is also why
+    # `conversation_turn` carries no immutability trigger.
     RouteSpec(
         "DELETE",
-        "/workspaces/{workspace_id}/projects/{project_id}/datasets/{dataset_id}",
+        "/datasets/{dataset_id}/history/{turn_id}",
         RouteClass.TENANT_SCOPED,
         resource="dataset",
     ),

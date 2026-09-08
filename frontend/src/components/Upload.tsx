@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { Ellipsis } from "@/components/Ellipsis";
+import { CloudUpload } from "@/components/Icon";
 import { type Dialect, type IngestPreview, api } from "@/lib/api";
 
 /**
@@ -21,13 +23,9 @@ import { type Dialect, type IngestPreview, api } from "@/lib/api";
  * arrives after commit and is corrected on the grid instead (FR-C.2).
  */
 export function Upload({
-  workspaceId,
-  projectId,
   onCommitted,
 }: {
-  workspaceId: string;
-  projectId: string;
-  onCommitted: (versionId: string) => void;
+  onCommitted: (datasetId: string) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -85,7 +83,9 @@ export function Upload({
       setPreview(result);
       setDialect(result.dialect);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not read that file.");
+      setError(
+        cause instanceof Error ? cause.message : "Could not read that file.",
+      );
     } finally {
       setBusy(null);
     }
@@ -97,13 +97,13 @@ export function Upload({
     setSent(0);
     setError(null);
     try {
-      const created = await api.createDataset(workspaceId, projectId, file, {
+      const created = await api.createDataset(file, {
         name,
         dialect,
         onProgress: setSent,
       });
       reset();
-      onCommitted(created.version.id);
+      onCommitted(created.dataset.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The upload failed.");
     } finally {
@@ -125,6 +125,23 @@ export function Upload({
     return (
       <div
         className={over ? "drop over" : "drop"}
+        /* The mockup makes the whole zone the target and draws no button
+           inside it. A `<div>` that takes a click is only half a control, so
+           the other half is here: a role, a tab stop, and the two keys a
+           button answers to. Without these the only way to upload would be to
+           own a mouse — and `choose a file`, the button this replaces, was
+           reachable from the keyboard. */
+        role="button"
+        tabIndex={0}
+        aria-label="Upload a new dataset"
+        onClick={() => input.current?.click()}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          // Space scrolls the page otherwise, which is what it does on a
+          // `<div>` and not what it does on a button.
+          event.preventDefault();
+          input.current?.click();
+        }}
         onDragOver={(event) => {
           event.preventDefault();
           setOver(true);
@@ -137,17 +154,20 @@ export function Upload({
           if (dropped) void choose(dropped);
         }}
       >
-        <p className="tight">Drop a file here, or</p>
-        <p className="tight">
-          <button type="button" onClick={() => input.current?.click()}>
-            choose a file
-          </button>
-        </p>
-        <p className="faint hint tight">
-          {/* A non-breaking space, so a narrow column never wraps the number
-              away from its unit. */}
-          CSV, TSV, Parquet, XLSX or JSON — up to 500&nbsp;MB.
-        </p>
+        <span className="disc">
+          <CloudUpload size={28} />
+        </span>
+        <div>
+          {/* The `choose a file` button that used to sit here is gone: the
+              zone around it does the same job over a far larger target, and
+              two nested controls would give the same action two tab stops. */}
+          <h2>Upload a new dataset</h2>
+          <p className="lede">
+            {/* A non-breaking space, so a narrow column never wraps the number
+                away from its unit. */}
+            CSV, TSV, Parquet, XLSX or JSON. Up to 500&nbsp;MB.
+          </p>
+        </div>
         <input
           ref={input}
           type="file"
@@ -163,12 +183,17 @@ export function Upload({
 
   return (
     <div className="card stack">
-      <div className="row">
+      {/* The file, said once. The format pill used to sit among the controls
+          below, between the name field and the delimiter — reading as a fourth
+          thing to set. It is not a setting; it is a fact about the file, so it
+          belongs beside the file's name. */}
+      <div className="confirm-head">
         {/* Cut, not wrapped, with the whole name in `title` — the same bargain
             the grid cells and the account button make. */}
-        <strong className="ellipsis" title={file.name}>
+        <Ellipsis as="strong" className="filename">
           {file.name}
-        </strong>
+        </Ellipsis>
+        {preview ? <span className="pill tag">{preview.format}</span> : null}
         <span className="faint">{megabytes(file.size)}&nbsp;MB</span>
         <div className="grow" />
         <button type="button" onClick={reset} disabled={busy !== null}>
@@ -182,7 +207,9 @@ export function Upload({
         </div>
       ) : null}
 
-      {busy === "preview" ? <p className="muted">Reading the first rows…</p> : null}
+      {busy === "preview" ? (
+        <p className="muted">Reading the first rows…</p>
+      ) : null}
 
       {/* The warnings arrive with the preview response, a second or two after
           the file was chosen and with nothing changing near where the user is
@@ -202,10 +229,19 @@ export function Upload({
 
       {preview ? (
         <>
+          {/* One row, one baseline.
+              Every control here used to sit in a `.row` with its own label
+              stacked above it, so the four of them landed on four different
+              vertical positions — the name field low, the format pill floating
+              mid-height, the two selects higher, the checkbox higher still. A
+              form whose fields do not line up reads as unfinished before
+              anybody has read a word of it.
 
-          <div className="row">
+              A grid with `align-items: end` puts every control on the same
+              bottom edge regardless of how tall its label is. */}
+          <div className="confirm-controls">
             <label className="labelled">
-              <span className="faint">Dataset name</span>
+              <span className="caps">Dataset name</span>
               {/* `autoComplete="off"`: this is not a field about the person
                   filling it in, and a password manager offering to remember a
                   dataset name is a prompt with no right answer. */}
@@ -217,12 +253,10 @@ export function Upload({
               />
             </label>
 
-            <span className="pill">{preview.format}</span>
-
             {dialect ? (
               <>
                 <label className="labelled">
-                  <span className="faint">Delimiter</span>
+                  <span className="caps">Delimiter</span>
                   <select
                     value={dialect.delimiter}
                     onChange={(event) =>
@@ -237,10 +271,12 @@ export function Upload({
                 </label>
 
                 <label className="labelled">
-                  <span className="faint">Encoding</span>
+                  <span className="caps">Encoding</span>
                   <select
                     value={dialect.encoding}
-                    onChange={(event) => setDialect({ ...dialect, encoding: event.target.value })}
+                    onChange={(event) =>
+                      setDialect({ ...dialect, encoding: event.target.value })
+                    }
                   >
                     <option value="utf-8">utf-8</option>
                     <option value="utf-8-sig">utf-8 (BOM)</option>
@@ -249,20 +285,26 @@ export function Upload({
                   </select>
                 </label>
 
-                <label className="row self-end">
+                {/* Its own box rather than a bare checkbox on the panel:
+                    the two selects beside it are boxes, and a control that is
+                    the odd one out looks like an afterthought. */}
+                <label className="check">
                   <input
                     type="checkbox"
                     checked={dialect.has_header}
                     onChange={(event) =>
-                      setDialect({ ...dialect, has_header: event.target.checked })
+                      setDialect({
+                        ...dialect,
+                        has_header: event.target.checked,
+                      })
                     }
                   />
                   <span>First row is a header</span>
                 </label>
               </>
             ) : (
-              <span className="faint">
-                This format carries its own layout — nothing to confirm.
+              <span className="faint self-end">
+                This format carries its own layout. Nothing to confirm.
               </span>
             )}
           </div>
@@ -287,7 +329,9 @@ export function Upload({
                   // eslint-disable-next-line react/no-array-index-key
                   <tr key={index}>
                     {row.map((cell, cellIndex) => (
-                      <td key={preview.columns[cellIndex] ?? cellIndex}>{cell}</td>
+                      <td key={preview.columns[cellIndex] ?? cellIndex}>
+                        {cell}
+                      </td>
                     ))}
                   </tr>
                 ))}
@@ -295,18 +339,26 @@ export function Upload({
             </table>
           </div>
 
-          <p className="faint hint tight">
-            Column types are not shown here on purpose: they are worked out by scanning the whole
-            file after this is committed (FR-B.3), and you can correct them from the grid.
-          </p>
+          {/* A paragraph explaining why no column types are shown stood here
+              until the owner removed it. The reason it gave is still true and
+              still recorded — `IngestPreviewResponse` in `api/schemas.py` says
+              it, and FR-B.3 requires it — but it was answering a question
+              nobody on this screen had asked yet. */}
 
           <div className="row">
-            <button className="primary" type="button" onClick={commit} disabled={busy !== null}>
+            <button
+              className="primary"
+              type="button"
+              onClick={commit}
+              disabled={busy !== null}
+            >
               {busy === "commit" ? "Uploading…" : "Confirm and upload"}
             </button>
           </div>
 
-          {busy === "commit" ? <UploadProgress sent={sent} bytes={file.size} /> : null}
+          {busy === "commit" ? (
+            <UploadProgress sent={sent} bytes={file.size} />
+          ) : null}
         </>
       ) : null}
     </div>
@@ -334,7 +386,13 @@ function megabytes(bytes: number): string {
  * indicator that asserts a state it cannot observe belongs with the hardcoded
  * privacy pill this project removed for the same reason.
  */
-function UploadProgress({ sent, bytes }: { sent: number | null; bytes: number }) {
+function UploadProgress({
+  sent,
+  bytes,
+}: {
+  sent: number | null;
+  bytes: number;
+}) {
   const transferring = sent !== null && sent < 1;
 
   return (
@@ -353,7 +411,7 @@ function UploadProgress({ sent, bytes }: { sent: number | null; bytes: number })
       <span className="faint hint" aria-live="polite">
         {transferring
           ? `Sending ${megabytes(bytes * (sent ?? 0))} of ${megabytes(bytes)} MB`
-          : "Sent. Reading every row to work out the column types — this is the slow part."}
+          : "Sent. Reading every row to work out the column types. This is the slow part."}
       </span>
     </div>
   );

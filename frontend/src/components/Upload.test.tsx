@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Upload } from "@/components/Upload";
-import { type DatasetWithVersion, type IngestPreview, api } from "@/lib/api";
+import { type Committed, type IngestPreview, api } from "@/lib/api";
 
 /**
  * The upload has to say what it is doing, and stop saying it once it no longer
@@ -31,7 +31,12 @@ vi.mock("@/lib/api", async (importOriginal) => {
 
 const PREVIEW: IngestPreview = {
   format: "csv",
-  dialect: { delimiter: ",", encoding: "utf-8", has_header: true, confidence: 1 },
+  dialect: {
+    delimiter: ",",
+    encoding: "utf-8",
+    has_header: true,
+    confidence: 1,
+  },
   columns: ["alpha", "bravo"],
   sample_rows: [["a1", "b1"]],
   partial: true,
@@ -39,7 +44,9 @@ const PREVIEW: IngestPreview = {
 };
 
 /** Two megabytes, so the reported figures are not all zeroes. */
-const FILE = new File(["x".repeat(2 * 1024 * 1024)], "sales.csv", { type: "text/csv" });
+const FILE = new File(["x".repeat(2 * 1024 * 1024)], "sales.csv", {
+  type: "text/csv",
+});
 
 function progressBar(): HTMLProgressElement {
   return screen.getByRole("progressbar") as HTMLProgressElement;
@@ -63,16 +70,14 @@ beforeEach(() => {
 describe("Upload progress", () => {
   it("reports bytes while they are still being sent", async () => {
     let report: ((fraction: number) => void) | undefined;
-    vi.mocked(api.createDataset).mockImplementation((_ws, _project, _file, options) => {
+    vi.mocked(api.createDataset).mockImplementation((_file, options) => {
       report = options.onProgress;
-      return new Promise<DatasetWithVersion>(() => {
+      return new Promise<Committed>(() => {
         // Never settles: this test is about the state *during* the upload.
       });
     });
 
-    const { container } = render(
-      <Upload workspaceId="workspace-1" projectId="project-1" onCommitted={() => {}} />,
-    );
+    const { container } = render(<Upload onCommitted={() => {}} />);
     await startUpload(container);
 
     await act(async () => report?.(0.5));
@@ -93,39 +98,42 @@ describe("Upload progress", () => {
    */
   it("guards against navigating away only while the upload is in flight", async () => {
     vi.mocked(api.createDataset).mockImplementation(
-      () => new Promise<DatasetWithVersion>(() => {}),
+      () => new Promise<Committed>(() => {}),
     );
 
-    const { container } = render(
-      <Upload workspaceId="workspace-1" projectId="project-1" onCommitted={() => {}} />,
-    );
+    const { container } = render(<Upload onCommitted={() => {}} />);
 
     // Choosing a file and confirming the dialect costs nothing to redo, so
     // nothing is guarded yet.
-    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const input =
+      container.querySelector<HTMLInputElement>('input[type="file"]');
     if (!input) throw new Error("the drop zone rendered no file input");
     fireEvent.change(input, { target: { files: [FILE] } });
     await screen.findByRole("button", { name: "Confirm and upload" });
 
-    expect(fireEvent(window, new Event("beforeunload", { cancelable: true }))).toBe(true);
+    expect(
+      fireEvent(window, new Event("beforeunload", { cancelable: true })),
+    ).toBe(true);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Confirm and upload" }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Confirm and upload" }));
 
     // `fireEvent` returns false exactly when something called preventDefault —
     // which is the whole of the modern beforeunload API.
-    expect(fireEvent(window, new Event("beforeunload", { cancelable: true }))).toBe(false);
+    expect(
+      fireEvent(window, new Event("beforeunload", { cancelable: true })),
+    ).toBe(false);
   });
 
   it("stops claiming a number once the bytes are gone", async () => {
     let report: ((fraction: number) => void) | undefined;
-    vi.mocked(api.createDataset).mockImplementation((_ws, _project, _file, options) => {
+    vi.mocked(api.createDataset).mockImplementation((_file, options) => {
       report = options.onProgress;
-      return new Promise<DatasetWithVersion>(() => {});
+      return new Promise<Committed>(() => {});
     });
 
-    const { container } = render(
-      <Upload workspaceId="workspace-1" projectId="project-1" onCommitted={() => {}} />,
-    );
+    const { container } = render(<Upload onCommitted={() => {}} />);
     await startUpload(container);
 
     await act(async () => report?.(1));

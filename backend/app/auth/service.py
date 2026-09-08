@@ -1,10 +1,13 @@
 """Registration, login, session lifecycle (FR-A.1 to A.4, §13.2).
 
 The service owns the *rules*; repositories own the SQL. It receives one
-connection and does all its work on it, so a registration either produces a
-user, a workspace, a policy, a membership and a project — or none of them. A
-half-registered account is a support ticket that cannot be resolved by looking
-at the code.
+connection and does all its work on it, so a registration either produces a user
+and their policy row — or neither. A half-registered account is a support ticket
+that cannot be resolved by looking at the code.
+
+Registration used to create five rows: a user, a workspace, a policy, an owner
+membership and a first project. D-039 leaves two. The all-or-nothing property is
+the same one and matters for the same reason; there is simply less of it.
 """
 
 from __future__ import annotations
@@ -18,15 +21,12 @@ from app.auth.passwords import DUMMY_HASH, PasswordHasher
 from app.auth.tokens import generate_token, hash_token
 from app.clock import Clock, system_clock
 from app.domain.audit import AuditAction
-from app.domain.enums import Role
 from app.domain.errors import DomainError
 from app.domain.identity import (
     SESSION_ABSOLUTE_TTL,
     SESSION_IDLE_TTL,
-    Project,
     Session,
     User,
-    Workspace,
     normalize_email,
 )
 from app.domain.ids import SessionId, UserId
@@ -35,14 +35,11 @@ from app.repositories.audit import AuditRepository
 from app.repositories.connection import Database
 from app.repositories.identity import (
     LoginAttemptRepository,
-    MembershipRepository,
     PasswordResetRepository,
-    ProjectRepository,
     SessionRepository,
+    UserPolicyRepository,
     UserRepository,
-    WorkspaceRepository,
 )
-from app.repositories.tables import DEFAULT_ORGANIZATION_ID
 
 #: Rate limiting (§13.2). Counted per account *and* per address, so neither
 #: spraying one password across many accounts nor hammering one account from
@@ -50,8 +47,10 @@ from app.repositories.tables import DEFAULT_ORGANIZATION_ID
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 MAX_LOGIN_FAILURES = 10
 
-DEFAULT_WORKSPACE_NAME = "Personal workspace"
-DEFAULT_PROJECT_NAME = "First project"
+# `DEFAULT_WORKSPACE_NAME` and `DEFAULT_PROJECT_NAME` were here until D-039.
+# `First project` is the string the owner pointed at on the home page and asked
+# to be gone; it is worth recording that the level died with the label rather
+# than the label being hidden.
 
 
 class AuthError(DomainError):
@@ -77,8 +76,6 @@ class TooManyAttempts(AuthError):
 @dataclass(frozen=True, slots=True)
 class Registration:
     user: User
-    workspace: Workspace
-    project: Project
     session: Session
     #: The only time the raw token exists. It is never stored and cannot be
     #: recovered — only its hash reaches the database.
@@ -109,9 +106,7 @@ class AuthService:
         self._now = clock
         self.users = UserRepository(connection)
         self.sessions = SessionRepository(connection)
-        self.workspaces = WorkspaceRepository(connection)
-        self.memberships = MembershipRepository(connection)
-        self.projects = ProjectRepository(connection)
+        self.policies = UserPolicyRepository(connection)
         self.attempts = LoginAttemptRepository(connection)
         self.resets = PasswordResetRepository(connection)
         self.audit = AuditRepository(connection)
@@ -128,11 +123,14 @@ class AuthService:
     ) -> Registration:
         """Create an account and everything it needs to be usable.
 
-        FR-A.3 requires every user to have at least one workspace, so
-        registration provisions one along with its policy and an owner
-        membership. A first project comes with it: an account that opens onto an
-        empty screen with a "create a project" button has made the user do
-        setup work that has exactly one sensible answer.
+        FR-A.3 asked for a workspace per user and this provisioned one, plus a
+        policy, an owner membership and a first project — four rows of setup
+        work with exactly one sensible answer, created so the user never had to
+        answer it.
+
+        D-039 removed the question instead. What is left is the policy row,
+        which is not scaffolding: the Privacy Gate (§13.5) reads it in Phase 5,
+        and an account without one would fail closed at the worst moment.
         """
         now = self._now()
         normalized = normalize_email(email)
@@ -147,52 +145,19 @@ class AuthService:
         user = await self.users.create(
             email=normalized, password_hash=self._hasher.hash(password), now=now
         )
-        workspace, _policy = await self.workspaces.create(
-            organization_id=DEFAULT_ORGANIZATION_ID,
-            name=DEFAULT_WORKSPACE_NAME,
-            created_by=user.id,
-            now=now,
-            is_personal=True,
-        )
-        await self.memberships.grant(
-            user_id=user.id, workspace_id=workspace.id, role=Role.OWNER, now=now
-        )
-        project = await self.projects.create(
-            workspace_id=workspace.id, name=DEFAULT_PROJECT_NAME, now=now
-        )
+        await self.policies.create(user_id=user.id)
 
         session, token = await self._issue_session(user.id, now, ip=ip, user_agent=user_agent)
 
         await self.audit.record(
             action=AuditAction.USER_REGISTERED,
             now=now,
-            workspace_id=workspace.id,
             actor_user_id=user.id,
             target_type="user",
             target_id=user.id,
             ip=ip,
         )
-        await self.audit.record(
-            action=AuditAction.WORKSPACE_CREATED,
-            now=now,
-            workspace_id=workspace.id,
-            actor_user_id=user.id,
-            target_type="workspace",
-            target_id=workspace.id,
-            ip=ip,
-        )
-        await self.audit.record(
-            action=AuditAction.PROJECT_CREATED,
-            now=now,
-            workspace_id=workspace.id,
-            actor_user_id=user.id,
-            target_type="project",
-            target_id=project.id,
-            ip=ip,
-        )
-        return Registration(
-            user=user, workspace=workspace, project=project, session=session, token=token
-        )
+        return Registration(user=user, session=session, token=token)
 
     # --------------------------------------------------------------- login --
 
@@ -406,7 +371,6 @@ class AuthService:
         return Principal(
             user_id=user.id,
             session_id=session.id,
-            memberships=await self.memberships.roles_for_user(user.id),
         )
 
     # ------------------------------------------------------------ internal --

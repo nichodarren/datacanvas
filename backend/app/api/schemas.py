@@ -10,28 +10,27 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.auth.passwords import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH
 
-#: Spelled out rather than derived from the enum, for the same reason the role
-#: literals below are: the wire format must not shift because somebody renames
-#: a Python member. The obvious cost is drift, so it is not left to memory —
-#: ``test_api_schemas.py`` fails if these stop matching §9.2's vocabulary.
+#: Spelled out rather than derived from the enum: the wire format must not
+#: shift because somebody renames a Python member. The obvious cost is drift, so
+#: it is not left to memory — ``test_api_schemas.py`` fails if these stop
+#: matching §9.2's vocabulary.
+#: The five a person may correct a column *to*. ``unsupported`` is absent on
+#: purpose: it is what the system says about a column it cannot type, not
+#: something anybody chooses, and accepting it here would let a caller declare a
+#: perfectly readable column unreadable.
 LogicalTypeName = Literal[
-    "integer",
-    "decimal",
-    "boolean",
+    "numerical",
     "categorical",
     "text",
     "date",
-    "datetime",
-    "duration",
-    "unsupported",
+    "boolean",
 ]
-ColumnRoleName = Literal["identifier", "measure", "dimension", "timestamp", "ignored"]
 
 
 class RegisterRequest(BaseModel):
@@ -56,53 +55,6 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
-class WorkspaceResponse(BaseModel):
-    id: uuid.UUID
-    name: str
-    is_personal: bool
-    created_at: datetime
-    #: The caller's role in this workspace, not the workspace's own property.
-    role: str
-
-
-class ProjectResponse(BaseModel):
-    id: uuid.UUID
-    workspace_id: uuid.UUID
-    name: str
-    description: str | None
-    created_at: datetime
-
-
-class CreateProjectRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(min_length=1, max_length=200)
-    description: str | None = Field(default=None, max_length=2000)
-
-
-class MemberResponse(BaseModel):
-    user_id: uuid.UUID
-    email: str
-    role: str
-    created_at: datetime
-    invited_by: uuid.UUID | None
-
-
-class AddMemberRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    email: EmailStr
-    # Literal rather than the enum itself: the wire format should not shift
-    # because somebody renames a Python member.
-    role: Literal["owner", "editor", "viewer"] = "editor"
-
-
-class ChangeRoleRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    role: Literal["owner", "editor", "viewer"]
-
-
 class PasswordResetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -117,56 +69,24 @@ class PasswordResetConfirmRequest(BaseModel):
 
 
 class MeResponse(BaseModel):
+    """Who is signed in.
+
+    This carried ``workspaces: list[WorkspaceResponse]`` until D-039, and every
+    frontend call started by reading the first entry out of it. The account is
+    the tenant now, so the answer to *which tenant am I* is *you* — there is no
+    list to pick from and no first element to pick wrongly.
+    """
+
     user: UserResponse
-    workspaces: list[WorkspaceResponse]
 
 
 class RegisterResponse(BaseModel):
+    """Registration used to return three rows: user, workspace, project.
+
+    It returns one, because it now creates one.
+    """
+
     user: UserResponse
-    workspace: WorkspaceResponse
-    project: ProjectResponse
-
-
-class DatasetVersionResponse(BaseModel):
-    id: uuid.UUID
-    dataset_id: uuid.UUID
-    #: The name of the Dataset this version belongs to.
-    #:
-    #: Sent because the version page had nothing on it that said *which dataset
-    #: am I looking at*. The heading there used to read "Dataset version N" and
-    #: was removed with the version badge (§14.2, 2026-07-31); the dataset's own
-    #: identity went with it as a side effect nobody intended, leaving a page
-    #: that was a grid and a brand link.
-    #:
-    #: This is **not** the version badge coming back. P4 — *always know which
-    #: version you are looking at* — stays unmet in the UI on purpose until
-    #: Phase 3, where it returns attached to results rather than to a header.
-    dataset_name: str
-    #: The Project this version's dataset belongs to (FR-A.4).
-    #:
-    #: Sent for the same reason ``dataset_name`` above it was, one step further
-    #: up the hierarchy: the version page could not say which project it was in
-    #: because nothing on this response told it. That was not only a missing
-    #: label. The brand link goes to ``/``, and ``/`` opens whichever project
-    #: the browser last remembered — so opening a version belonging to another
-    #: project and pressing the brand moved the user into a different project
-    #: with nothing on screen saying so.
-    #:
-    #: A frontend cannot fix that on its own, which is why these two fields
-    #: exist rather than a cleverer client. Neither is new state: Dataset
-    #: already carries ``project_id`` as a foreign key, and this is that same
-    #: fact, said out loud.
-    project_id: uuid.UUID
-    project_name: str
-    version_no: int
-    content_hash: str
-    row_count: int
-    column_count: int
-    byte_size: int
-    ingested_at: datetime
-    #: Whether the bytes are actually present in the object store. Reaching this
-    #: field at all means the caller passed through data_access.open().
-    data_present: bool
 
 
 class DialectResponse(BaseModel):
@@ -199,10 +119,26 @@ class IngestPreviewResponse(BaseModel):
 
 
 class DatasetResponse(BaseModel):
+    """One dataset, and the facts about the bytes it is.
+
+    Everything below ``name`` lived on a ``DatasetVersionResponse`` until D-043.
+    The version page fetched that separately and had nothing on it saying which
+    dataset it belonged to, which is why ``dataset_name`` had to be added back
+    to it in 2026-07-31 — a field that existed only because the two halves of
+    one thing were sent as two things. It is not needed now; the name is here.
+    """
+
     id: uuid.UUID
-    project_id: uuid.UUID
+    owner_id: uuid.UUID
     name: str
+    content_hash: str
+    row_count: int
+    column_count: int
+    byte_size: int
     created_at: datetime
+    #: Whether the bytes are actually present in the object store. Reaching this
+    #: field at all means the caller passed through data_access.open().
+    data_present: bool
 
 
 class DatasetSummaryResponse(BaseModel):
@@ -212,16 +148,18 @@ class DatasetSummaryResponse(BaseModel):
     detection confidence fell below a shared threshold. It went when the grid
     stopped marking those columns — a count that points at something invisible
     is a warning the reader cannot act on.
+
+    ``version_count``, ``latest_version_id`` and ``version_no`` went with D-043.
+    The first was always 1, and the other two were how a card said which of a
+    dataset's versions to open — a question with one answer for every dataset
+    that has ever existed in this system.
     """
 
     id: uuid.UUID
     name: str
     created_at: datetime
-    version_count: int
-    latest_version_id: uuid.UUID | None
-    version_no: int | None
-    row_count: int | None
-    column_count: int | None
+    row_count: int
+    column_count: int
     schema_version_no: int | None
 
 
@@ -251,7 +189,6 @@ class ColumnSpecResponse(BaseModel):
     ordinal: int
     physical_type: str
     logical_type: str
-    role: str | None
     null_markers: list[str]
     detection_confidence: float
     detection_reason: str
@@ -259,14 +196,261 @@ class ColumnSpecResponse(BaseModel):
 
 
 class SchemaContractResponse(BaseModel):
-    """A versioned interpretation of a DatasetVersion (FR-C.3, INV-3)."""
+    """A versioned interpretation of a Dataset (FR-C.3, INV-3)."""
 
     id: uuid.UUID
-    dataset_version_id: uuid.UUID
+    dataset_id: uuid.UUID
     version_no: int
     columns: list[ColumnSpecResponse]
     created_at: datetime
     derived_from: uuid.UUID | None
+
+
+class BinResponse(BaseModel):
+    """One histogram bucket, with the edges it was cut at.
+
+    The edges travel with the count because the card labels its axis, and a
+    binning rule the client re-derives is a second copy of §11.8.6(c).
+    """
+
+    lower: float
+    upper: float
+    count: int
+
+
+class TopValueResponse(BaseModel):
+    value: str
+    count: int
+
+
+class ColumnProfileResponse(BaseModel):
+    """One card's worth of §11.8.
+
+    Every field after ``null_share`` is optional because ``kind`` decides which
+    of them mean anything — §11.8.3. A numerical column has no ``top``; a
+    categorical one has no ``median``. Sending the union rather than eight
+    separate shapes keeps one response model where eight would drift apart.
+    """
+
+    name: str
+    ordinal: int
+    physical_type: str
+    logical_type: str
+    kind: str
+    total: int
+    present: int
+    distinct: int
+    null_share: float
+    conforming: int | None = None
+
+    minimum: float | None = None
+    median: float | None = None
+    maximum: float | None = None
+    earliest: str | None = None
+    latest: str | None = None
+    bins: list[BinResponse] = Field(default_factory=list)
+    top: list[TopValueResponse] = Field(default_factory=list)
+    others_count: int = 0
+    others_distinct: int = 0
+    length_min: int | None = None
+    length_median: float | None = None
+    length_max: int | None = None
+    samples: list[str] = Field(default_factory=list)
+    value: str | None = None
+
+
+class ColumnDetailResponse(BaseModel):
+    """One column, in depth (§11.7) — and its receipt.
+
+    Deliberately loose about the five shape blocks: exactly one of `numeric`,
+    `categorical`, `text`, `date` and `boolean` is filled, chosen by the
+    column's **logical** type, and all five are `None` for a column with no
+    values at all. Typing each of them out would put §11.7.3's per-type table in
+    a second place, and two places that must agree eventually do not — the same
+    argument §11.8.3 makes for letting the server decide `kind`.
+
+    `computation_id` and `fingerprint` carry INV-5 the same way they do for the
+    overview: the id to cite this panel, the fingerprint to prove two runs were
+    the same computation (§9.4).
+
+    **It carries no `step_id`, and that is a decision.** A profile opened from
+    the Profile tab produces a Computation and not a Step, so it never lands in
+    the Run Log — browsing twelve columns is orientation, not analysis, and
+    twelve *"I looked at a column"* entries would bury the surface FR-H calls
+    the primary one. Narrowing of §11.7.6(b), at the owner's direction.
+    """
+
+    computation_id: uuid.UUID
+    fingerprint: str
+    tool_name: str
+    tool_version: int
+    computed_at: datetime
+    duration_ms: int
+
+    column: str
+    logical_type: str
+    physical_type: str
+    narrative: str
+    completeness: dict[str, Any]
+    #: Completeness in file order, bucketed (§11.7.3, D-056). Landed a version
+    #: after the reader did, because this model **whitelists** what crosses the
+    #: wire: `asdict` had it, the tool had it, the frontend type had it, and the
+    #: field was dropped here in silence — a 200 with a key missing rather than
+    #: an error anywhere. Third place that has to agree about this bundle's
+    #: shape, and the only one that fails quietly.
+    presence: dict[str, Any]
+    cardinality: dict[str, Any]
+    numeric: dict[str, Any] | None
+    categorical: dict[str, Any] | None
+    text: dict[str, Any] | None
+    date: dict[str, Any] | None
+    boolean: dict[str, Any] | None
+
+
+class AskRequest(BaseModel):
+    """One question, in English (OQ-11).
+
+    Bounded because it is text a stranger can post: §12.2 stage 1 puts this
+    into a prompt, and an unbounded field is an unbounded bill.
+    """
+
+    question: str = Field(min_length=1, max_length=2_000)
+
+
+class RanResponse(BaseModel):
+    """One tool that actually ran, as the reader may cite it.
+
+    `ref` is a `computation_id` today. §12.5's own rule names that id, so the
+    citation contract is already satisfied; what is missing above it is the Run
+    Log row, which arrives with `step` (D-049, D-080).
+    """
+
+    ref: str
+    tool: str
+    args: dict[str, Any]
+    #: How the frontend renders this, without knowing the tool's name (§11.2).
+    #: Six values and no more (§11.4.1) — a seventh needs a component before it
+    #: needs a constant.
+    output_kind: str = ""
+
+
+class ComplaintResponse(BaseModel):
+    """Something §12.5 refused to let pass silently.
+
+    Sent to the client rather than swallowed, because rule 3 is explicit that a
+    number without support is **flagged, not hidden** — a UI that received only
+    a narrative would have nothing to flag with.
+    """
+
+    kind: str
+    detail: str
+
+
+class TurnSummaryResponse(BaseModel):
+    """One entry in the conversation log (§12.4).
+
+    Carries `steps` because a log entry is a **handle on its own results**:
+    clicking it focuses the cards that entry produced, and `ref` is what names
+    them. A list of questions alone would be a list nobody could act on.
+    """
+
+    id: uuid.UUID
+    asked_at: datetime
+    question: str
+    narrative: str | None
+    grounded: bool
+    stopped: str | None
+    steps: list[RanResponse]
+    complaints: list[ComplaintResponse]
+    #: Which model wrote the sentence, for the label beside it.
+    #:
+    #: The **rung** (`gemini#2`) is an account and §12.8 bills per one; the
+    #: **model** is what shaped the answer. Both travel because they answer
+    #: different questions and move on different schedules — a rung changes
+    #: when somebody edits `.env`, a model id when a vendor retires one.
+    #: Empty means it was not recorded, which is true of turns stored before
+    #: this existed.
+    provider: str = ""
+    model: str = ""
+
+
+class ArtifactResponse(BaseModel):
+    """One computation, as the canvas draws it.
+
+    Fetched **separately** from the answer rather than inlined in it, and the
+    payload decides that: a report is under a kilobyte, and a scatter plot at
+    the 5,000-row ceiling is about a megabyte. Inlined, a six-step turn could
+    carry several megabytes and the narration would wait for all of it. Fetched
+    on its own, the sentence arrives first and the cards follow.
+    """
+
+    ref: str
+    tool: str
+    tool_version: int
+    output_kind: str
+    result: dict[str, Any]
+
+
+class HistoryResponse(BaseModel):
+    """The log for one dataset, newest first."""
+
+    turns: list[TurnSummaryResponse]
+
+
+class AskResponse(BaseModel):
+    """One turn (§12.3).
+
+    ``grounded`` is the field a caller should branch on. A narrative can be
+    present and untrustworthy at the same time — that is exactly what a failed
+    citation check means — so *has text* and *may be believed* are two
+    questions and this answers both.
+    """
+
+    narrative: str | None
+    grounded: bool
+    steps: list[RanResponse]
+    complaints: list[ComplaintResponse]
+    #: Why the loop stopped short. `None` means it finished on its own.
+    stopped: str | None
+    #: What the model was told when a proposal was refused (§12.3 step 6). A
+    #: turn that went nowhere should be explainable without a debugger.
+    rejections: list[str]
+    #: §12.2 stage 1's decision, kept for the same reason.
+    categories: list[str]
+    tokens: int
+    #: The mode that was actually enforced (NFR-PRIV.2: the active mode is
+    #: always visible). Returned per turn rather than read from settings by the
+    #: client, so what the UI shows is what the gate did.
+    privacy_mode: str
+    #: Which model wrote the sentence, for the label beside it.
+    #:
+    #: The **rung** (`gemini#2`) is an account and §12.8 bills per one; the
+    #: **model** is what shaped the answer. Both travel because they answer
+    #: different questions and move on different schedules — a rung changes
+    #: when somebody edits `.env`, a model id when a vendor retires one.
+    #: Empty means it was not recorded, which is true of turns stored before
+    #: this existed.
+    provider: str = ""
+    model: str = ""
+
+
+class DatasetProfileResponse(BaseModel):
+    """The Profile tab, and its receipt.
+
+    ``computation_id`` and ``fingerprint`` are not decoration. INV-5 says every
+    number displayed comes from a Computation that can be referenced, and these
+    two are how it is referenced — the id to cite it, the fingerprint to prove
+    two runs were the same computation (§9.4).
+    """
+
+    computation_id: uuid.UUID
+    fingerprint: str
+    tool_name: str
+    tool_version: int
+    computed_at: datetime
+    duration_ms: int
+    row_count: int
+    columns: list[ColumnProfileResponse]
 
 
 class RowPageResponse(BaseModel):
@@ -297,7 +481,6 @@ class ColumnOverrideRequest(BaseModel):
 
     name: str = Field(min_length=1)
     logical_type: LogicalTypeName | None = None
-    role: ColumnRoleName | None = None
     null_markers: list[str] | None = None
     format_hint: str | None = None
 
@@ -308,11 +491,10 @@ class SchemaOverrideRequest(BaseModel):
     columns: list[ColumnOverrideRequest] = Field(min_length=1)
 
 
-class DatasetWithVersionResponse(BaseModel):
+class CommittedResponse(BaseModel):
     """The result of a committed upload."""
 
     dataset: DatasetResponse
-    version: DatasetVersionResponse
     schema_contract: SchemaContractResponse
     original_filename: str
 
@@ -357,22 +539,19 @@ class SessionResponse(BaseModel):
 
 
 __all__ = [
-    "AddMemberRequest",
+    "BinResponse",
     "ChangePasswordRequest",
     "ChangePasswordResponse",
-    "ChangeRoleRequest",
-    "CreateProjectRequest",
-    "DatasetVersionResponse",
+    "ColumnProfileResponse",
+    "DatasetProfileResponse",
     "LoginRequest",
     "LogoutAllResponse",
     "MeResponse",
-    "MemberResponse",
     "PasswordResetConfirmRequest",
     "PasswordResetRequest",
-    "ProjectResponse",
     "RegisterRequest",
     "RegisterResponse",
     "SessionResponse",
+    "TopValueResponse",
     "UserResponse",
-    "WorkspaceResponse",
 ]

@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useState } from "react";
 
+import { Ellipsis } from "@/components/Ellipsis";
 import { Shell } from "@/components/Shell";
-import { Trail } from "@/components/Trail";
 import { ApiError, type Me, type UserSession, api } from "@/lib/api";
 
 /**
@@ -41,7 +41,9 @@ export default function AccountPage() {
         router.replace("/login");
         return;
       }
-      setError(cause instanceof Error ? cause.message : "Could not load your account.");
+      setError(
+        cause instanceof Error ? cause.message : "Could not load your account.",
+      );
     } finally {
       setLoading(false);
     }
@@ -60,11 +62,11 @@ export default function AccountPage() {
   }
 
   return (
-    // No project in the trail, because this screen belongs to none. Naming one
-    // here would be a plausible answer to a question the page cannot answer —
-    // the account is above projects, not inside one.
-    <Shell me={me} headerExtras={<Trail project={null} here="Account" />}>
-      <div>
+    // No breadcrumb. `Trail` put the word `Account` in the middle of the
+    // header, four centimetres above the `<h1>` that says `Account` — see the
+    // note in `Shell` for why the component is gone rather than reworded.
+    <Shell me={me} up={{ href: "/", label: "Datasets" }}>
+      <div className="settings">
         <h1>Account</h1>
 
         {error ? (
@@ -75,14 +77,17 @@ export default function AccountPage() {
 
         {me ? (
           <>
-            <h2>Signed in as</h2>
-            <div className="card">
-              <div className="row spread">
-                <strong className="mono">{me.user.email}</strong>
-                <span className="faint">
-                  since {new Date(me.user.created_at).toLocaleDateString()}
-                </span>
-              </div>
+            <div className="section-head">
+              <h2>Signed in as</h2>
+            </div>
+            <div className="card identity">
+              <span className="avatar" aria-hidden="true">
+                {me.user.email.slice(0, 1).toUpperCase()}
+              </span>
+              <Ellipsis as="strong" className="mono">
+                {me.user.email}
+              </Ellipsis>
+              <span className="faint">since {joined(me.user.created_at)}</span>
             </div>
 
             <PasswordSection onChanged={() => void load()} />
@@ -105,10 +110,55 @@ export default function AccountPage() {
  * authenticated. It looks redundant and is not: it is what stops a borrowed
  * unlocked laptop from becoming a permanent account takeover.
  *
- * The consequence — every other session ends — is stated *before* the button,
- * not reported after. A security action whose effects you learn about
- * afterwards is one people stop trusting.
+ * ⚠️ **The consequence is now reported after, not stated before.** A line
+ * reading *"Changing your password signs out every other device"* used to sit
+ * between the fields and the button; the owner removed it along with the
+ * `At least 12 characters` hint on 2026-08-21, and this note replaces the
+ * paragraph that used to argue for it.
+ *
+ * What is left is the success message, which counts the sessions it ended.
+ * That is strictly worse for the reason the original note gave: a security
+ * action whose effects you only learn about afterwards is one people stop
+ * trusting. The 12-character hint was genuinely redundant — `minLength`
+ * enforces it and the browser says so — but this one carried a fact nothing
+ * else on the screen carries.
+ *
+ * If it comes back, it belongs on the button or in a confirmation, not as a
+ * paragraph of grey text.
  */
+/**
+ * The day an account was opened, spelled rather than punctuated.
+ *
+ * `toLocaleDateString()` with no arguments gave `21/8/2026` here and
+ * `8/21/2026` on a machine set to US English — the same day, and for two of
+ * the twelve months a different one, with nothing on screen to say which
+ * reading applies. A named month cannot be misread.
+ */
+function joined(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * A timestamp, spelled for the same reason :func:`joined` is.
+ *
+ * The session table read `21/8/2026, 15.21.26` — ambiguous month, and seconds
+ * nobody needs to know a device was last seen. It also disagreed with the
+ * `21 Aug 2026` two sections above it, on the same screen.
+ */
+function moment(iso: string): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function PasswordSection({ onChanged }: { onChanged: () => void }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -163,10 +213,10 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
 
   return (
     <>
-      <h2>Password</h2>
+      <div className="section-head">
+        <h2>Password</h2>
+      </div>
       <form className="card stack" onSubmit={submit}>
-        {/* The card fills the page; the inputs do not. A password box the width
-            of a 1900px monitor is not "fuller", it is harder to use. */}
         {error ? (
           <div className="banner error" role="alert">
             {error}
@@ -178,64 +228,68 @@ function PasswordSection({ onChanged }: { onChanged: () => void }) {
           </div>
         ) : null}
 
-        <label className="labelled field">
-          <span className="faint">Current password</span>
-          <input
-            type="password"
-            name="current-password"
-            autoComplete="current-password"
-            required
-            value={current}
-            onChange={(event) => setCurrent(event.target.value)}
-          />
-        </label>
+        {/* The three fields share a row on a wide screen rather than
+            stacking down the left of one.
 
-        <label className="labelled field">
-          <span className="faint">New password</span>
-          <input
-            type="password"
-            name="new-password"
-            autoComplete="new-password"
-            required
-            minLength={12}
-            value={next}
-            onChange={(event) => setNext(event.target.value)}
-          />
-          <span className="faint hint">
-            At least 12 characters.
-          </span>
-        </label>
-
-        {/* The message sits outside the `<label>` on purpose. Inside it, its
-            text would be swallowed into the input's accessible *name* — so the
-            field would introduce itself as "Confirm new password These do not
-            match" — and then be read a second time as its description. */}
-        <div className="labelled field">
+            The page is full width now, and a full-width password box is not
+            the way to use that — a single input stretched across 1900px is
+            harder to aim at than a short one, not fuller. Three across uses
+            the width instead of being stretched into it, and the form ends up
+            shorter than it was at half the page. */}
+        <div className="field-row">
           <label className="labelled">
-            <span className="faint">Confirm new password</span>
+            <span className="caps">Current password</span>
             <input
               type="password"
-              name="confirm-password"
-              autoComplete="new-password"
+              name="current-password"
+              autoComplete="current-password"
               required
-              value={confirm}
-              onChange={(event) => setConfirm(event.target.value)}
-              aria-invalid={mismatch}
-              aria-describedby={mismatch ? mismatchId : undefined}
+              value={current}
+              onChange={(event) => setCurrent(event.target.value)}
             />
           </label>
-          {/* Rendered whether or not it says anything: a live region has to
+
+          <label className="labelled">
+            <span className="caps">New password</span>
+            <input
+              type="password"
+              name="new-password"
+              autoComplete="new-password"
+              required
+              minLength={12}
+              value={next}
+              onChange={(event) => setNext(event.target.value)}
+            />
+          </label>
+
+          {/* The message sits outside the `<label>` on purpose. Inside it,
+              its text would be swallowed into the input's accessible *name* —
+              so the field would introduce itself as "Confirm new password
+              These do not match" — and then be read a second time as its
+              description. */}
+          <div className="labelled">
+            <label className="labelled">
+              <span className="caps">Confirm new password</span>
+              <input
+                type="password"
+                name="confirm-password"
+                autoComplete="new-password"
+                required
+                value={confirm}
+                onChange={(event) => setConfirm(event.target.value)}
+                aria-invalid={mismatch}
+                aria-describedby={mismatch ? mismatchId : undefined}
+              />
+            </label>
+            {/* Rendered whether or not it says anything: a live region has to
               exist before the text arrives, or the change lands in an element
               nothing is watching. Polite, because it corrects what is being
               typed rather than interrupting it. */}
-          <span id={mismatchId} className="field-error" aria-live="polite">
-            {mismatch ? "These do not match." : ""}
-          </span>
+            <span id={mismatchId} className="field-error" aria-live="polite">
+              {mismatch ? "These do not match." : ""}
+            </span>
+          </div>
         </div>
-
-        <p className="faint hint tight">
-          Changing your password signs out every other device. This one stays signed in.
-        </p>
 
         <div className="row">
           <button className="primary" type="submit" disabled={busy || mismatch}>
@@ -295,7 +349,9 @@ function SessionSection({
       setConfirmingOne(null);
       onChanged();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not end that session.");
+      setError(
+        cause instanceof Error ? cause.message : "Could not end that session.",
+      );
     } finally {
       setBusy(null);
     }
@@ -308,7 +364,11 @@ function SessionSection({
       await api.logoutAll();
       onSignedOut();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not sign out everywhere.");
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not sign out everywhere.",
+      );
       setBusy(null);
     }
   }
@@ -344,16 +404,16 @@ function SessionSection({
                 <td>
                   {describeClient(session.user_agent)}
                   {session.is_current ? (
-                    <span className="pill ok">
-                      this device
-                    </span>
+                    <span className="pill ok push-sm">this device</span>
                   ) : null}
                   <div className="faint meta">
-                    started {new Date(session.created_at).toLocaleString()}
+                    started {moment(session.created_at)}
                   </div>
                 </td>
-                <td className="mono faint">{session.ip_created ?? "unknown"}</td>
-                <td className="faint">{new Date(session.last_seen_at).toLocaleString()}</td>
+                <td className="mono faint">
+                  {session.ip_created ?? "unknown"}
+                </td>
+                <td className="faint">{moment(session.last_seen_at)}</td>
                 <td className="end">
                   {/* The current session is not offered here. Ending it is
                       "Sign out", and dressing that up as revoking a remote
@@ -363,7 +423,9 @@ function SessionSection({
                     // row it sits in is the only thing that would otherwise say
                     // which of several this is (W-2).
                     <span className="row confirm-inline">
-                      <span className="faint">End {describeClient(session.user_agent)}?</span>
+                      <span className="faint">
+                        End {describeClient(session.user_agent)}?
+                      </span>
                       <button
                         type="button"
                         className="primary"
@@ -419,7 +481,11 @@ function SessionSection({
             >
               {busy === "all" ? "Signing out…" : "Yes, sign out everywhere"}
             </button>
-            <button type="button" disabled={busy !== null} onClick={() => setConfirming(false)}>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => setConfirming(false)}
+            >
               Cancel
             </button>
           </div>
@@ -444,21 +510,29 @@ function SessionSection({
 function describeClient(userAgent: string | null): string {
   if (!userAgent) return "Unknown client";
 
-  const browser =
-    /Edg\//.test(userAgent) ? "Edge"
-    : /OPR\//.test(userAgent) ? "Opera"
-    : /Chrome\//.test(userAgent) ? "Chrome"
-    : /Safari\//.test(userAgent) ? "Safari"
-    : /Firefox\//.test(userAgent) ? "Firefox"
-    : null;
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /OPR\//.test(userAgent)
+      ? "Opera"
+      : /Chrome\//.test(userAgent)
+        ? "Chrome"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : /Firefox\//.test(userAgent)
+            ? "Firefox"
+            : null;
 
-  const platform =
-    /Windows/.test(userAgent) ? "Windows"
-    : /Android/.test(userAgent) ? "Android"
-    : /iPhone|iPad/.test(userAgent) ? "iOS"
-    : /Mac OS X/.test(userAgent) ? "macOS"
-    : /Linux/.test(userAgent) ? "Linux"
-    : null;
+  const platform = /Windows/.test(userAgent)
+    ? "Windows"
+    : /Android/.test(userAgent)
+      ? "Android"
+      : /iPhone|iPad/.test(userAgent)
+        ? "iOS"
+        : /Mac OS X/.test(userAgent)
+          ? "macOS"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : null;
 
   if (browser && platform) return `${browser} · ${platform}`;
   if (browser) return browser;

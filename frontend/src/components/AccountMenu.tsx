@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { ThemePicker } from "@/components/ThemePicker";
+import { Settings, SignOut } from "@/components/Icon";
 import { useDisclosure } from "@/hooks/useDisclosure";
 import { type Me, api } from "@/lib/api";
 
@@ -60,7 +60,8 @@ export function AccountMenu({ me }: { me: Me }) {
   // Escape, outside clicks and focus management all live in the hook now. They
   // were written here first, then found missing from the column picker and the
   // type picker — the same widget, the same gap, a few hundred lines away.
-  const { open, close, toggle, container, trigger, panel, panelId } = useDisclosure();
+  const { open, close, toggle, container, trigger, panel, panelId } =
+    useDisclosure();
 
   async function signOut() {
     setBusy(true);
@@ -77,7 +78,17 @@ export function AccountMenu({ me }: { me: Me }) {
   }
 
   return (
-    <div ref={container} className="anchor">
+    <div ref={container} className="anchor account-cluster">
+      {/* The mockup puts a photograph here. Nothing in this system has one, and
+          a generated face would be a picture of a person who does not exist
+          standing in for one who does. The initial comes from the address the
+          button beside it is named with — the same fact, smaller.
+
+          `aria-hidden` because it repeats that name and adds nothing to it. */}
+      <span className="avatar" aria-hidden="true">
+        {me.user.email.slice(0, 1).toUpperCase()}
+      </span>
+
       <button
         ref={trigger}
         type="button"
@@ -85,9 +96,12 @@ export function AccountMenu({ me }: { me: Me }) {
         onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
+        /* The email is the button's accessible name now that it is no longer
+           drawn beside it. Without this the control would announce as "▾". */
+        aria-label={me.user.email}
         title={me.user.email}
       >
-        <span className="account-email">{me.user.email}</span> <span aria-hidden>▾</span>
+        <span aria-hidden>▾</span>
       </button>
 
       {open ? (
@@ -101,20 +115,29 @@ export function AccountMenu({ me }: { me: Me }) {
           {/* Everything that needs a form or a list lives on the page, not in
               here. A popup that has to scroll is the wrong shape for its
               contents. */}
-          <Link href="/settings/account" className="menu-item" onClick={() => close(false)}>
+          <Link
+            href="/settings/account"
+            className="menu-item with-icon"
+            onClick={() => close(false)}
+          >
+            <Settings size={18} />
             Account settings
           </Link>
 
-          <button type="button" className="menu-item" disabled={busy} onClick={() => void signOut()}>
+          {/* The mockup has a `Help` row between these two. There is no help
+              page, so there is no row — a menu item that goes nowhere is the
+              `Schema` link this shell already made once. */}
+          <div className="menu-sep" />
+
+          <button
+            type="button"
+            className="menu-item with-icon danger"
+            disabled={busy}
+            onClick={() => void signOut()}
+          >
+            <SignOut size={18} />
             {busy ? "Signing out…" : "Sign out"}
           </button>
-
-          {/* The ground belongs to whoever is looking at it, so it belongs to
-              the account, so it belongs here — not in a new region of the
-              shell. Below the two actions rather than above them: it is a
-              preference, and the actions are what people opened this for. */}
-          <div className="menu-sep" />
-          <ThemePicker />
         </div>
       ) : null}
     </div>

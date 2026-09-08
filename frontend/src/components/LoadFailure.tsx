@@ -34,7 +34,13 @@
  * sample fails, the page around it still works, and a banner above a working
  * page is the right shape for that.
  */
-export function LoadFailure({ message, onRetry }: { message: string; onRetry: () => void }) {
+export function LoadFailure({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
   return (
     <section className="start">
       <h1>This did not load</h1>

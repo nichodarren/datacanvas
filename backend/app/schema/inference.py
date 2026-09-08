@@ -124,12 +124,12 @@ def _numeric_confidence(stats: ColumnStatistics) -> tuple[float, str]:
         return 1.0, f"every value is numeric ({stats.non_null} values)"
     if stats.distinct <= CATEGORY_LIKE_DISTINCT:
         return 0.6, (
-            f"numeric, but only {stats.distinct} distinct values in {stats.total} rows —"
+            f"numeric, but only {stats.distinct} distinct values in {stats.total} rows:"
             f" this may be a coded category rather than a quantity"
         )
     if stats.distinct == stats.non_null and stats.integer_like == stats.non_null:
         return 0.7, (
-            f"numeric and unique across all {stats.non_null} values —"
+            f"numeric and unique across all {stats.non_null} values:"
             f" this may be an identifier rather than a quantity"
         )
     return 1.0, f"every value is numeric ({stats.non_null} values)"
@@ -148,26 +148,27 @@ def _text_confidence(stats: ColumnStatistics) -> tuple[float, str]:
     if numeric >= NEAR_MISS_SHARE:
         remainder = stats.non_null - stats.integer_like - stats.decimal_like
         return 0.5, (
-            f"{numeric:.1%} of values are numeric, but {remainder} are not —"
+            f"{numeric:.1%} of values are numeric, but {remainder} are not:"
             f" typed as text so those values are not discarded"
         )
     if dated >= NEAR_MISS_SHARE:
         remainder = stats.non_null - stats.date_like - stats.datetime_like
         return 0.5, (
-            f"{dated:.1%} of values parse as dates, but {remainder} do not —"
+            f"{dated:.1%} of values parse as dates, but {remainder} do not:"
             f" typed as text so those values are not discarded"
         )
-    return 1.0, f"{stats.distinct} distinct values across {stats.non_null} — free text"
+    return 1.0, f"{stats.distinct} distinct values across {stats.non_null}, free text"
 
 
 def infer(stats: ColumnStatistics) -> Inference:
     """The whole decision, in the order the checks have to happen.
 
-    Order matters in one place worth naming: ``datetime`` is tried before
-    ``date``, and the shape rules are written so the two cannot both match.
-    Getting that backwards would type a timestamp column as a date and drop the
-    time of day — the same class of silent loss the coverage rule exists to
-    prevent.
+    The ladder had two more rungs until 2026-08-21: ``datetime`` above ``date``,
+    and ``integer`` above ``decimal``. Both pairs now answer with one type, so
+    the ordering between them no longer decides anything — but the *shape* rules
+    still do, and the reasons below still name which shape matched. A column of
+    timestamps and a column of dates are both ``date``; which one it was is in
+    ``physical_type`` and in the sentence this returns.
     """
     if not _is_scalar(stats.physical_type):
         return Inference(
@@ -180,7 +181,7 @@ def infer(stats: ColumnStatistics) -> Inference:
         return Inference(
             LogicalType.TEXT,
             0.0,
-            f"no values to infer from — all {stats.total} rows are empty or null",
+            f"no values to infer from: all {stats.total} rows are empty or null",
         )
 
     present = stats.non_null
@@ -189,18 +190,17 @@ def infer(stats: ColumnStatistics) -> Inference:
         return Inference(LogicalType.BOOLEAN, 1.0, f"every value is true/false ({present} values)")
 
     if stats.datetime_like == present:
-        return Inference(LogicalType.DATETIME, 1.0, f"every value is a timestamp ({present})")
+        return Inference(LogicalType.DATE, 1.0, f"every value is a timestamp ({present})")
 
     if stats.date_like == present:
         return Inference(LogicalType.DATE, 1.0, f"every value is a date ({present})")
 
-    if stats.integer_like == present:
+    # One rung where there were two. `integer_like` counts whole numbers and
+    # `decimal_like` counts the rest, so their sum is "every value is a number"
+    # whether or not any of them have a fractional part.
+    if stats.integer_like + stats.decimal_like == present:
         confidence, reason = _numeric_confidence(stats)
-        return Inference(LogicalType.INTEGER, confidence, reason)
-
-    if stats.integer_like + stats.decimal_like == present and stats.decimal_like > 0:
-        confidence, reason = _numeric_confidence(stats)
-        return Inference(LogicalType.DECIMAL, confidence, reason)
+        return Inference(LogicalType.NUMERICAL, confidence, reason)
 
     if _looks_like_a_category(stats):
         ratio = stats.share(stats.distinct)
@@ -217,7 +217,7 @@ def infer(stats: ColumnStatistics) -> Inference:
 def build_columns(statistics: Sequence[ColumnStatistics]) -> tuple[ColumnSpec, ...]:
     """Turn a whole-file measurement into the ``columns[]`` of a SchemaContract.
 
-    Version 1 is **pure auto-detection** (§9.2): no roles, no format hints, no
+    Version 1 is **pure auto-detection** (§9.2): no format hints, no
     null markers, and ``overridden_by`` empty on every column. Everything a
     person decides arrives in version 2 or later, and keeping v1 free of it is
     what makes "what did the machine think before anyone touched it?" a

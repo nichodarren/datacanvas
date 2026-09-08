@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.formparsers import MultiPartParser
 
-from app.api import routes_auth, routes_datasets, routes_members, routes_workspaces
+from app.api import routes_auth, routes_datasets, routes_password_reset
 from app.auth.email import EmailSender, LoggingEmailSender
 from app.auth.passwords import PasswordHasher
 from app.clock import Clock, system_clock
@@ -144,8 +144,7 @@ def create_app(
 
     application.include_router(health_router)
     application.include_router(routes_auth.router)
-    application.include_router(routes_workspaces.router)
-    application.include_router(routes_members.router)
+    application.include_router(routes_password_reset.router)
     application.include_router(routes_datasets.router)
     return application
 

@@ -16,7 +16,9 @@ describe("the not-found page", () => {
   it("offers a way out", () => {
     render(<NotFound />);
 
-    expect(screen.getByRole("link", { name: "Go to your datasets" })).toHaveAttribute("href", "/");
+    expect(
+      screen.getByRole("link", { name: "Go to your datasets" }),
+    ).toHaveAttribute("href", "/");
   });
 
   it("says what happened without quoting a status code", () => {
@@ -33,7 +35,13 @@ describe("the not-found page", () => {
   it("keeps the shell, so the header is still there to leave by", () => {
     render(<NotFound />);
 
-    expect(screen.getByRole("link", { name: "DataCanvas" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "Skip to content" })).toBeInTheDocument();
+    // The mark carries the name now that the wordmark is not drawn beside it,
+    // so the accessible name is the image's `alt` rather than link text.
+    expect(
+      screen.getByRole("link", { name: "DataCanvas home" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      screen.getByRole("link", { name: "Skip to content" }),
+    ).toBeInTheDocument();
   });
 });

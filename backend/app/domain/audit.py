@@ -16,7 +16,7 @@ from enum import StrEnum, unique
 from uuid import UUID
 
 from ._checks import ensure_aware
-from .ids import AuditEventId, UserId, WorkspaceId
+from .ids import AuditEventId, UserId
 
 
 @unique
@@ -43,22 +43,21 @@ class AuditAction(StrEnum):
     #: One session ended from the account page, as opposed to the caller's own
     #: logout. §13.7 wants revocation recorded; who revoked what is the point.
     SESSION_REVOKED = "auth.session_revoked"
-    WORKSPACE_CREATED = "workspace.created"
-    PROJECT_CREATED = "project.created"
     # §13.7 requires dataset creation and deletion. Note what is *not* here and
     # cannot be: the filename, the column names, or anything read from the file.
     # §13.7.1 forbids data in `metadata`, and column names count as sensitive
     # (K1, §13.5.1) — so these events carry ids, counts and a content hash.
     DATASET_CREATED = "dataset.created"
-    DATASET_VERSION_CREATED = "dataset.version_created"
     DATASET_DELETED = "dataset.deleted"
     # §13.7 lists "perubahan skema" explicitly. The event records the contract
     # ids and the column ordinals that moved — never a column *name*, which is
     # sensitive (K1) and would be undeletable here (§13.7.1).
     SCHEMA_CONTRACT_CREATED = "schema.contract_created"
-    MEMBERSHIP_GRANTED = "membership.granted"
-    MEMBERSHIP_ROLE_CHANGED = "membership.role_changed"
-    MEMBERSHIP_REVOKED = "membership.revoked"
+    # `workspace.created`, `project.created` and the three `membership.*`
+    # actions were removed by D-039 with the entities they described. The
+    # vocabulary shrinks; the rows that already used those values are untouched,
+    # because §13.7's log is append-only and describes a past this enum no
+    # longer has to be able to produce.
     AUTHORIZATION_DENIED = "authz.denied"
 
 
@@ -66,17 +65,20 @@ class AuditAction(StrEnum):
 class AuditEvent:
     """A single appended fact.
 
-    ``workspace_id`` and ``actor_user_id`` are both optional, and that is not an
-    oversight: a failed login has no workspace and often no identifiable user —
-    a wrong email address is exactly the case worth recording. Requiring them
-    would force either a fake value or a silently dropped event, and a log that
-    drops the interesting events is worse than no log.
+    ``actor_user_id`` is optional, and that is not an oversight: a failed login
+    often has no identifiable user — a wrong email address is exactly the case
+    worth recording. Requiring it would force either a fake value or a silently
+    dropped event, and a log that drops the interesting events is worse than no
+    log.
+
+    ``workspace_id`` was removed by D-039. The account is the tenant now, so
+    *where this happened* and *who did it* are the same fact, and ``actor_user_id``
+    already carried it.
     """
 
     id: AuditEventId
     action: AuditAction
     at: datetime
-    workspace_id: WorkspaceId | None = None
     actor_user_id: UserId | None = None
     target_type: str | None = None
     target_id: UUID | None = None
